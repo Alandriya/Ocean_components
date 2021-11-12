@@ -1,0 +1,9 @@
+.idea*
+*.pyc
+*.sock
+*.ini
+
+venv/
+data/
+articles/
+models/
