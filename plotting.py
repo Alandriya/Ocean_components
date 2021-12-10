@@ -17,6 +17,7 @@ def plot_components(files_path_prefix,
                     colors=None):
     """
     Plots components on the same plot, one plot for means and one for variances
+    :param files_path_prefix: path to the working directory
     :param date: date of program running for creating folder name where to save plots
     :param type_string: type of data for creating folder name where to save plots, string
     :param series_name: name of a series for creating folder name where to save plots, string
@@ -66,6 +67,7 @@ def plot_clusters(files_path_prefix,
     """
     Plots clusters on (a, sigma) space, where a is mean and sigma is variance. Points are created for every component
     for every time moment
+    :param files_path_prefix: path to the working directory
     :param date: date of program running for creating folder name where to save plots
     :param type_string: type of data for creating folder name where to save plots, string
     :param series_name: name of a series for creating folder name where to save plots, string
@@ -113,6 +115,7 @@ def plot_integrated_components(files_path_prefix,
     """
     Plots integrated components (optionally) and final total component comparing with moving average and real time
     series values on the same plot.
+    :param files_path_prefix: path to the working directory
     :param date: date of program running for creating folder name where to save plots
     :param type_string: type of data for creating folder name where to save plots, string
     :param series_name: name of a series for creating folder name where to save plots, string
@@ -159,6 +162,7 @@ def plot_rmse(files_path_prefix,
               postfix=''):
     """
     Plot total errors for integrated final component and moving average, comparing to real values of time series
+    :param files_path_prefix: path to the working directory
     :param date: date of program running for creating folder name where to save plots
     :param type_string: type of data for creating folder name where to save plots, string
     :param series_name: name of a series for creating folder name where to save plots, string
