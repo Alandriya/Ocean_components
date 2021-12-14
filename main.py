@@ -6,8 +6,16 @@ import multiprocessing
 from multiprocessing import Pool
 import os
 
-files_path_prefix = 'D://Data/Ocean-full/'
+# Parameters
+files_path_prefix = 'D://Data/OceanFull/'
 shift = 4 * 7
+components_amount = 4
+cpu_count = 8
+window_EM = 200
+start = 0
+end = 29141
+flux_type = 'sensible'
+timesteps = 7320
 
 
 def cycle_part(arg):
@@ -22,23 +30,18 @@ def cycle_part(arg):
             means, sigmas, weights = apply_EM(ts, shift)
             # print(f'Elapsed {(time.time() - time_start) // 60} minutes {(time.time() - time_start) % 60} seconds == {time.time() - time_start} seconds')
 
-            column_list = [f'mean_{i}' for i in range(1, 5)] + [f'sigma_{i}' for i in range(1, 5)] + [f'weight_{i}' for
-                                                                                                      i in range(1, 5)]
+            column_list = [f'mean_{i}' for i in range(1, components_amount + 1)] + \
+                          [f'sigma_{i}' for i in range(1, components_amount + 1)] + \
+                          [f'weight_{i}' for i in range(1, components_amount + 1)]
             new_data = pd.DataFrame(data=np.concatenate((means, sigmas, weights), axis=1), columns=column_list)
             new_data['ts'] = ts[:-shift:shift]
-            new_data.to_csv(files_path_prefix + f'5_years_weekly/sensible_{i}.csv', sep=';', index=False)
-            # new_data.to_csv(files_path_prefix + f'5_years_weekly/latent_{i}.csv', sep=';', index=False)
+            new_data.to_csv(files_path_prefix + f'5_years_weekly/{flux_type}_{i}.csv', sep=';', index=False)
+
+    print(f'Process {os.getpid()} finished')
     return
 
 
-def make_video(files_path_prefix, flux_type):
-    """
-
-    :param files_path_prefix:
-    :param flux_type:
-    :return:
-    """
-
+def sort_by_means(files_path_prefix, flux_type, mask):
     # load and sort Dataframes
     filename = os.listdir(files_path_prefix + '5_years_weekly/')[0]
     data = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
@@ -46,11 +49,9 @@ def make_video(files_path_prefix, flux_type):
     sigmas_cols = data.filter(regex='sigma_', axis=1).columns
     weights_cols = data.filter(regex='weight_', axis=1).columns
 
-    dataframes = list()
-    indexes = list()
-    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/5_years_weekly')):
+    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
         if flux_type in filename:
-            df = pd.read_csv(files_path_prefix + '5_years_weekly/5_years_weekly/' + filename, delimiter=';')
+            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
 
             # sort all columns by means
             means = df[means_cols].values
@@ -64,19 +65,37 @@ def make_video(files_path_prefix, flux_type):
                 # the scary expression below is for flattening the sorted zip results
                 df.iloc[i] = list(sum(list(zip(*zipped)), ())) + [df.loc[i, 'ts']]
 
-            df.to_csv(files_path_prefix + '5_years_weekly/5_years_weekly/' + filename, sep=';', index=False)
+            df.to_csv(files_path_prefix + '5_years_weekly/' + filename, sep=';', index=False)
+    return
+
+
+def make_video(files_path_prefix, flux_type, mask):
+    """
+
+    :param files_path_prefix:
+    :param flux_type:
+    :return:
+    """
+    dataframes = list()
+    indexes = list()
+    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
+        if flux_type in filename:
+            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
             dataframes.append(df)
             idx = int(filename[len(flux_type) + 1: -4])
             indexes.append(idx)
 
-    # tmp = list(zip(indexes, dataframes))
-    # tmp.sort()
-    # indexes = [y for y, _ in tmp]
-    # dataframes = [x for _, x in tmp]
+    tmp = list(zip(indexes, dataframes))
+    tmp.sort()
+    indexes = [y for y, _ in tmp]
+    dataframes = [x for _, x in tmp]
 
-    # create video
+    # draw pictures
     init_directory(files_path_prefix, flux_type)
-    draw_pictures(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes)
+    draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes)
+
+    # create video from them
+    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly')
     return
 
 
@@ -99,69 +118,66 @@ def binary_to_array(filename, flux_type):
 
 
 if __name__ == '__main__':
-    # Parameters
-    cpu_count = 8
-    components_amount = 4
-    window_EM = 200
-    shift = 4 * 7
-    start = 0
-    end = 20335
-    delta = (end-start) // cpu_count
+    delta = (end - start + cpu_count // 2) // cpu_count
     print(end - start)
-    flux_type = 'sensible'
-    # ---------------------------------------------------------------------------------------
-    # binary_to_array("l79-21", flux_type)
 
-    # ---------------------------------------------------------------------------------------
-    # Calculations part
-
-    # print("Number of cpu : ", multiprocessing.cpu_count()) # 16 cpu
-    num_lost = []
-    for i in range(20335):
-        if not os.path.exists(files_path_prefix + f'5_years_weekly/{flux_type}_{i}.csv'):
-            num_lost.append(i)
-    print(len(num_lost))
-
-    start = num_lost[0]
-    borders = []
-    for j in range(1, len(num_lost)):
-        if (num_lost[j-1] == num_lost[j] - 1) and j != len(num_lost) - 1:
-            pass
-        else:
-            if j == len(num_lost) - 1:
-                borders.append([start, num_lost[j]])
-            else:
-                borders.append([start, num_lost[j-1]])
-                start = num_lost[j]
-
-    print(borders)
-    print(len(borders))
-    # raise ValueError
-
-    ts_array = np.load(files_path_prefix + '5years_sensible.npy')
-    # ts_array = np.load(files_path_prefix + '5years_latent.npy')
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
+    # ---------------------------------------------------------------------------------------
+    # binary_to_array("l79-21", flux_type)
 
-    borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
-    masks = [mask[b[0]:b[1]] for b in borders]
-    ts_arrays = [ts_array[b[0]:b[1]] for b in borders]
-    args = [[borders[i], masks[i], ts_arrays[i]] for i in range(cpu_count)]
-    del ts_array, borders, masks, ts_arrays
-    with Pool(cpu_count) as p:
-        p.map(cycle_part, args)
+    # # ---------------------------------------------------------------------------------------
+    # Calculations part
 
-    # for j in range(len(borders) // cpu_count):
-    #     print(j)
-    #     args = [[borders[j*cpu_count + i], masks[j*cpu_count + i], ts_arrays[j*cpu_count + i]] for i in range(cpu_count)]
-    #     time.sleep(100)
-    #     with Pool(cpu_count) as p:
-    #         p.map(cycle_part, args)
+    # # print("Number of cpu : ", multiprocessing.cpu_count()) # 16 cpu
+    # num_lost = []
+    # for i in range(20335):
+    #     if not os.path.exists(files_path_prefix + f'5_years_weekly/{flux_type}_{i}.csv'):
+    #         num_lost.append(i)
+    # print(len(num_lost))
+    #
+    # start = None
+    # borders = []
+    # sum_lost=0
+    # for j in range(1, len(num_lost)):
+    #     if start is None and mask[num_lost[j]]:
+    #         start = num_lost[j]
+    #
+    #     # if (num_lost[j-1] == num_lost[j] - 1) and j != len(num_lost) - 1 and mask[j]:
+    #     #     pass
+    #     if not start is None and mask[num_lost[j]] and (num_lost[j-1] != num_lost[j] - 1):
+    #         if j == len(num_lost) - 1:  # the end of the array
+    #             borders.append([start, num_lost[j]])
+    #         else:
+    #             borders.append([start, num_lost[j-1]])
+    #             sum_lost += num_lost[j-1] - start
+    #             start = num_lost[j]
+    #
+    # # print(borders)
+    # # print(sum_lost)
+    # # raise ValueError
+
+    # ts_array = np.load(files_path_prefix + f'5years_{flux_type}.npy')
+    #
+    # borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
+    #
+    # masks = [mask[b[0]:b[1]] for b in borders]
+    # ts_arrays = [ts_array[b[0]:b[1]] for b in borders]
+    # args = [[borders[i], masks[i], ts_arrays[i]] for i in range(cpu_count)]
+    #
+    # print(borders)
+    # print(len(borders))
+    #
+    # del ts_array, borders, masks, ts_arrays
+    # with Pool(cpu_count) as p:
+    #     p.map(cycle_part, args)
 
     # ---------------------------------------------------------------------------------------
-    # make_video(files_path_prefix, flux_type)
-
-
+    # # Components determination part
+    # sort_by_means(files_path_prefix, flux_type, mask)
+    # ---------------------------------------------------------------------------------------
+    make_video(files_path_prefix, flux_type, mask)
+    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
 

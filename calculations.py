@@ -283,7 +283,7 @@ def apply_EM(ts, shift):
     converged = False
     if i == 0:
       gm = GaussianMixture(n_components=4,
-                          tol = 1e-8,
+                          tol = 1e-7,
                           covariance_type='spherical',
                           max_iter=10000,
                           init_params = 'random',
@@ -300,7 +300,7 @@ def apply_EM(ts, shift):
                           # precisions_init=sigmas[i-1, :],
                           init_params = 'random',
                           weights_init=weights[i-1, :],
-                          n_init=15).fit(window)
+                          n_init=10).fit(window)
 
     means[i, :] = gm.means_.reshape(1, -1)
     sigmas[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
