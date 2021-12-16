@@ -10,11 +10,12 @@ import os
 files_path_prefix = 'D://Data/OceanFull/'
 shift = 4 * 7
 components_amount = 4
-cpu_count = 8
+cpu_count = 12
 window_EM = 200
 start = 0
 end = 29141
-flux_type = 'sensible'
+# flux_type = 'sensible'
+flux_type = 'latent'
 timesteps = 7320
 
 
@@ -175,9 +176,9 @@ if __name__ == '__main__':
     #     p.map(cycle_part, args)
 
     # ---------------------------------------------------------------------------------------
-    # # Components determination part
+    # Components determination part
     # sort_by_means(files_path_prefix, flux_type, mask)
     # ---------------------------------------------------------------------------------------
     make_video(files_path_prefix, flux_type, mask)
-    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
+    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
 
