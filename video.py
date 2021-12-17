@@ -3,6 +3,7 @@ import shutil
 import tqdm
 from copy import deepcopy
 import numpy as np
+import pandas as pd
 import subprocess
 import matplotlib.pyplot as plt
 import matplotlib
@@ -82,7 +83,8 @@ def draw_3D(files_path_prefix,
             means_grid,
             sigmas_grid,
             weights_grid,
-            timesteps):
+            timesteps,
+            borders):
     """
     Draws timesteps amount of .png pictures, showing 3 * components amount graphics with 3D surface plot of each
     parameter of each component
@@ -94,6 +96,7 @@ def draw_3D(files_path_prefix,
     :param sigmas_grid: same as means_grid, but for sigmas
     :param weights_grid: same as weights_grid, but for weights
     :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
+    :param borders: list of lists with borders for colorbar: global max and min for parameters
     :return:
     """
     for t in range(timesteps):
@@ -117,7 +120,7 @@ def draw_3D(files_path_prefix,
             masked_grid = np.ma.array(means_grid[comp], mask=np.isnan(means_grid[comp]))
             surf = ax.plot_surface(X, Y, np.transpose(masked_grid), rstride=1, cstride=1, cmap=cmap,
                                    linewidth=0, antialiased=False, alpha=0.3)
-            ax.set_zlim(np.min(masked_grid), np.max(masked_grid))
+            ax.set_zlim(borders[0][0], borders[0][1])
             ax.set_title(f'Mean {comp + 1}', fontsize=20)
             fig.colorbar(surf, shrink=0.5, aspect=10)
 
@@ -133,7 +136,7 @@ def draw_3D(files_path_prefix,
             masked_grid = np.ma.array(sigmas_grid[comp], mask=np.isnan(sigmas_grid[comp]))
             surf = ax.plot_surface(X, Y, np.transpose(masked_grid), rstride=1, cstride=1, cmap=cmap,
                                    linewidth=0, antialiased=False, alpha=0.3)
-            ax.set_zlim(np.min(masked_grid), np.max(masked_grid))
+            ax.set_zlim(borders[1][0], borders[1][1])
             ax.set_title(f'Sigma {comp + 1}', fontsize=20)
             fig.colorbar(surf, shrink=0.5, aspect=10)
 
@@ -148,7 +151,7 @@ def draw_3D(files_path_prefix,
             masked_grid = np.ma.array(weights_grid[comp], mask=np.isnan(weights_grid[comp]))
             surf = ax.plot_surface(X, Y, np.transpose(masked_grid), rstride=1, cstride=1, cmap=cmap,
                                    linewidth=0, antialiased=False, alpha=0.3)
-            ax.set_zlim(np.min(masked_grid), np.max(masked_grid))
+            ax.set_zlim(borders[2][0], borders[2][1])
             ax.set_title(f'Weight {comp + 1}', fontsize=20)
             fig.colorbar(surf, shrink=0.5, aspect=10)
 
@@ -165,7 +168,7 @@ def draw_2D(files_path_prefix,
             sigmas_timelist,
             weights_timelist,
             timesteps,
-            dataframes):
+            borders):
     """
     Draws timesteps amount of .png pictures, showing 3 * components amount graphics with 2D plot of each parameter of
     each component
@@ -177,22 +180,14 @@ def draw_2D(files_path_prefix,
     :param sigmas_timelist: same as means_timelist, but for sigmas
     :param weights_timelist: same as means_timelist, but for weights
     :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
-    :param dataframes: dataframes with estimated parameters of components with column names like 'mean_1', 'sigma_1',
-    'weight_1', ...
+    :param borders: list of lists with borders for colorbar: global max and min for parameters
     :return:
     """
-    data = dataframes[0]
-
-    means_cols = data.filter(regex='mean_', axis=1).columns
-    sigmas_cols = data.filter(regex='sigma_', axis=1).columns
-    weights_cols = data.filter(regex='weight_', axis=1).columns
-
     for t in range(timesteps):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
         fig, axs = plt.subplots(3, components_amount, figsize=(components_amount * 5, 15))
         fig.suptitle(f'{flux_type}\n {date.strftime("%Y-%m-%d")}', fontsize=30)
 
-        df = dataframes[t]
         means_grid = means_timelist[t]
         sigmas_grid = sigmas_timelist[t]
         weights_grid = weights_timelist[t]
@@ -204,8 +199,8 @@ def draw_2D(files_path_prefix,
             im = axs[0, comp].imshow(masked_grid,
                                      extent=(0, 161, 181, 0),
                                      interpolation='none',
-                                     vmin=min(df[means_cols].min()),
-                                     vmax=max(df[means_cols].max()),
+                                     vmin=borders[0][0],
+                                     vmax=borders[0][1],
                                      cmap=cmap)
             axs[0, comp].set_title(f'Mean {comp + 1}', fontsize=20)
             if comp == components_amount - 1:
@@ -220,8 +215,8 @@ def draw_2D(files_path_prefix,
             im = axs[1, comp].imshow(masked_grid,
                                 extent=(0, 161, 181, 0),
                                 interpolation='nearest',
-                                vmin=min(df[sigmas_cols].min()),
-                                vmax=max(df[sigmas_cols].max()),
+                                vmin=borders[1][0],
+                                vmax=borders[1][1],
                                 cmap=cmap)
             axs[1, comp].set_title(f'Sigma {comp + 1}', fontsize=20)
             if comp == components_amount - 1:
@@ -235,8 +230,8 @@ def draw_2D(files_path_prefix,
             im = axs[2, comp].imshow(masked_grid,
                                 extent=(0, 161, 181, 0),
                                 interpolation='nearest',
-                                vmin=min(df[weights_cols].min()),
-                                vmax=max(df[weights_cols].max()),
+                                vmin=borders[2][0],
+                                vmax=borders[2][1],
                                 cmap=cmap)
             axs[2, comp].set_title(f'Weight {comp + 1}', fontsize=20)
             if comp == components_amount - 1:
@@ -249,7 +244,7 @@ def draw_2D(files_path_prefix,
         plt.close(fig)
 
 
-def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes):
+def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes, borders):
     """
 
     :param files_path_prefix: path to the working directory
@@ -260,11 +255,12 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframe
     :param dataframes: dataframes with estimated parameters of components with column names like 'mean_1', 'sigma_1',
     'weight_1', ...
     :param indexes: list of indexes of dataframes to relate to grid 161*181 point
+    :param borders: list of lists with borders for colorbar: global max and min for parameters
     :return:
     """
     start = 0
     end = len(mask)
-    timesteps = 10
+    timesteps = 100
 
     font = {'weight': 'bold',
             'size': 16}
@@ -302,7 +298,7 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframe
             sigmas_timelist,
             weights_timelist,
             timesteps,
-            dataframes)
+            borders)
     return
 
 
@@ -316,13 +312,54 @@ def create_video(files_path_prefix, flux_type, name, speed=20):
     :return:
     """
     video_name = files_path_prefix + f'videos/{name}.mp4'
-    print(video_name)
-    print(files_path_prefix + f'videos/{flux_type}/tmp/%03d.png')
+    # print(video_name)
+    # print(files_path_prefix + f'videos/{flux_type}/tmp/%03d.png')
     if os.path.exists(video_name):
         os.remove(video_name)
 
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-i', "D://Data/OceanFull/videos/sensible/tmp/%3d.png", '-r', '5', '-pix_fmt',
-        'yuv420p', video_name,
+        'ffmpeg', '-itsscale', str(speed), '-i', f"D://Data/OceanFull/videos/{flux_type}/tmp/%3d.png", '-r', '5',
+        '-pix_fmt', 'yuv420p', video_name,
     ])
+    return
+
+
+def make_pictures(files_path_prefix, flux_type, mask, components_amount):
+    """
+    Draws pictures from dataframes and saves them into tmp directory. It is assumed that components into dataframes are
+    already sorted (extracted)
+    :param components_amount: components amount in dataframes
+    :param files_path_prefix: path to the working directory
+    :param flux_type: string of the flux type: 'sensible' or 'latent'
+    :return:
+    """
+    means_borders = [0, 0]
+    sigmas_borders = [0, 0]
+    weights_borders = [0, 1]
+    dataframes = list()
+    indexes = list()
+    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
+        if flux_type in filename:
+            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
+            dataframes.append(df)
+            idx = int(filename[len(flux_type) + 1: -4])
+            indexes.append(idx)
+
+            means_cols = df.filter(regex='mean_', axis=1).columns
+            sigmas_cols = df.filter(regex='sigma_', axis=1).columns
+            means_borders[0] = min(means_borders[0], min(df[means_cols].min()))
+            means_borders[1] = max(means_borders[1], max(df[means_cols].max()))
+            sigmas_borders[1] = max(sigmas_borders[1], max(df[sigmas_cols].max()))
+
+    tmp = list(zip(indexes, dataframes))
+    tmp.sort()
+    indexes = [y for y, _ in tmp]
+    dataframes = [x for _, x in tmp]
+
+    borders = [means_borders, sigmas_borders, weights_borders]
+    # draw pictures
+    init_directory(files_path_prefix, flux_type)
+    draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes, borders)
+
+    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly')
     return

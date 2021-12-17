@@ -5,6 +5,7 @@ from struct import unpack
 import multiprocessing
 from multiprocessing import Pool
 import os
+from data_processing import *
 
 # Parameters
 files_path_prefix = 'D://Data/OceanFull/'
@@ -14,8 +15,8 @@ cpu_count = 12
 window_EM = 200
 start = 0
 end = 29141
-# flux_type = 'sensible'
-flux_type = 'latent'
+flux_type = 'sensible'
+# flux_type = 'latent'
 timesteps = 7320
 
 
@@ -42,82 +43,6 @@ def cycle_part(arg):
     return
 
 
-def sort_by_means(files_path_prefix, flux_type, mask):
-    # load and sort Dataframes
-    filename = os.listdir(files_path_prefix + '5_years_weekly/')[0]
-    data = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
-    means_cols = data.filter(regex='mean_', axis=1).columns
-    sigmas_cols = data.filter(regex='sigma_', axis=1).columns
-    weights_cols = data.filter(regex='weight_', axis=1).columns
-
-    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
-        if flux_type in filename:
-            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
-
-            # sort all columns by means
-            means = df[means_cols].values
-            sigmas = df[sigmas_cols].values
-            weights = df[weights_cols].values
-
-            df.columns = list(means_cols) + list(sigmas_cols) + list(weights_cols) + ['ts']
-            for i in range(len(df)):
-                zipped = list(zip(means[i], sigmas[i], weights[i]))
-                zipped.sort(key=lambda x: x[0])
-                # the scary expression below is for flattening the sorted zip results
-                df.iloc[i] = list(sum(list(zip(*zipped)), ())) + [df.loc[i, 'ts']]
-
-            df.to_csv(files_path_prefix + '5_years_weekly/' + filename, sep=';', index=False)
-    return
-
-
-def make_video(files_path_prefix, flux_type, mask):
-    """
-
-    :param files_path_prefix:
-    :param flux_type:
-    :return:
-    """
-    dataframes = list()
-    indexes = list()
-    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
-        if flux_type in filename:
-            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
-            dataframes.append(df)
-            idx = int(filename[len(flux_type) + 1: -4])
-            indexes.append(idx)
-
-    tmp = list(zip(indexes, dataframes))
-    tmp.sort()
-    indexes = [y for y, _ in tmp]
-    dataframes = [x for _, x in tmp]
-
-    # draw pictures
-    init_directory(files_path_prefix, flux_type)
-    draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes)
-
-    # create video from them
-    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly')
-    return
-
-
-def binary_to_array(filename, flux_type):
-    #create array from binary data
-
-    length = 7320
-    arr_5years = np.empty((length, 29141), dtype=float)
-    for i in tqdm.tqdm(range(length)):
-      file = open(files_path_prefix + filename, "rb")
-      offset=32 + (62396 - length)*116564 + 116564*i
-      file.seek(offset, 0)
-      binary_values = file.read(116564)
-      file.close()
-      point = unpack('f'*29141, binary_values)
-      arr_5years[i] = point
-    np.save(files_path_prefix + f'5years_{flux_type}.npy', arr_5years.transpose())
-    del arr_5years
-    return
-
-
 if __name__ == '__main__':
     delta = (end - start + cpu_count // 2) // cpu_count
     print(end - start)
@@ -127,7 +52,7 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     # ---------------------------------------------------------------------------------------
-    # binary_to_array("l79-21", flux_type)
+    # binary_to_array(files_path_prefix, flux_type, "l79-21")
 
     # # ---------------------------------------------------------------------------------------
     # Calculations part
@@ -177,8 +102,9 @@ if __name__ == '__main__':
 
     # ---------------------------------------------------------------------------------------
     # Components determination part
-    # sort_by_means(files_path_prefix, flux_type, mask)
+    # sort_by_means(files_path_prefix, flux_type)
     # ---------------------------------------------------------------------------------------
-    make_video(files_path_prefix, flux_type, mask)
+    make_pictures(files_path_prefix, flux_type, mask, components_amount)
     create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
+    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly_fast', speed=15)
 
