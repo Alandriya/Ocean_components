@@ -183,37 +183,3 @@ def plot_rmse(files_path_prefix,
     plt.legend()
     plt.savefig(files_path_prefix + f'prepared/new_components/{series_name}_RMSE{postfix}.png')
     plt.clf()
-
-
-def plot_A_B_coefficients(files_path_prefix, a_list, b_list):
-    min_a = [min(a_list[i]) if a_list[i] else None for i in range(len(a_list))]
-    mean_a = [np.nanmean(a_list[i]) for i in range(len(a_list))]
-    a_90 = [np.quantile(a_list[i], 0.90) if a_list[i] else None for i in range(len(a_list))]
-    a_95 = [np.quantile(a_list[i], 0.95) if a_list[i] else None for i in range(len(a_list))]
-    max_a = [np.nanmax(a_list[i]) for i in range(len(a_list))]
-
-    min_b = [np.min(list(filter(lambda x: x != None, b_list[i]))) for i in range(len(b_list))]
-    mean_b = [np.mean(list(filter(lambda x: x != None, b_list[i]))) for i in range(len(b_list))]
-    b_90 = [np.quantile(list(filter(lambda x: x != None, b_list[i])), 0.90) for i in range(len(b_list))]
-    b_95 = [np.quantile(list(filter(lambda x: x != None, b_list[i])), 0.95) for i in range(len(b_list))]
-    max_b = [np.max(list(filter(lambda x: x != None, b_list[i]))) for i in range(len(b_list))]
-
-    plt.figure(figsize=(10, 10))
-    plt.plot(min_a, '-', label='min a', c='plum')
-    plt.plot(mean_a, label='mean a', c='r')
-    plt.plot(a_90, '--', label='a 90', c='violet')
-    plt.plot(a_95, '--', label='a 95', c='fuchsia')
-    plt.plot(max_a, '-', label='max a', c='pink')
-    plt.legend()
-    plt.savefig(files_path_prefix + f'A.png')
-
-    plt.clf()
-    plt.figure(figsize=(10, 10))
-    plt.plot(min_b, '-', label='min b', c='bisque')
-    plt.plot(mean_b, label='mean b', c='y')
-    plt.plot(b_90, '--', label='b 90', c='olive')
-    plt.plot(b_95, '--', label='b 95', c='orange')
-    plt.plot(max_b, '-', label='max b', c='khaki')
-    plt.legend()
-    plt.savefig(files_path_prefix + f'B.png')
-    return

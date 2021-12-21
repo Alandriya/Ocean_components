@@ -311,51 +311,52 @@ def apply_EM(ts, shift):
   return means, sigmas, weights
 
 
-def count_A_B_coefficients(files_path_prefix, mask):
+def count_A_B_coefficients(files_path_prefix, mask, timesteps):
     sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
     latent_array = np.load(files_path_prefix + f'5years_latent.npy')
 
     # set None where is not ocean in arrays
     for i in range(0, len(mask)):
         if not mask[i]:
-            sensible_array[i] = [None for _ in range(sensible_array.shape[1])]
-            latent_array[i] = [None for _ in range(latent_array.shape[1])]
+            sensible_array[i] = None
+            latent_array[i] = None
 
-    # mean by day
+    # mean by day = every 4 observations
+    pack_len = 4
     sensible_array = block_reduce(sensible_array,
-                                    block_size=(1, 4),
+                                    block_size=(1, pack_len),
                                     func=np.mean,)
     latent_array = block_reduce(latent_array,
-                                  block_size=(1, 4),
+                                  block_size=(1, pack_len),
                                   func=np.mean,)
 
-    # params
-    start = 0
-    end = 4 * 7 * 100 // 4
-    step = 4 * 7 // 4
+    a_timelist = list()
+    b_timelist = list()
+    print('Counting A and B')
+    for t in tqdm.tqdm(range(1, timesteps+1)):
+        a_sens = np.zeros((161, 181))
+        a_lat = np.zeros((161, 181))
+        b_matrix = np.zeros((2, 161, 181))
 
-    a_list = list()
-    b_list = list()
-    for t in tqdm.tqdm(range(start, end, step)):
-        # grid_a = np.empty((161, 181))
-        # grid_b = np.empty((161, 181))
-        a_list.append(list())
-        b_list.append(list())
+        # set nan where is not ocean in arrays
+        for i in range(0, len(mask)):
+            if not mask[i]:
+                a_sens[i // 181][i % 181] = np.nan
+                a_lat[i // 181][i % 181] = np.nan
+                b_matrix[:, i // 181, i % 181] = np.nan
 
-        set_t0 = set.union(set(sensible_array[:, t - step]), set(latent_array[:, t - step]))
-        for val_t0 in set_t0:
+        set_sens = set(sensible_array[:, t-1])
+        set_lat = set(latent_array[:, t-1])
+
+        for val_t0 in set_sens:
             if not np.isnan(val_t0):
-                points_sensible = np.nonzero(sensible_array[:, t - step] == val_t0)[0]
-                points_latent = np.nonzero(latent_array[:, t - step] == val_t0)[0]
-                amount_t0 = len(np.unique(list(points_sensible) + list(points_latent)))
-                # print(amount_t0)
+                points_sensible = np.nonzero(sensible_array[:, t-1] == val_t0)[0]
+                amount_t0 = len(points_sensible)
 
-                set_t1 = set.union(set(sensible_array[points_sensible][:, t]), set(latent_array[points_latent][:, t]))
+                set_t1 = set(sensible_array[points_sensible][:, t])
                 probabilities = list()
                 for val_t1 in set_t1:
-                    unique = np.unique(list(np.nonzero(sensible_array[points_sensible][:, t] == val_t1)[0]) + list(
-                        np.nonzero(latent_array[points_latent][:, t] == val_t1)[0]))
-                    prob = len(unique) * 1.0 / amount_t0
+                    prob = sum(np.where(sensible_array[points_sensible][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
                     probabilities.append(prob)
 
                 # print(probabilities)
@@ -365,18 +366,30 @@ def count_A_B_coefficients(files_path_prefix, mask):
                 b_squared = sum(
                     [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
                 b = sqrt(b_squared) if b_squared > 0 else None
+                for idx in points_sensible:
+                    a_sens[idx//181][idx % 181] = a
+                    b_matrix[0][idx//181][idx % 181] = b
 
-                a_list[(t - step) // step].append(a)
-                b_list[(t - step) // step].append(b)
+        for val_t0 in set_lat:
+            if not np.isnan(val_t0):
+                points_latent = np.nonzero(latent_array[:, t - 1] == val_t0)[0]
+                amount_t0 = len(points_latent)
 
-    with open(files_path_prefix + f'a_list.txt', 'w') as f:
-        for row in a_list:
-            for elem in row:
-                f.write("%s\n" % elem)
+                set_t1 = set(latent_array[points_latent][:, t])
+                probabilities = list()
+                for val_t1 in set_t1:
+                    prob = sum(np.where(latent_array[points_latent][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
+                    probabilities.append(prob)
 
-    with open(files_path_prefix + f'b_list.txt', 'w') as f:
-        for row in b_list:
-            for elem in row:
-                f.write("%s\n" % elem)
+                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                b_squared = sum(
+                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                b = sqrt(b_squared) if b_squared > 0 else None
+                for idx in points_latent:
+                    a_lat[idx//181][idx % 181] = a
+                    b_matrix[1][idx//181][idx % 181] = b
 
-    return a_list, b_list
+        a_timelist.append([a_sens, a_lat])
+        b_timelist.append(b_matrix)
+
+    return a_timelist, b_timelist

@@ -339,12 +339,11 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
     return
 
 
-def create_video(files_path_prefix, flux_type, name, speed=20):
+def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20):
     """
-    Creates an .mp4 video from pictures in tmp subdirectory
+    Creates an .mp4 video from pictures in tmp subdirectory of full_prefix path with pic_prefix in filenames
     :param speed: coefficient of video speed, the more - the slower
     :param files_path_prefix: path to the working directory
-    :param flux_type: string of the flux type: 'sensible' or 'latent'
     :param name: short name of videofile to create
     :return:
     """
@@ -355,7 +354,82 @@ def create_video(files_path_prefix, flux_type, name, speed=20):
         os.remove(video_name)
 
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-i', f"D://Data/OceanFull/videos/{flux_type}/tmp/%3d.png", '-r', '5',
+        'ffmpeg', '-itsscale', str(speed), '-i', tmp_dir + f"{pic_prefix}%3d.png", '-r', '5',
         '-pix_fmt', 'yuv420p', video_name,
     ])
+    return
+
+
+def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, timesteps):
+    print('Saving A and B pictures')
+    for t in tqdm.tqdm(range(timesteps)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
+        a_sens = a_timelist[t][0]
+        a_lat = a_timelist[t][1]
+        b_matrix = b_timelist[t]
+
+        figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
+        figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        cmap = matplotlib.cm.get_cmap("Blues").copy()
+        cmap = truncate_colormap(cmap, 0.2, 1.0)
+        levels = np.percentile(a_sens[np.isfinite(a_sens)], np.linspace(0, 100, 101))
+        norm = matplotlib.colors.BoundaryNorm(levels, 256)
+        cmap.set_bad('white', 1.0)
+        im = axsa[0].imshow(a_sens,
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            norm=norm)
+        axsa[0].set_title(f'Sensible', fontsize=20)
+        divider = make_axes_locatable(axsa[0])
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = figa.colorbar(im, cax=cax, orientation='vertical')
+        # cbar.ax.locator_params(nbins=5)
+
+        cmap = matplotlib.cm.get_cmap("Blues").copy()
+        cmap = truncate_colormap(cmap, 0.2, 1.0)
+        levels = np.percentile(a_lat[np.isfinite(a_lat)], np.linspace(0, 100, 101))
+        norm = matplotlib.colors.BoundaryNorm(levels, 256)
+        im = axsa[1].imshow(a_lat,
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            norm=norm)
+        axsa[1].set_title(f'Latent', fontsize=20)
+        divider = make_axes_locatable(axsa[1])
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = figa.colorbar(im, cax=cax, orientation='vertical')
+        # cbar.ax.locator_params(nbins=5)
+
+        figa.tight_layout()
+        figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{t + 1:03d}.png')
+        plt.close(figa)
+
+        figb, axsb = plt.subplots(1, 2, figsize=(30, 30))
+        figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        for i in range(2):
+            b = b_matrix[i]
+            cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
+            cmap = truncate_colormap(cmap, 0.2, 1.0)
+            levels = np.percentile(b[np.isfinite(b)], np.linspace(0, 100, 101))
+            norm = matplotlib.colors.BoundaryNorm(levels, 256)
+            cmap.set_bad('white', 1.0)
+            im = axsb[i].imshow(b,
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap,
+                                norm=norm)
+            if i == 0:
+                axsb[i].set_title(f'Sensible', fontsize=20)
+            elif i == 1:
+                axsb[i].set_title(f'Latent', fontsize=20)
+
+            divider = make_axes_locatable(axsb[i])
+            cax = divider.append_axes('right', size='5%', pad=0.3)
+            cbar = figa.colorbar(im, cax=cax, orientation='vertical')
+            # cbar.ax.locator_params(nbins=5)
+
+        figb.tight_layout()
+        figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{t + 1:03d}.png')
+        plt.close(figb)
     return
