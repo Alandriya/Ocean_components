@@ -1,7 +1,6 @@
 import os
 import shutil
 import tqdm
-from copy import deepcopy
 import numpy as np
 import pandas as pd
 import subprocess
@@ -10,8 +9,11 @@ import matplotlib
 import datetime
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as colors
+from copy import deepcopy
+from data_processing import dataframes_to_grids
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import ticker
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
@@ -30,6 +32,9 @@ def init_directory(files_path_prefix, flux_type):
     """
     if not os.path.exists(files_path_prefix + f'videos/{flux_type}'):
         os.mkdir(files_path_prefix + f'videos/{flux_type}')
+
+    if not os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}'):
+        os.mkdir(files_path_prefix + f'tmp_arrays/{flux_type}')
 
     if os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
         shutil.rmtree(files_path_prefix + f'videos/{flux_type}/tmp')
@@ -96,7 +101,8 @@ def draw_3D(files_path_prefix,
     :param sigmas_grid: same as means_grid, but for sigmas
     :param weights_grid: same as weights_grid, but for weights
     :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
-    :param borders: list of lists with borders for colorbar: global max and min for parameters
+    :param borders: 3 lists of lists with borders for colorbar: global max and min for parameters for each component
+    shape of each is n_component * 2
     :return:
     """
     for t in range(timesteps):
@@ -180,7 +186,8 @@ def draw_2D(files_path_prefix,
     :param sigmas_timelist: same as means_timelist, but for sigmas
     :param weights_timelist: same as means_timelist, but for weights
     :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
-    :param borders: list of lists with borders for colorbar: global max and min for parameters
+    :param borders: 3 lists of lists with borders for colorbar: global max and min for parameters for each component
+    shape of each is n_component * 2
     :return:
     """
     for t in range(timesteps):
@@ -194,57 +201,64 @@ def draw_2D(files_path_prefix,
         for comp in range(components_amount):
             masked_grid = np.ma.array(means_grid[comp], mask=means_grid[comp] is None)
             cmap = matplotlib.cm.get_cmap("Blues").copy()
-            cmap = truncate_colormap(cmap, 0.2, 1.0)
+
+            levels = np.percentile(means_grid[comp][np.isfinite(means_grid[comp])], np.linspace(0, 100, 101))
+            norm = matplotlib.colors.BoundaryNorm(levels, 256)
+            # cmap = truncate_colormap(cmap, 0.2, 1.0)
             cmap.set_bad('white', 1.0)
             im = axs[0, comp].imshow(masked_grid,
                                      extent=(0, 161, 181, 0),
                                      interpolation='none',
-                                     vmin=borders[0][0],
-                                     vmax=borders[0][1],
-                                     cmap=cmap)
+                                     cmap=cmap,
+                                     norm=norm)
             axs[0, comp].set_title(f'Mean {comp + 1}', fontsize=20)
-            if comp == components_amount - 1:
-                divider = make_axes_locatable(axs[0, comp])
-                cax = divider.append_axes('right', size='10%', pad=0.7)
-                fig.colorbar(im, cax=cax, orientation='vertical')
+            # if comp == components_amount - 1:
+            divider = make_axes_locatable(axs[0, comp])
+            cax = divider.append_axes('right', size='5%', pad=0.3)
+            cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+            # cbar.ax.locator_params(nbins=5)
 
             masked_grid = np.ma.array(sigmas_grid[comp], mask=sigmas_grid[comp] is None)
             cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
-            cmap = truncate_colormap(cmap, 0.2, 1.0)
+            levels = np.percentile(sigmas_grid[comp][np.isfinite(sigmas_grid[comp])], np.linspace(0, 100, 101))
+            norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
             im = axs[1, comp].imshow(masked_grid,
                                 extent=(0, 161, 181, 0),
                                 interpolation='nearest',
-                                vmin=borders[1][0],
-                                vmax=borders[1][1],
-                                cmap=cmap)
+                                cmap=cmap,
+                                norm=norm)
             axs[1, comp].set_title(f'Sigma {comp + 1}', fontsize=20)
-            if comp == components_amount - 1:
-                divider = make_axes_locatable(axs[1, comp])
-                cax = divider.append_axes('right', size='10%', pad=0.7)
-                fig.colorbar(im, cax=cax, orientation='vertical')
+            # if comp == components_amount - 1:
+            divider = make_axes_locatable(axs[1, comp])
+            cax = divider.append_axes('right', size='5%', pad=0.3)
+            cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+            # cbar.ax.locator_params(nbins=5)
 
             masked_grid = np.ma.array(weights_grid[comp], mask=weights_grid[comp] is None)
+            # levels = np.percentile(weights_grid[comp][np.isfinite(weights_grid[comp])], np.linspace(0, 100, 101))
+            # norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap = matplotlib.cm.get_cmap("jet").copy()
             cmap.set_bad('white', 1.0)
             im = axs[2, comp].imshow(masked_grid,
                                 extent=(0, 161, 181, 0),
                                 interpolation='nearest',
-                                vmin=borders[2][0],
-                                vmax=borders[2][1],
-                                cmap=cmap)
+                                cmap=cmap,
+                                vmin=0,
+                                vmax=1)
             axs[2, comp].set_title(f'Weight {comp + 1}', fontsize=20)
-            if comp == components_amount - 1:
-                divider = make_axes_locatable(axs[2, comp])
-                cax = divider.append_axes('right', size='10%', pad=0.7)
-                fig.colorbar(im, cax=cax, orientation='vertical')
+            # if comp == components_amount - 1:
+            divider = make_axes_locatable(axs[2, comp])
+            cax = divider.append_axes('right', size='5%', pad=0.3)
+            cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+            # cbar.ax.locator_params(nbins=5)
 
         fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/{flux_type}/tmp/{t + 1:03d}.png')
         plt.close(fig)
 
 
-def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes, borders):
+def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=1):
     """
 
     :param files_path_prefix: path to the working directory
@@ -252,44 +266,69 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframe
     :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
     of interest
     :param components_amount: components amount in dataframes
-    :param dataframes: dataframes with estimated parameters of components with column names like 'mean_1', 'sigma_1',
-    'weight_1', ...
-    :param indexes: list of indexes of dataframes to relate to grid 161*181 point
-    :param borders: list of lists with borders for colorbar: global max and min for parameters
+    :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
     :return:
     """
-    start = 0
-    end = len(mask)
-    timesteps = 100
-
     font = {'weight': 'bold',
             'size': 16}
 
     matplotlib.rc('font', **font)
 
+    # # check if all grids exist
+    # print('Check grids')
+    # for t in tqdm.tqdm(range(timesteps)):
+    #     if not os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}/means_{t}.npy'):
+    #         dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, timesteps)
+    #         break
+
     means_timelist = list()
     sigmas_timelist = list()
     weights_timelist = list()
+    means_borders = [[0, 0] for _ in range(components_amount)]
+    sigmas_borders = [[0, 0] for _ in range(components_amount)]
+    weights_borders = [[0, 1] for _ in range(components_amount)]
 
+    # just for reading dataframes set timesteps = 0
+    dataframes, indexes = dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, 0)
+
+    tmp = list(zip(indexes, dataframes))
+    tmp.sort()
+    indexes = [y for y, _ in tmp]
+    dataframes = [x for _, x in tmp]
+
+    print('Creating grids')
     # fill grids
     for t in tqdm.tqdm(range(timesteps)):
-        grid = np.full((components_amount, 161, 181), np.nan)
-        means_grid = deepcopy(grid)
-        sigmas_grid = deepcopy(grid)
-        weights_grid = deepcopy(grid)
+        if os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}/means_{t}.npy'):
+            means_grid = np.load(files_path_prefix + f'tmp_arrays/{flux_type}/means_{t}.npy')
+            sigmas_grid = np.load(files_path_prefix + f'tmp_arrays/{flux_type}/sigmas_{t}.npy')
+            weights_grid = np.load(files_path_prefix + f'tmp_arrays/{flux_type}/weights_{t}.npy')
+        else:
+            grid = np.full((components_amount, 161, 181), np.nan)
+            means_grid = deepcopy(grid)
+            sigmas_grid = deepcopy(grid)
+            weights_grid = deepcopy(grid)
 
-        for i in range(start, end):
-            if mask[i] and i in indexes:
-                rel_i = indexes.index(i)
-                df = dataframes[rel_i]
-                for comp in range(components_amount):
-                    means_grid[comp][i // 181][i % 181] = df.loc[t, f'mean_{comp + 1}']
-                    sigmas_grid[comp][i // 181][i % 181] = df.loc[t, f'sigma_{comp + 1}']
-                    weights_grid[comp][i // 181][i % 181] = df.loc[t, f'weight_{comp + 1}']
+            for i in range(len(mask)):
+                if mask[i] and i in indexes:
+                    rel_i = indexes.index(i)
+                    df = dataframes[rel_i]
+                    for comp in range(components_amount):
+                        means_grid[comp][i // 181][i % 181] = df.loc[t, f'mean_{comp + 1}']
+                        sigmas_grid[comp][i // 181][i % 181] = df.loc[t, f'sigma_{comp + 1}']
+                        weights_grid[comp][i // 181][i % 181] = df.loc[t, f'weight_{comp + 1}']
 
         means_timelist.append(means_grid)
         sigmas_timelist.append(sigmas_grid)
         weights_timelist.append(weights_grid)
+
+        for comp in range(components_amount):
+            means_borders[comp][0] = min(means_borders[comp][0], np.nanmin(means_grid[comp]))
+            means_borders[comp][1] = max(means_borders[comp][1], np.nanmax(means_grid[comp]))
+            sigmas_borders[comp][1] = max(sigmas_borders[comp][1], np.nanmax(sigmas_grid[comp]))
+            sigmas_borders[comp][0] = min(sigmas_borders[comp][1], np.nanmin(sigmas_grid[comp]))
+
+    borders = [means_borders, sigmas_borders, weights_borders]
 
     draw_2D(files_path_prefix,
             flux_type,
@@ -321,45 +360,4 @@ def create_video(files_path_prefix, flux_type, name, speed=20):
         'ffmpeg', '-itsscale', str(speed), '-i', f"D://Data/OceanFull/videos/{flux_type}/tmp/%3d.png", '-r', '5',
         '-pix_fmt', 'yuv420p', video_name,
     ])
-    return
-
-
-def make_pictures(files_path_prefix, flux_type, mask, components_amount):
-    """
-    Draws pictures from dataframes and saves them into tmp directory. It is assumed that components into dataframes are
-    already sorted (extracted)
-    :param components_amount: components amount in dataframes
-    :param files_path_prefix: path to the working directory
-    :param flux_type: string of the flux type: 'sensible' or 'latent'
-    :return:
-    """
-    means_borders = [0, 0]
-    sigmas_borders = [0, 0]
-    weights_borders = [0, 1]
-    dataframes = list()
-    indexes = list()
-    for filename in tqdm.tqdm(os.listdir(files_path_prefix + '5_years_weekly/')):
-        if flux_type in filename:
-            df = pd.read_csv(files_path_prefix + '5_years_weekly/' + filename, delimiter=';')
-            dataframes.append(df)
-            idx = int(filename[len(flux_type) + 1: -4])
-            indexes.append(idx)
-
-            means_cols = df.filter(regex='mean_', axis=1).columns
-            sigmas_cols = df.filter(regex='sigma_', axis=1).columns
-            means_borders[0] = min(means_borders[0], min(df[means_cols].min()))
-            means_borders[1] = max(means_borders[1], max(df[means_cols].max()))
-            sigmas_borders[1] = max(sigmas_borders[1], max(df[sigmas_cols].max()))
-
-    tmp = list(zip(indexes, dataframes))
-    tmp.sort()
-    indexes = [y for y, _ in tmp]
-    dataframes = [x for _, x in tmp]
-
-    borders = [means_borders, sigmas_borders, weights_borders]
-    # draw pictures
-    init_directory(files_path_prefix, flux_type)
-    draw_frames(files_path_prefix, flux_type, mask, components_amount, dataframes, indexes, borders)
-
-    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly')
     return
