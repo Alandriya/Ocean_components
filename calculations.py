@@ -1,4 +1,5 @@
 import math
+from math import sqrt
 import random
 from copy import deepcopy
 from itertools import permutations
@@ -11,6 +12,7 @@ from sklearn.mixture import GaussianMixture
 
 from fcmeans import FCM
 from plotting import *
+from skimage.measure import block_reduce
 
 window_EM = 200
 
@@ -307,3 +309,74 @@ def apply_EM(ts, shift):
     weights[i, :] = gm.weights_.reshape(1, -1)
 
   return means, sigmas, weights
+
+
+def count_A_B_coefficients(files_path_prefix, mask):
+    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
+    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
+
+    # set None where is not ocean in arrays
+    for i in range(0, len(mask)):
+        if not mask[i]:
+            sensible_array[i] = [None for _ in range(sensible_array.shape[1])]
+            latent_array[i] = [None for _ in range(latent_array.shape[1])]
+
+    # mean by day
+    sensible_array = block_reduce(sensible_array,
+                                    block_size=(1, 4),
+                                    func=np.mean,)
+    latent_array = block_reduce(latent_array,
+                                  block_size=(1, 4),
+                                  func=np.mean,)
+
+    # params
+    start = 0
+    end = 4 * 7 * 100 // 4
+    step = 4 * 7 // 4
+
+    a_list = list()
+    b_list = list()
+    for t in tqdm.tqdm(range(start, end, step)):
+        # grid_a = np.empty((161, 181))
+        # grid_b = np.empty((161, 181))
+        a_list.append(list())
+        b_list.append(list())
+
+        set_t0 = set.union(set(sensible_array[:, t - step]), set(latent_array[:, t - step]))
+        for val_t0 in set_t0:
+            if not np.isnan(val_t0):
+                points_sensible = np.nonzero(sensible_array[:, t - step] == val_t0)[0]
+                points_latent = np.nonzero(latent_array[:, t - step] == val_t0)[0]
+                amount_t0 = len(np.unique(list(points_sensible) + list(points_latent)))
+                # print(amount_t0)
+
+                set_t1 = set.union(set(sensible_array[points_sensible][:, t]), set(latent_array[points_latent][:, t]))
+                probabilities = list()
+                for val_t1 in set_t1:
+                    unique = np.unique(list(np.nonzero(sensible_array[points_sensible][:, t] == val_t1)[0]) + list(
+                        np.nonzero(latent_array[points_latent][:, t] == val_t1)[0]))
+                    prob = len(unique) * 1.0 / amount_t0
+                    probabilities.append(prob)
+
+                # print(probabilities)
+                # print(sum(probabilities))
+
+                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                b_squared = sum(
+                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                b = sqrt(b_squared) if b_squared > 0 else None
+
+                a_list[(t - step) // step].append(a)
+                b_list[(t - step) // step].append(b)
+
+    with open(files_path_prefix + f'a_list.txt', 'w') as f:
+        for row in a_list:
+            for elem in row:
+                f.write("%s\n" % elem)
+
+    with open(files_path_prefix + f'b_list.txt', 'w') as f:
+        for row in b_list:
+            for elem in row:
+                f.write("%s\n" % elem)
+
+    return a_list, b_list

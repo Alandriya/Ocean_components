@@ -6,6 +6,7 @@ import multiprocessing
 from multiprocessing import Pool
 import os
 from data_processing import *
+from plotting import plot_A_B_coefficients
 
 # Parameters
 files_path_prefix = 'D://Data/OceanFull/'
@@ -17,7 +18,8 @@ start = 0
 end = 29141
 flux_type = 'sensible'
 # flux_type = 'latent'
-timesteps = 7320
+# timesteps = 7320
+timesteps = 100
 
 
 def cycle_part(arg):
@@ -103,8 +105,25 @@ if __name__ == '__main__':
     # ---------------------------------------------------------------------------------------
     # Components determination part
     # sort_by_means(files_path_prefix, flux_type)
+    # init_directory(files_path_prefix, flux_type)
     # ---------------------------------------------------------------------------------------
-    make_pictures(files_path_prefix, flux_type, mask, components_amount)
-    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
-    create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly_fast', speed=15)
+    # dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, 100)
+    # draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=timesteps)
+    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly', speed=30)
+    # create_video(files_path_prefix, flux_type, f'{flux_type}_5years_weekly_fast', speed=10)
 
+    # a_list, b_list = count_A_B_coefficients(files_path_prefix, mask)
+    a_list = []
+    b_list = []
+    with open(files_path_prefix + f'a_list.txt', 'r') as f:
+        lines = [line.rstrip() for line in f]
+        a_list = lines
+
+    with open(files_path_prefix + f'b_list.txt', 'r') as f:
+        lines = [line.rstrip() for line in f]
+        b_list = lines
+
+    a_list = np.array(a_list).reshape(len(mask), -1)
+    b_list = np.array(b_list).reshape(len(mask), -1)
+
+    plot_A_B_coefficients(files_path_prefix, a_list, b_list)
