@@ -14,7 +14,20 @@ from fcmeans import FCM
 from plotting import *
 from skimage.measure import block_reduce
 
+
 window_EM = 200
+
+
+def scale_to_bins(arr):
+    # set each value with the number of quantile from 0 to 100 in which it belongs
+    quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
+    arr_digit = np.digitize(arr, quantiles)
+
+    # return nan back :)
+    arr_digit = arr_digit.astype(float)
+    arr_digit[np.isnan(arr)] = np.nan
+
+    return arr_digit
 
 
 def distance(vec1, vec2, p, weights=(1, 1, 0)):
@@ -315,11 +328,11 @@ def count_A_B_coefficients(files_path_prefix, mask, timesteps):
     sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
     latent_array = np.load(files_path_prefix + f'5years_latent.npy')
 
-    # set None where is not ocean in arrays
-    for i in range(0, len(mask)):
-        if not mask[i]:
-            sensible_array[i] = None
-            latent_array[i] = None
+    sensible_array = sensible_array.astype(float)
+    latent_array = latent_array.astype(float)
+
+    sensible_array[np.logical_not(mask), :] = np.nan
+    latent_array[np.logical_not(mask)] = np.nan
 
     # mean by day = every 4 observations
     pack_len = 4
@@ -330,8 +343,14 @@ def count_A_B_coefficients(files_path_prefix, mask, timesteps):
                                   block_size=(1, pack_len),
                                   func=np.mean,)
 
+    sensible_array = scale_to_bins(sensible_array)
+    latent_array = scale_to_bins(latent_array)
+
     a_timelist = list()
     b_timelist = list()
+    a_max = 0
+    a_min = 0
+    b_max = 0
     print('Counting A and B')
     for t in tqdm.tqdm(range(1, timesteps+1)):
         a_sens = np.zeros((161, 181))
@@ -389,7 +408,11 @@ def count_A_B_coefficients(files_path_prefix, mask, timesteps):
                     a_lat[idx//181][idx % 181] = a
                     b_matrix[1][idx//181][idx % 181] = b
 
+        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
+        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
+        b_max = max(b_max, np.nanmax(b_matrix))
         a_timelist.append([a_sens, a_lat])
         b_timelist.append(b_matrix)
 
-    return a_timelist, b_timelist
+    borders = [a_max, a_min, b_max, 0]
+    return a_timelist, b_timelist, borders

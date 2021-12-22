@@ -360,7 +360,7 @@ def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20):
     return
 
 
-def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, timesteps):
+def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, timesteps):
     print('Saving A and B pictures')
     for t in tqdm.tqdm(range(timesteps)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
@@ -371,15 +371,16 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, timesteps):
         figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         cmap = matplotlib.cm.get_cmap("Blues").copy()
-        cmap = truncate_colormap(cmap, 0.2, 1.0)
-        levels = np.percentile(a_sens[np.isfinite(a_sens)], np.linspace(0, 100, 101))
-        norm = matplotlib.colors.BoundaryNorm(levels, 256)
+        # cmap = truncate_colormap(cmap, 0.2, 1.0)
+        # levels = np.percentile(a_sens[np.isfinite(a_sens)], np.linspace(0, 100, 101))
+        # norm = matplotlib.colors.BoundaryNorm(levels, 256)
         cmap.set_bad('white', 1.0)
         im = axsa[0].imshow(a_sens,
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
-                            norm=norm)
+                            vmin=borders[1],
+                            vmax=borders[2])
         axsa[0].set_title(f'Sensible', fontsize=20)
         divider = make_axes_locatable(axsa[0])
         cax = divider.append_axes('right', size='5%', pad=0.3)
@@ -387,14 +388,15 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, timesteps):
         # cbar.ax.locator_params(nbins=5)
 
         cmap = matplotlib.cm.get_cmap("Blues").copy()
-        cmap = truncate_colormap(cmap, 0.2, 1.0)
-        levels = np.percentile(a_lat[np.isfinite(a_lat)], np.linspace(0, 100, 101))
-        norm = matplotlib.colors.BoundaryNorm(levels, 256)
+        # cmap = truncate_colormap(cmap, 0.2, 1.0)
+        # levels = np.percentile(a_lat[np.isfinite(a_lat)], np.linspace(0, 100, 101))
+        # norm = matplotlib.colors.BoundaryNorm(levels, 256)
         im = axsa[1].imshow(a_lat,
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
-                            norm=norm)
+                            vmin=borders[1],
+                            vmax=borders[0])
         axsa[1].set_title(f'Latent', fontsize=20)
         divider = make_axes_locatable(axsa[1])
         cax = divider.append_axes('right', size='5%', pad=0.3)
@@ -410,15 +412,16 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, timesteps):
         for i in range(2):
             b = b_matrix[i]
             cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
-            cmap = truncate_colormap(cmap, 0.2, 1.0)
-            levels = np.percentile(b[np.isfinite(b)], np.linspace(0, 100, 101))
-            norm = matplotlib.colors.BoundaryNorm(levels, 256)
+            # cmap = truncate_colormap(cmap, 0.2, 1.0)
+            # levels = np.percentile(b[np.isfinite(b)], np.linspace(0, 100, 101))
+            # norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
             im = axsb[i].imshow(b,
                                 extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap,
-                                norm=norm)
+                                vmin=0,
+                                vmax=borders[2])
             if i == 0:
                 axsb[i].set_title(f'Sensible', fontsize=20)
             elif i == 1:
