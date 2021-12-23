@@ -3,6 +3,13 @@ from scipy.stats import pearsonr
 import numpy as np
 from math import sqrt
 import tqdm
+from struct import unpack
+import multiprocessing
+from multiprocessing import Pool
+import os
+
+
+files_path_prefix = 'D://Data/OceanFull/'
 
 
 def scale_to_bins(arr):
@@ -17,12 +24,23 @@ def scale_to_bins(arr):
     return arr_digit
 
 
-def count_A_B_coefficients(files_path_prefix, mask, timesteps):
+def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
     """
+    Counts A and B coefficients, saves them to and adds them to a_timelist and b_timelist.
 
+    a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
+    with values for A coefficient for sensible and latent fluxes, respectively
+
+    b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
+    containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+    0 is for B11 = sensible at t0 - sensible at t1,
+    1 is for B12 = sensible at t0 - latent at t1,
+    2 is for B21 = latent at t0 - sensible at t1,
+    3 is for B22 = latent at t0 - latent at t1.
     :param files_path_prefix:
     :param mask:
-    :param timesteps:
+    :param time_start: first time step
+    :param time_end: last time step
     :return:
     """
     sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
@@ -51,8 +69,9 @@ def count_A_B_coefficients(files_path_prefix, mask, timesteps):
     a_max = 0
     a_min = 0
     b_max = 0
-    print('Counting A and B')
-    for t in tqdm.tqdm(range(1, timesteps + 1)):
+    # print('Counting A and B')
+    # for t in tqdm.tqdm(range(time_start + 1, time_end + 1)):
+    for t in range(time_start + 1, time_end + 1):
         a_sens = np.zeros((161, 181))
         a_lat = np.zeros((161, 181))
         b_matrix = np.zeros((4, 161, 181))
@@ -137,6 +156,12 @@ def count_A_B_coefficients(files_path_prefix, mask, timesteps):
         a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
         a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
         b_max = max(b_max, np.nanmax(b_matrix))
+
+        # save data
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
+
         a_timelist.append([a_sens, a_lat])
         b_timelist.append(b_matrix)
 
@@ -191,3 +216,30 @@ def count_correlations(a_timelist, b_timelist, time_width=14):
 
         c_timelist.append(c_grid)
     return c_timelist
+
+
+def _parallel_AB_func(arg):
+    maskfile = open(files_path_prefix + "mask", "rb")
+    binary_values = maskfile.read(29141)
+    maskfile.close()
+    mask = unpack('?' * 29141, binary_values)
+
+    print('My process id:', os.getpid())
+    start, end = arg
+    for t in range(start, end):
+        count_A_B_coefficients(files_path_prefix, mask, start, end)
+    print(f'Process {os.getpid()} finished')
+    return
+
+
+def parallel_AB(cpu_count):
+    start = 0
+    end = 7320
+    delta = (end - start + cpu_count // 2) // cpu_count
+    borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
+
+    with Pool(cpu_count) as p:
+        p.map(_parallel_AB_func, borders)
+        p.close()
+        p.join()
+    return

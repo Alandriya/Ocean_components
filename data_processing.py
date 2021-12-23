@@ -104,6 +104,24 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
 
 
 def save_ABC(files_path_prefix, a_timelist, b_timelist, c_timelist=None):
+    """
+    Saves data to files_path_prefix + AB_coeff_data directory
+    :param files_path_prefix: path to the working directory
+    :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
+    np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
+    :param b_timelist: list with length = timesteps with b_matrix as elements, where b_matrix is np.array with shape
+    (4, 161, 181) containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+    0 is for B11 = sensible at t0 - sensible at t1,
+    1 is for B12 = sensible at t0 - latent at t1,
+    2 is for B21 = latent at t0 - sensible at t1,
+    3 is for B22 = latent at t0 - latent at t1.
+    :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
+    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
+    the list are np.arrays with shape (2, 161, 181) containing 2 matrices of correlation of A and B coefficients:
+    0 is for (a_sens, B11) correlation,
+    1 is for (a_lat, B22) correlation
+    :return:
+    """
     if not os.path.exists(files_path_prefix + 'AB_coeff_data'):
         os.mkdir(files_path_prefix + 'AB_coeff_data')
 
@@ -122,15 +140,23 @@ def save_ABC(files_path_prefix, a_timelist, b_timelist, c_timelist=None):
     return
 
 
-def load_ABC(files_path_prefix, timesteps, load_c=False):
+def load_ABC(files_path_prefix, time_start, time_end, load_c=False):
+    """
+    Loads data from files_path_prefix + AB_coeff_data directory
+    :param files_path_prefix: path to the working directory
+    :param time_start: first time step
+    :param time_end: last time step
+    :param load_c: load C coefficients flag
+    :return:
+    """
     a_timelist, b_timelist, c_timelist, borders = list(), list(), list(), list()
-    # borders = [a_max, a_min, b_max, 0]
+    # borders = [a_max, a_min, b_max, 0, 1, 0]
 
     a_max = 0
     a_min = 0
     b_max = 0
     print('Loading ABC data')
-    for t in tqdm.tqdm(range(timesteps)):
+    for t in tqdm.tqdm(range(time_start, time_end)):
         a_sens = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy')
         a_lat = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy')
         a_timelist.append([a_sens, a_lat])
