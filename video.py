@@ -10,7 +10,7 @@ import datetime
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as colors
 from copy import deepcopy
-from data_processing import dataframes_to_grids
+from data_processing import EM_dataframes_to_grids
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import ticker
@@ -18,6 +18,14 @@ import plotly.express as px
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    """
+    Truncates a matplotlib sequential colormap from [0, 1] segment to [minval, maxval]
+    :param cmap: matplotlib colormap
+    :param minval:
+    :param maxval:
+    :param n:
+    :return:
+    """
     new_cmap = colors.LinearSegmentedColormap.from_list(
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)))
@@ -50,10 +58,13 @@ def draw_4D(files_path_prefix,
             component,
             timesteps):
     """
+    Draws mean of selected component in a 4D interactive way, where X and Y are for point coordinates, Z for time and
+    color is for value
 
-    :param files_path_prefix:
-    :param component:
-    :param timesteps:
+    :param files_path_prefix: path to the working directory
+    :param flux_type: string of the flux type: 'sensible' or 'latent'
+    :param component: number of component to draw
+    :param timesteps: time steps, not working with timesteps > 15
     :return:
     """
     X_grid = np.arange(0, 161)
@@ -287,7 +298,7 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
     weights_borders = [[0, 1] for _ in range(components_amount)]
 
     # just for reading dataframes set timesteps = 0
-    dataframes, indexes = dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, 0)
+    dataframes, indexes = EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, 0)
 
     tmp = list(zip(indexes, dataframes))
     tmp.sort()
@@ -360,7 +371,29 @@ def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20):
     return
 
 
-def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, timesteps):
+def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, borders, timesteps):
+    """
+    Plots A, B and C (correlation) dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
+    directory.
+    :param files_path_prefix: path to the working directory
+    :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
+    np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
+    :param b_timelist: list with length = timesteps with b_matrix as elements, where b_matrix is np.array with shape
+    (4, 161, 181) containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+    0 is for B11 = sensible at t0 - sensible at t1,
+    1 is for B12 = sensible at t0 - latent at t1,
+    2 is for B21 = latent at t0 - sensible at t1,
+    3 is for B22 = latent at t0 - latent at t1.
+    :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
+    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
+    the list are np.arrays with shape (2, 161, 181) containing 2 matrices of correlation of A and B coefficients:
+    0 is for (a_sens, B11) correlation,
+    1 is for (a_lat, B22) correlation
+    :param borders: min and max values of A and B to display on plot: assumed structure is
+    [a_max, a_min, b_max, b_min, c_max, c_min]. Note: b_min, c_max and c_min are not used now, and set as 0, 1, 0.
+    :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
+    :return:
+    """
     print('Saving A and B pictures')
     for t in tqdm.tqdm(range(timesteps)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
@@ -407,27 +440,31 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
         figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{t + 1:03d}.png')
         plt.close(figa)
 
-        figb, axsb = plt.subplots(1, 2, figsize=(30, 30))
+        figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
-        for i in range(2):
+        for i in range(4):
             b = b_matrix[i]
             cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
             # cmap = truncate_colormap(cmap, 0.2, 1.0)
             # levels = np.percentile(b[np.isfinite(b)], np.linspace(0, 100, 101))
             # norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
-            im = axsb[i].imshow(b,
-                                extent=(0, 161, 181, 0),
-                                interpolation='none',
-                                cmap=cmap,
-                                vmin=0,
-                                vmax=borders[2])
+            im = axsb[i // 2][i % 2].imshow(b,
+                                            extent=(0, 161, 181, 0),
+                                            interpolation='none',
+                                            cmap=cmap,
+                                            vmin=0,
+                                            vmax=borders[2])
             if i == 0:
-                axsb[i].set_title(f'Sensible', fontsize=20)
+                axsb[i // 2][i % 2].set_title(f'Sensible - sensible', fontsize=20)
+            elif i == 3:
+                axsb[i // 2][i % 2].set_title(f'Latent - latent', fontsize=20)
             elif i == 1:
-                axsb[i].set_title(f'Latent', fontsize=20)
+                axsb[i // 2][i % 2].set_title(f'Sensible - latent', fontsize=20)
+            elif i == 2:
+                axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
 
-            divider = make_axes_locatable(axsb[i])
+            divider = make_axes_locatable(axsb[i // 2][i % 2])
             cax = divider.append_axes('right', size='5%', pad=0.3)
             cbar = figa.colorbar(im, cax=cax, orientation='vertical')
             # cbar.ax.locator_params(nbins=5)
@@ -435,4 +472,39 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
         figb.tight_layout()
         figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{t + 1:03d}.png')
         plt.close(figb)
+
+    print('Saving C pictures')
+    for t in tqdm.tqdm(range(len(c_timelist))):
+        figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
+        figc.suptitle(f'Correlations\n', fontsize=30)
+
+        cmap = matplotlib.cm.get_cmap("Greens").copy()
+        cmap.set_bad('white', 1.0)
+        im = axsc[0].imshow(c_timelist[t][0],
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            vmin=0,
+                            vmax=1)
+        axsc[0].set_title(f'Sensible correlation', fontsize=20)
+        divider = make_axes_locatable(axsc[0])
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+
+        cmap = matplotlib.cm.get_cmap("Greens").copy()
+        cmap.set_bad('white', 1.0)
+        im = axsc[1].imshow(c_timelist[t][1],
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            vmin=0,
+                            vmax=1)
+        axsc[1].set_title(f'Latent correlation', fontsize=20)
+        divider = make_axes_locatable(axsc[1])
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+
+        figc.tight_layout()
+        figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{t + 1:03d}.png')
+        plt.close(figc)
     return

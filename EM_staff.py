@@ -1,10 +1,9 @@
 import math
-from math import sqrt
+
 import random
 from copy import deepcopy
 from itertools import permutations
 
-import numpy as np
 import pandas as pd
 import tqdm
 from sklearn.cluster import KMeans
@@ -12,22 +11,9 @@ from sklearn.mixture import GaussianMixture
 
 from fcmeans import FCM
 from plotting import *
-from skimage.measure import block_reduce
 
 
-window_EM = 200
-
-
-def scale_to_bins(arr):
-    # set each value with the number of quantile from 0 to 100 in which it belongs
-    quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
-    arr_digit = np.digitize(arr, quantiles)
-
-    # return nan back :)
-    arr_digit = arr_digit.astype(float)
-    arr_digit[np.isnan(arr)] = np.nan
-
-    return arr_digit
+# window_EM = 200
 
 
 def distance(vec1, vec2, p, weights=(1, 1, 0)):
@@ -289,130 +275,42 @@ def integrate(history):
     return df, labels, full_df
 
 
-def apply_EM(ts, shift):
-  means = np.zeros((len(ts) // shift, 4))
-  sigmas = np.zeros((len(ts) // shift, 4))
-  weights = np.zeros((len(ts) // shift, 4))
-  for i in range(0, (len(ts) - window_EM) // shift):
-    window = np.array(ts[i*shift:i*shift+window_EM]).reshape(-1, 1)
-    converged = False
-    if i == 0:
-      gm = GaussianMixture(n_components=4,
-                          tol = 1e-7,
-                          covariance_type='spherical',
-                          max_iter=10000,
-                          init_params = 'random',
-                          weights_init=[0.5, 0.4, 0.05, 0.05],
-                          n_init=25
-                    ).fit(window)
-      converged = gm.converged_
-    else:
-      gm = GaussianMixture(n_components=4,
-                          tol = 1e-4,
-                          covariance_type='spherical',
-                          max_iter=10000,
-                          means_init=means[i-1, :].reshape(-1, 1),
-                          # precisions_init=sigmas[i-1, :],
-                          init_params = 'random',
-                          weights_init=weights[i-1, :],
-                          n_init=10).fit(window)
+def apply_EM(ts, shift, window_EM = 200):
+    """
+    Applies EM to data and collects parameters into np arrays with shape
+    :param ts: time series
+    :param shift: how many steps forward the window moves to it's next position
+    :param window_EM: window width
+    :return:
+    """
+    means = np.zeros((len(ts) // shift, 4))
+    sigmas = np.zeros((len(ts) // shift, 4))
+    weights = np.zeros((len(ts) // shift, 4))
+    for i in range(0, (len(ts) - window_EM) // shift):
+        window = np.array(ts[i*shift:i*shift+window_EM]).reshape(-1, 1)
+        converged = False
+        if i == 0:
+          gm = GaussianMixture(n_components=4,
+                              tol = 1e-7,
+                              covariance_type='spherical',
+                              max_iter=10000,
+                              init_params = 'random',
+                              weights_init=[0.5, 0.4, 0.05, 0.05],
+                              n_init=25
+                        ).fit(window)
+          converged = gm.converged_
+        else:
+          gm = GaussianMixture(n_components=4,
+                              tol = 1e-4,
+                              covariance_type='spherical',
+                              max_iter=10000,
+                              means_init=means[i-1, :].reshape(-1, 1),
+                              # precisions_init=sigmas[i-1, :],
+                              init_params = 'random',
+                              weights_init=weights[i-1, :],
+                              n_init=10).fit(window)
 
-    means[i, :] = gm.means_.reshape(1, -1)
-    sigmas[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
-    weights[i, :] = gm.weights_.reshape(1, -1)
-
-  return means, sigmas, weights
-
-
-def count_A_B_coefficients(files_path_prefix, mask, timesteps):
-    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
-    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
-
-    sensible_array = sensible_array.astype(float)
-    latent_array = latent_array.astype(float)
-
-    sensible_array[np.logical_not(mask), :] = np.nan
-    latent_array[np.logical_not(mask)] = np.nan
-
-    # mean by day = every 4 observations
-    pack_len = 4
-    sensible_array = block_reduce(sensible_array,
-                                    block_size=(1, pack_len),
-                                    func=np.mean,)
-    latent_array = block_reduce(latent_array,
-                                  block_size=(1, pack_len),
-                                  func=np.mean,)
-
-    sensible_array = scale_to_bins(sensible_array)
-    latent_array = scale_to_bins(latent_array)
-
-    a_timelist = list()
-    b_timelist = list()
-    a_max = 0
-    a_min = 0
-    b_max = 0
-    print('Counting A and B')
-    for t in tqdm.tqdm(range(1, timesteps+1)):
-        a_sens = np.zeros((161, 181))
-        a_lat = np.zeros((161, 181))
-        b_matrix = np.zeros((2, 161, 181))
-
-        # set nan where is not ocean in arrays
-        for i in range(0, len(mask)):
-            if not mask[i]:
-                a_sens[i // 181][i % 181] = np.nan
-                a_lat[i // 181][i % 181] = np.nan
-                b_matrix[:, i // 181, i % 181] = np.nan
-
-        set_sens = set(sensible_array[:, t-1])
-        set_lat = set(latent_array[:, t-1])
-
-        for val_t0 in set_sens:
-            if not np.isnan(val_t0):
-                points_sensible = np.nonzero(sensible_array[:, t-1] == val_t0)[0]
-                amount_t0 = len(points_sensible)
-
-                set_t1 = set(sensible_array[points_sensible][:, t])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(sensible_array[points_sensible][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
-
-                # print(probabilities)
-                # print(sum(probabilities))
-
-                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
-                for idx in points_sensible:
-                    a_sens[idx//181][idx % 181] = a
-                    b_matrix[0][idx//181][idx % 181] = b
-
-        for val_t0 in set_lat:
-            if not np.isnan(val_t0):
-                points_latent = np.nonzero(latent_array[:, t - 1] == val_t0)[0]
-                amount_t0 = len(points_latent)
-
-                set_t1 = set(latent_array[points_latent][:, t])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(latent_array[points_latent][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
-
-                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
-                for idx in points_latent:
-                    a_lat[idx//181][idx % 181] = a
-                    b_matrix[1][idx//181][idx % 181] = b
-
-        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
-        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
-        b_max = max(b_max, np.nanmax(b_matrix))
-        a_timelist.append([a_sens, a_lat])
-        b_timelist.append(b_matrix)
-
-    borders = [a_max, a_min, b_max, 0]
-    return a_timelist, b_timelist, borders
+        means[i, :] = gm.means_.reshape(1, -1)
+        sigmas[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
+        weights[i, :] = gm.weights_.reshape(1, -1)
+    return means, sigmas, weights

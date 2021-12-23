@@ -62,7 +62,7 @@ def binary_to_array(files_path_prefix, flux_type, filename):
     return
 
 
-def dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, timesteps):
+def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, timesteps):
     dataframes = list()
     indexes = list()
     print('Loading DataFrames\n')
@@ -101,3 +101,52 @@ def dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, t
 
     # print(f'Missing dataframes {flux_type}: ', missing_df)
     return dataframes, indexes
+
+
+def save_ABC(files_path_prefix, a_timelist, b_timelist, c_timelist=None):
+    if not os.path.exists(files_path_prefix + 'AB_coeff_data'):
+        os.mkdir(files_path_prefix + 'AB_coeff_data')
+
+    print('Saving ABC data')
+    for t in tqdm.tqdm(range(len(a_timelist))):
+        a_sens, a_lat = a_timelist[t]
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
+        b_matrix = b_timelist[t]
+        np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
+
+    if not c_timelist is None:
+        for t in range(len(c_timelist)):
+            corr_matrix = c_timelist[t]
+            np.save(files_path_prefix + f'AB_coeff_data/{t}_Correlations.npy', corr_matrix)
+    return
+
+
+def load_ABC(files_path_prefix, timesteps, load_c=False):
+    a_timelist, b_timelist, c_timelist, borders = list(), list(), list(), list()
+    # borders = [a_max, a_min, b_max, 0]
+
+    a_max = 0
+    a_min = 0
+    b_max = 0
+    print('Loading ABC data')
+    for t in tqdm.tqdm(range(timesteps)):
+        a_sens = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy')
+        a_lat = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy')
+        a_timelist.append([a_sens, a_lat])
+        b_matrix = np.load(files_path_prefix + f'AB_coeff_data/{t}_B.npy')
+        b_timelist.append(b_matrix)
+
+        if load_c:
+            try:
+                corr_matrix = np.load(files_path_prefix + f'AB_coeff_data/{t}_Correlations.npy')
+                c_timelist.append(corr_matrix)
+            except FileNotFoundError:
+                pass
+        # update borders
+        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
+        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
+        b_max = max(b_max, np.nanmax(b_matrix))
+
+    borders = [a_max, a_min, b_max, 0, 1, 0]
+    return a_timelist, b_timelist, c_timelist, borders
