@@ -24,7 +24,7 @@ def scale_to_bins(arr):
     return arr_digit
 
 
-def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
+def count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array, time_start=0, time_end=0):
     """
     Counts A and B coefficients, saves them to and adds them to a_timelist and b_timelist.
 
@@ -43,35 +43,11 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
     :param time_end: last time step
     :return:
     """
-    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
-    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
 
-    sensible_array = sensible_array.astype(float)
-    latent_array = latent_array.astype(float)
-
-    sensible_array[np.logical_not(mask), :] = np.nan
-    latent_array[np.logical_not(mask)] = np.nan
-
-    # mean by day = every 4 observations
-    pack_len = 4
-    sensible_array = block_reduce(sensible_array,
-                                  block_size=(1, pack_len),
-                                  func=np.mean, )
-    latent_array = block_reduce(latent_array,
-                                block_size=(1, pack_len),
-                                func=np.mean, )
-
-    sensible_array = scale_to_bins(sensible_array)
-    latent_array = scale_to_bins(latent_array)
-
-    a_timelist = list()
-    b_timelist = list()
-    a_max = 0
-    a_min = 0
-    b_max = 0
     # print('Counting A and B')
     # for t in tqdm.tqdm(range(time_start + 1, time_end + 1)):
-    for t in range(time_start + 1, time_end + 1):
+    for t_absolute in range(time_start + 1, time_end + 1):
+        t_rel = t_absolute - time_start
         a_sens = np.zeros((161, 181))
         a_lat = np.zeros((161, 181))
         b_matrix = np.zeros((4, 161, 181))
@@ -83,19 +59,19 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
                 a_lat[i // 181][i % 181] = np.nan
                 b_matrix[:, i // 181, i % 181] = np.nan
 
-        set_sens = set(sensible_array[:, t - 1])
-        set_lat = set(latent_array[:, t - 1])
+        set_sens = set(sensible_array[:, t_rel - 1])
+        set_lat = set(latent_array[:, t_rel - 1])
 
         for val_t0 in set_sens:
             if not np.isnan(val_t0):
-                points_sensible = np.nonzero(sensible_array[:, t - 1] == val_t0)[0]
+                points_sensible = np.nonzero(sensible_array[:, t_rel - 1] == val_t0)[0]
                 amount_t0 = len(points_sensible)
 
                 # sensible t0 - sensible t1
-                set_t1 = set(sensible_array[points_sensible][:, t])
+                set_t1 = set(sensible_array[points_sensible][:, t_rel])
                 probabilities = list()
                 for val_t1 in set_t1:
-                    prob = sum(np.where(sensible_array[points_sensible][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
+                    prob = sum(np.where(sensible_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
                     probabilities.append(prob)
 
                 a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
@@ -107,10 +83,10 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
                     b_matrix[0][idx // 181][idx % 181] = b
 
                 # sensible t0 - latent t1
-                set_t1 = set(latent_array[points_sensible][:, t])
+                set_t1 = set(latent_array[points_sensible][:, t_rel])
                 probabilities = list()
                 for val_t1 in set_t1:
-                    prob = sum(np.where(latent_array[points_sensible][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
+                    prob = sum(np.where(latent_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
                     probabilities.append(prob)
 
                 b_squared = sum(
@@ -122,14 +98,14 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
 
         for val_t0 in set_lat:
             if not np.isnan(val_t0):
-                points_latent = np.nonzero(latent_array[:, t - 1] == val_t0)[0]
+                points_latent = np.nonzero(latent_array[:, t_rel - 1] == val_t0)[0]
                 amount_t0 = len(points_latent)
 
                 # latent - latent
-                set_t1 = set(latent_array[points_latent][:, t])
+                set_t1 = set(latent_array[points_latent][:, t_rel])
                 probabilities = list()
                 for val_t1 in set_t1:
-                    prob = sum(np.where(latent_array[points_latent][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
+                    prob = sum(np.where(latent_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
                     probabilities.append(prob)
 
                 a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
@@ -141,10 +117,10 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
                     b_matrix[3][idx // 181][idx % 181] = b
 
                 # latent t0 - sensible t1
-                set_t1 = set(sensible_array[points_latent][:, t])
+                set_t1 = set(sensible_array[points_latent][:, t_rel])
                 probabilities = list()
                 for val_t1 in set_t1:
-                    prob = sum(np.where(sensible_array[points_latent][:, t] == val_t1, 1, 0)) * 1.0 / amount_t0
+                    prob = sum(np.where(sensible_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
                     probabilities.append(prob)
 
                 b_squared = sum(
@@ -153,20 +129,12 @@ def count_A_B_coefficients(files_path_prefix, mask, time_start=0, time_end=0):
                 for idx in points_latent:
                     b_matrix[2][idx // 181][idx % 181] = b
 
-        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
-        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
-        b_max = max(b_max, np.nanmax(b_matrix))
-
         # save data
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
+        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_sensible.npy', a_sens)
+        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_latent.npy', a_lat)
+        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_B.npy', b_matrix)
 
-        a_timelist.append([a_sens, a_lat])
-        b_timelist.append(b_matrix)
-
-    borders = [a_max, a_min, b_max, 0]
-    return a_timelist, b_timelist, borders
+    return
 
 
 def count_correlations(a_timelist, b_timelist, time_width=14):
@@ -219,15 +187,12 @@ def count_correlations(a_timelist, b_timelist, time_width=14):
 
 
 def _parallel_AB_func(arg):
-    maskfile = open(files_path_prefix + "mask", "rb")
-    binary_values = maskfile.read(29141)
-    maskfile.close()
-    mask = unpack('?' * 29141, binary_values)
+    borders, mask, sensible_array, latent_array = arg
 
     print('My process id:', os.getpid())
-    start, end = arg
+    start, end = borders
     for t in range(start, end):
-        count_A_B_coefficients(files_path_prefix, mask, start, end)
+        count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array, start, end)
     print(f'Process {os.getpid()} finished')
     return
 
@@ -236,10 +201,40 @@ def parallel_AB(cpu_count):
     start = 0
     end = 7320
     delta = (end - start + cpu_count // 2) // cpu_count
+
+    maskfile = open(files_path_prefix + "mask", "rb")
+    binary_values = maskfile.read(29141)
+    maskfile.close()
+    mask = unpack('?' * 29141, binary_values)
+
+    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
+    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
+
+    sensible_array = sensible_array.astype(float)
+    latent_array = latent_array.astype(float)
+    sensible_array[np.logical_not(mask), :] = np.nan
+    latent_array[np.logical_not(mask)] = np.nan
+
+    # mean by day = every 4 observations
+    pack_len = 4
+    sensible_array = block_reduce(sensible_array,
+                                  block_size=(1, pack_len),
+                                  func=np.mean, )
+    latent_array = block_reduce(latent_array,
+                                block_size=(1, pack_len),
+                                func=np.mean, )
+
+    sensible_array = scale_to_bins(sensible_array)
+    latent_array = scale_to_bins(latent_array)
+
     borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
+    masks = [mask[b[0]:b[1]] for b in borders]
+    sensible_part = [sensible_array[b[0]:b[1]] for b in borders]
+    latent_part = [latent_array[b[0]:b[1]] for b in borders]
+    args = [[borders[i], masks[i], sensible_part[i], latent_part[i]] for i in range(cpu_count)]
 
     with Pool(cpu_count) as p:
-        p.map(_parallel_AB_func, borders)
+        p.map(_parallel_AB_func, args)
         p.close()
         p.join()
     return
