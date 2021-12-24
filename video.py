@@ -15,6 +15,7 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import ticker
 import plotly.express as px
+import gc
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
@@ -395,13 +396,16 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
     :return:
     """
     print('Saving A and B pictures')
+
+    figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
+    figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
+
     for t in tqdm.tqdm(range(timesteps)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
 
-        figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         cmap = matplotlib.cm.get_cmap("Blues").copy()
         # cmap = truncate_colormap(cmap, 0.2, 1.0)
@@ -436,11 +440,10 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
         cbar = figa.colorbar(im, cax=cax, orientation='vertical')
         # cbar.ax.locator_params(nbins=5)
 
-        figa.tight_layout()
+        # figa.tight_layout()
         figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{t + 1:03d}.png')
-        plt.close(figa)
+        # figa.canvas.draw()
 
-        figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
             b = b_matrix[i]
@@ -466,16 +469,15 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
 
             divider = make_axes_locatable(axsb[i // 2][i % 2])
             cax = divider.append_axes('right', size='5%', pad=0.3)
-            cbar = figa.colorbar(im, cax=cax, orientation='vertical')
-            # cbar.ax.locator_params(nbins=5)
+            cbar = figb.colorbar(im, cax=cax, orientation='vertical')
 
-        figb.tight_layout()
+        # figb.tight_layout()
+        # figb.canvas.draw()
         figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{t + 1:03d}.png')
-        plt.close(figb)
 
     print('Saving C pictures')
+    figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
     for t in tqdm.tqdm(range(len(c_timelist))):
-        figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
         figc.suptitle(f'Correlations\n', fontsize=30)
 
         cmap = matplotlib.cm.get_cmap("Greens").copy()
@@ -506,5 +508,4 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
 
         figc.tight_layout()
         figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{t + 1:03d}.png')
-        plt.close(figc)
     return

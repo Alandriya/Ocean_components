@@ -47,92 +47,93 @@ def count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array
     # print('Counting A and B')
     # for t in tqdm.tqdm(range(time_start + 1, time_end + 1)):
     for t_absolute in range(time_start + 1, time_end + 1):
-        t_rel = t_absolute - time_start
-        a_sens = np.zeros((161, 181))
-        a_lat = np.zeros((161, 181))
-        b_matrix = np.zeros((4, 161, 181))
+        if not os.path.exists(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_sensible.npy'):
+            t_rel = t_absolute - time_start
+            a_sens = np.zeros((161, 181))
+            a_lat = np.zeros((161, 181))
+            b_matrix = np.zeros((4, 161, 181))
 
-        # set nan where is not ocean in arrays
-        for i in range(0, len(mask)):
-            if not mask[i]:
-                a_sens[i // 181][i % 181] = np.nan
-                a_lat[i // 181][i % 181] = np.nan
-                b_matrix[:, i // 181, i % 181] = np.nan
+            # set nan where is not ocean in arrays
+            for i in range(0, len(mask)):
+                if not mask[i]:
+                    a_sens[i // 181][i % 181] = np.nan
+                    a_lat[i // 181][i % 181] = np.nan
+                    b_matrix[:, i // 181, i % 181] = np.nan
 
-        set_sens = set(sensible_array[:, t_rel - 1])
-        set_lat = set(latent_array[:, t_rel - 1])
+            set_sens = set(sensible_array[:, t_rel - 1])
+            set_lat = set(latent_array[:, t_rel - 1])
 
-        for val_t0 in set_sens:
-            if not np.isnan(val_t0):
-                points_sensible = np.nonzero(sensible_array[:, t_rel - 1] == val_t0)[0]
-                amount_t0 = len(points_sensible)
+            for val_t0 in set_sens:
+                if not np.isnan(val_t0):
+                    points_sensible = np.nonzero(sensible_array[:, t_rel - 1] == val_t0)[0]
+                    amount_t0 = len(points_sensible)
 
-                # sensible t0 - sensible t1
-                set_t1 = set(sensible_array[points_sensible][:, t_rel])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(sensible_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
+                    # sensible t0 - sensible t1
+                    set_t1 = set(sensible_array[points_sensible][:, t_rel])
+                    probabilities = list()
+                    for val_t1 in set_t1:
+                        prob = sum(np.where(sensible_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        probabilities.append(prob)
 
-                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
-                for idx in points_sensible:
-                    a_sens[idx // 181][idx % 181] = a
-                    b_matrix[0][idx // 181][idx % 181] = b
+                    a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                    b_squared = sum(
+                        [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                    b = sqrt(b_squared) if b_squared > 0 else None
+                    for idx in points_sensible:
+                        a_sens[idx // 181][idx % 181] = a
+                        b_matrix[0][idx // 181][idx % 181] = b
 
-                # sensible t0 - latent t1
-                set_t1 = set(latent_array[points_sensible][:, t_rel])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(latent_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
+                    # sensible t0 - latent t1
+                    set_t1 = set(latent_array[points_sensible][:, t_rel])
+                    probabilities = list()
+                    for val_t1 in set_t1:
+                        prob = sum(np.where(latent_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        probabilities.append(prob)
 
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
+                    b_squared = sum(
+                        [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                    b = sqrt(b_squared) if b_squared > 0 else None
 
-                for idx in points_sensible:
-                    b_matrix[1][idx // 181][idx % 181] = b
+                    for idx in points_sensible:
+                        b_matrix[1][idx // 181][idx % 181] = b
 
-        for val_t0 in set_lat:
-            if not np.isnan(val_t0):
-                points_latent = np.nonzero(latent_array[:, t_rel - 1] == val_t0)[0]
-                amount_t0 = len(points_latent)
+            for val_t0 in set_lat:
+                if not np.isnan(val_t0):
+                    points_latent = np.nonzero(latent_array[:, t_rel - 1] == val_t0)[0]
+                    amount_t0 = len(points_latent)
 
-                # latent - latent
-                set_t1 = set(latent_array[points_latent][:, t_rel])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(latent_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
+                    # latent - latent
+                    set_t1 = set(latent_array[points_latent][:, t_rel])
+                    probabilities = list()
+                    for val_t1 in set_t1:
+                        prob = sum(np.where(latent_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        probabilities.append(prob)
 
-                a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
-                for idx in points_latent:
-                    a_lat[idx // 181][idx % 181] = a
-                    b_matrix[3][idx // 181][idx % 181] = b
+                    a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                    b_squared = sum(
+                        [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                    b = sqrt(b_squared) if b_squared > 0 else None
+                    for idx in points_latent:
+                        a_lat[idx // 181][idx % 181] = a
+                        b_matrix[3][idx // 181][idx % 181] = b
 
-                # latent t0 - sensible t1
-                set_t1 = set(sensible_array[points_latent][:, t_rel])
-                probabilities = list()
-                for val_t1 in set_t1:
-                    prob = sum(np.where(sensible_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
-                    probabilities.append(prob)
+                    # latent t0 - sensible t1
+                    set_t1 = set(sensible_array[points_latent][:, t_rel])
+                    probabilities = list()
+                    for val_t1 in set_t1:
+                        prob = sum(np.where(sensible_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        probabilities.append(prob)
 
-                b_squared = sum(
-                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
-                b = sqrt(b_squared) if b_squared > 0 else None
-                for idx in points_latent:
-                    b_matrix[2][idx // 181][idx % 181] = b
+                    b_squared = sum(
+                        [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                    b = sqrt(b_squared) if b_squared > 0 else None
+                    for idx in points_latent:
+                        b_matrix[2][idx // 181][idx % 181] = b
 
-        # save data
-        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_sensible.npy', a_sens)
-        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_latent.npy', a_lat)
-        np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_B.npy', b_matrix)
+            # save data
+            np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_sensible.npy', a_sens)
+            np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_latent.npy', a_lat)
+            np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_B.npy', b_matrix)
 
     return
 
@@ -198,10 +199,6 @@ def _parallel_AB_func(arg):
 
 
 def parallel_AB(cpu_count):
-    start = 0
-    end = 7320
-    delta = (end - start + cpu_count // 2) // cpu_count
-
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
@@ -224,13 +221,17 @@ def parallel_AB(cpu_count):
                                 block_size=(1, pack_len),
                                 func=np.mean, )
 
+    start = 0
+    end = sensible_array.shape[1]
+    delta = (end - start + cpu_count // 2) // cpu_count
+
     sensible_array = scale_to_bins(sensible_array)
     latent_array = scale_to_bins(latent_array)
 
     borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
-    masks = [mask[b[0]:b[1]] for b in borders]
-    sensible_part = [sensible_array[b[0]:b[1]] for b in borders]
-    latent_part = [latent_array[b[0]:b[1]] for b in borders]
+    masks = [mask for b in borders]
+    sensible_part = [sensible_array[:, b[0]:b[1]+1] for b in borders]
+    latent_part = [latent_array[:, b[0]:b[1]+1] for b in borders]
     args = [[borders[i], masks[i], sensible_part[i], latent_part[i]] for i in range(cpu_count)]
 
     with Pool(cpu_count) as p:
