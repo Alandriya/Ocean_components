@@ -351,12 +351,13 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
     return
 
 
-def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20):
+def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20, start=0):
     """
     Creates an .mp4 video from pictures in tmp subdirectory of full_prefix path with pic_prefix in filenames
     :param speed: coefficient of video speed, the more - the slower
     :param files_path_prefix: path to the working directory
     :param name: short name of videofile to create
+    :param start: start number of pictures
     :return:
     """
     video_name = files_path_prefix + f'videos/{name}.mp4'
@@ -366,15 +367,15 @@ def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20):
         os.remove(video_name)
 
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-i', tmp_dir + f"{pic_prefix}%3d.png", '-r', '5',
-        '-pix_fmt', 'yuv420p', video_name,
+        'ffmpeg', '-itsscale', str(speed), '-i', tmp_dir + f"{pic_prefix}%3d.png", '-start_number', str(start),
+        '-r', '5', '-pix_fmt', 'yuv420p', video_name,
     ])
     return
 
 
-def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, borders, timesteps):
+def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end, step=1):
     """
-    Plots A, B and C (correlation) dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
+    Plots A, B dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
     directory.
     :param files_path_prefix: path to the working directory
     :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
@@ -385,14 +386,11 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
     1 is for B12 = sensible at t0 - latent at t1,
     2 is for B21 = latent at t0 - sensible at t1,
     3 is for B22 = latent at t0 - latent at t1.
-    :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
-    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
-    the list are np.arrays with shape (2, 161, 181) containing 2 matrices of correlation of A and B coefficients:
-    0 is for (a_sens, B11) correlation,
-    1 is for (a_lat, B22) correlation
     :param borders: min and max values of A and B to display on plot: assumed structure is
     [a_max, a_min, b_max, b_min, c_max, c_min]. Note: b_min, c_max and c_min are not used now, and set as 0, 1, 0.
-    :param timesteps: amount of timesteps to draw, t goes from 0 to timesteps
+    :param time_start: start point for time
+    :param time_end: end point for time
+    :param step: step in time for loop
     :return:
     """
     print('Saving A and B pictures')
@@ -400,17 +398,15 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
     figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
     figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
 
-    for t in tqdm.tqdm(range(timesteps)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
+    pic_num = 0
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
 
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         cmap = matplotlib.cm.get_cmap("Blues").copy()
-        # cmap = truncate_colormap(cmap, 0.2, 1.0)
-        # levels = np.percentile(a_sens[np.isfinite(a_sens)], np.linspace(0, 100, 101))
-        # norm = matplotlib.colors.BoundaryNorm(levels, 256)
         cmap.set_bad('white', 1.0)
         im = axsa[0].imshow(a_sens,
                             extent=(0, 161, 181, 0),
@@ -422,12 +418,8 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
         divider = make_axes_locatable(axsa[0])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figa.colorbar(im, cax=cax, orientation='vertical')
-        # cbar.ax.locator_params(nbins=5)
 
         cmap = matplotlib.cm.get_cmap("Blues").copy()
-        # cmap = truncate_colormap(cmap, 0.2, 1.0)
-        # levels = np.percentile(a_lat[np.isfinite(a_lat)], np.linspace(0, 100, 101))
-        # norm = matplotlib.colors.BoundaryNorm(levels, 256)
         im = axsa[1].imshow(a_lat,
                             extent=(0, 161, 181, 0),
                             interpolation='none',
@@ -438,19 +430,13 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
         divider = make_axes_locatable(axsa[1])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figa.colorbar(im, cax=cax, orientation='vertical')
-        # cbar.ax.locator_params(nbins=5)
 
-        # figa.tight_layout()
-        figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{t + 1:03d}.png')
-        # figa.canvas.draw()
+        figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{pic_num:03d}.png')
 
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
             b = b_matrix[i]
             cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
-            # cmap = truncate_colormap(cmap, 0.2, 1.0)
-            # levels = np.percentile(b[np.isfinite(b)], np.linspace(0, 100, 101))
-            # norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
             im = axsb[i // 2][i % 2].imshow(b,
                                             extent=(0, 161, 181, 0),
@@ -471,16 +457,36 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
             cax = divider.append_axes('right', size='5%', pad=0.3)
             cbar = figb.colorbar(im, cax=cax, orientation='vertical')
 
-        # figb.tight_layout()
-        # figb.canvas.draw()
-        figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{t + 1:03d}.png')
+        figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{pic_num:03d}.png')
+        pic_num += 1
+    return
 
+
+def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1):
+    """
+    Plots C - correltion between A and B coefficients dynamics as frames and saves them into
+    files_path_prefix + videos/tmp-coeff directory.
+
+    :param files_path_prefix: path to the working directory
+    :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
+    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
+    the list are np.arrays with shape (2, 161, 181) containing 2 matrices of correlation of A and B coefficients:
+    0 is for (a_sens, B11) correlation,
+    1 is for (a_lat, B22) correlation
+    :param time_start: start point for time
+    :param time_end: end point for time
+    :param step: step in time for loop
+    :return:
+    """
     print('Saving C pictures')
     figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
-    for t in tqdm.tqdm(range(len(c_timelist))):
-        figc.suptitle(f'Correlations\n', fontsize=30)
+    pic_num = 0
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
 
         cmap = matplotlib.cm.get_cmap("Greens").copy()
+        cmap = truncate_colormap(cmap, 0.1, 1.0)
         cmap.set_bad('white', 1.0)
         im = axsc[0].imshow(c_timelist[t][0],
                             extent=(0, 161, 181, 0),
@@ -494,6 +500,7 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
         cbar = figc.colorbar(im, cax=cax, orientation='vertical')
 
         cmap = matplotlib.cm.get_cmap("Greens").copy()
+        cmap = truncate_colormap(cmap, 0.1, 1.0)
         cmap.set_bad('white', 1.0)
         im = axsc[1].imshow(c_timelist[t][1],
                             extent=(0, 161, 181, 0),
@@ -507,5 +514,6 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, 
         cbar = figc.colorbar(im, cax=cax, orientation='vertical')
 
         figc.tight_layout()
-        figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{t + 1:03d}.png')
+        figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{pic_num:03d}.png')
+        pic_num += 1
     return

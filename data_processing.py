@@ -125,15 +125,17 @@ def save_ABC(files_path_prefix, a_timelist, b_timelist, c_timelist=None):
     if not os.path.exists(files_path_prefix + 'AB_coeff_data'):
         os.mkdir(files_path_prefix + 'AB_coeff_data')
 
-    print('Saving ABC data')
-    for t in tqdm.tqdm(range(len(a_timelist))):
-        a_sens, a_lat = a_timelist[t]
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
-        b_matrix = b_timelist[t]
-        np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
+    if not a_timelist is None:
+        print('Saving ABC data')
+        for t in tqdm.tqdm(range(len(a_timelist))):
+            a_sens, a_lat = a_timelist[t]
+            np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
+            np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
+            b_matrix = b_timelist[t]
+            np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
 
     if not c_timelist is None:
+        print('Saving C data')
         for t in range(len(c_timelist)):
             corr_matrix = c_timelist[t]
             np.save(files_path_prefix + f'AB_coeff_data/{t}_Correlations.npy', corr_matrix)

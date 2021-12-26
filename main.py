@@ -58,13 +58,15 @@ if __name__ == '__main__':
     # a_timelist, b_timelist, borders = count_A_B_coefficients(files_path_prefix, mask, timesteps)
     # save_AB(files_path_prefix, a_timelist, b_timelist, None)
 
-    a_timelist, b_timelist, c_timelist, borders = load_ABC(files_path_prefix, 1, 1829)
+    # a_timelist, b_timelist, _, borders = load_ABC(files_path_prefix, 1, 1829)
     # c_timelist = count_correlations(a_timelist, b_timelist)
-    # save_AB(files_path_prefix, a_timelist, b_timelist, c_timelist)
+    # save_ABC(files_path_prefix, None, None, c_timelist)
 
-    # a_timelist, b_timelist, c_timelist, borders = load_AB(files_path_prefix, timesteps)
-    plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, c_timelist, borders, 1829)
+    a_timelist, b_timelist, c_timelist, borders = load_ABC(files_path_prefix, 1, 1829, load_c=True)
 
-    # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'a_', 'a_daily', 10)
-    # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'b_', 'b_daily', 10)
-    # create_video(files_path_prefix, files_path_prefix + 'videos/tmp-coeff/', 'C_', 'c_daily', 10)
+    plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, 1, 1829, step=7)
+    plot_c_coeff(files_path_prefix, c_timelist, 1, 1829, step=7)
+
+    create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'a_', 'a_weekly', 10)
+    create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'b_', 'b_weekly', 10)
+    create_video(files_path_prefix, files_path_prefix + 'videos/tmp-coeff/', 'C_', 'c_weekly', 10)

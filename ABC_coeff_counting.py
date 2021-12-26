@@ -134,7 +134,6 @@ def count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array
             np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_sensible.npy', a_sens)
             np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_A_latent.npy', a_lat)
             np.save(files_path_prefix + f'AB_coeff_data/{t_absolute}_B.npy', b_matrix)
-
     return
 
 
