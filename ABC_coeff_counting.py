@@ -140,10 +140,12 @@ def count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array
 def count_correlations(a_timelist, b_timelist, time_width=14):
     """
     Counts correlation between A and B coefficients on the range (0, len(a_timelist) - time_width) and collects them
-    into list c_timelist. Elements of the list are np.arrays with shape (2, 161, 181) containing 2 matrices of
+    into list c_timelist. Elements of the list are np.arrays with shape (4, 161, 181) containing 4 matrices of
     correlation of A and B coefficients:
     0 is for (a_sens, B11) correlation,
-    1 is for (a_lat, B22) correlation
+    1 is for (a_lat, B22) correlation,
+    2 is for (a_sens, a_lat) correlation,
+    3 is for (B11, B22) correlation.
     :param a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
     with values for A coefficient for sensible and latent fluxes, respectively
     :param b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
@@ -158,7 +160,7 @@ def count_correlations(a_timelist, b_timelist, time_width=14):
     c_timelist = list()
     print('Counting C')
     for t_start in tqdm.tqdm(range(0, len(a_timelist) - time_width)):
-        c_grid = np.zeros((2, 161, 181), dtype=float)
+        c_grid = np.zeros((4, 161, 181), dtype=float)
         window = range(t_start, t_start + time_width)
         a_sens_all = np.zeros((time_width, 161, 181), dtype=float)
         a_lat_all = np.zeros((time_width, 161, 181), dtype=float)
@@ -181,6 +183,8 @@ def count_correlations(a_timelist, b_timelist, time_width=14):
                     # 1 - (a_sens, b_sens), 2 - (a_lat, b_lat)
                     c_grid[0, i, j] = pearsonr(a_sens_all[:, i, j], b_all[:, 0, i, j])[0]
                     c_grid[1, i, j] = pearsonr(a_lat_all[:, i, j], b_all[:, 3, i, j])[0]
+                    c_grid[2, i, j] = pearsonr(a_sens_all[:, i, j], a_lat_all[:, i, j])[0]
+                    c_grid[3, i, j] = pearsonr(b_all[:, 0, i, j], b_all[:, 3, i, j])[0]
 
         c_timelist.append(c_grid)
     return c_timelist
@@ -237,4 +241,42 @@ def parallel_AB(cpu_count):
         p.map(_parallel_AB_func, args)
         p.close()
         p.join()
+    return
+
+
+def count_correlation_fluxes(files_path_prefix, start=0, end=0, time_width=14 * 4):
+    maskfile = open(files_path_prefix + "mask", "rb")
+    binary_values = maskfile.read(29141)
+    maskfile.close()
+    mask = unpack('?' * 29141, binary_values)
+
+    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
+    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
+
+    sensible_array = sensible_array.astype(float)
+    latent_array = latent_array.astype(float)
+    sensible_array[np.logical_not(mask), :] = np.nan
+    latent_array[np.logical_not(mask)] = np.nan
+
+    # mean by day = every 4 observations
+    pack_len = 4
+    sensible_array = block_reduce(sensible_array,
+                                  block_size=(1, pack_len),
+                                  func=np.mean, )
+    latent_array = block_reduce(latent_array,
+                                block_size=(1, pack_len),
+                                func=np.mean, )
+
+    for t in tqdm.tqdm(range(start, end - time_width)):
+        corr = np.zeros((161, 181), dtype=float)
+        for i in range(161):
+            for j in range(181):
+                if not mask[i*181 + j]:
+                    corr[i, j] = np.nan
+                else:
+                    sens_window = sensible_array[i * 181 + j, t:t + time_width]
+                    lat_window = latent_array[i * 181 + j, t:t + time_width]
+                    corr[i, j] = pearsonr(sens_window, lat_window)[0]
+
+        np.save(files_path_prefix + f'Flux_correlations/FL_Corr_{t}', corr)
     return

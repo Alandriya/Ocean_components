@@ -62,11 +62,16 @@ if __name__ == '__main__':
     # c_timelist = count_correlations(a_timelist, b_timelist)
     # save_ABC(files_path_prefix, None, None, c_timelist)
 
-    a_timelist, b_timelist, c_timelist, borders = load_ABC(files_path_prefix, 1, 1829, load_c=True)
+    # a_timelist, b_timelist, c_timelist, borders = load_ABC(files_path_prefix, 1, 1829, load_c=True)
 
-    plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, 1, 1829, step=7)
-    plot_c_coeff(files_path_prefix, c_timelist, 1, 1829, step=7)
+    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, 1, 1829, step=7)
+    # plot_c_coeff(files_path_prefix, c_timelist, 1, 1829, step=7)
+    # plot_c_coeff(files_path_prefix, c_timelist, 1, 100, step=1)
 
-    create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'a_', 'a_weekly', 10)
-    create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'b_', 'b_weekly', 10)
+    # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'a_', 'a_weekly', 10)
+    # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'b_', 'b_weekly', 10)
     create_video(files_path_prefix, files_path_prefix + 'videos/tmp-coeff/', 'C_', 'c_weekly', 10)
+
+    # count_correlation_fluxes(files_path_prefix, 0, 1829)
+    # plot_flux_correlations(files_path_prefix, 0, 1829, step=7)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/Flux-corr/', 'FL_corr_', 'flux_correlation_weekly', 10)
