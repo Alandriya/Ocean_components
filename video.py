@@ -452,37 +452,38 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
 
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         cmap = matplotlib.cm.get_cmap("Blues").copy()
-        cmap.set_bad('white', 1.0)
+        cmap.set_bad('darkgreen', 1.0)
         im = axsa[0].imshow(a_sens,
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
-                            vmin=borders[1],
-                            vmax=borders[2])
+                            vmin=borders[0],
+                            vmax=borders[1])
         axsa[0].set_title(f'Sensible', fontsize=20)
         divider = make_axes_locatable(axsa[0])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figa.colorbar(im, cax=cax, orientation='vertical')
 
         cmap = matplotlib.cm.get_cmap("Blues").copy()
+        cmap.set_bad('darkgreen', 1.0)
         im = axsa[1].imshow(a_lat,
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
-                            vmin=borders[1],
-                            vmax=borders[0])
+                            vmin=borders[0],
+                            vmax=borders[1])
         axsa[1].set_title(f'Latent', fontsize=20)
         divider = make_axes_locatable(axsa[1])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figa.colorbar(im, cax=cax, orientation='vertical')
 
-        figa.savefig(files_path_prefix + f'videos/tmp-coeff/a_{pic_num:05d}.png')
+        figa.savefig(files_path_prefix + f'videos/tmp-coeff/A_{pic_num:05d}.png')
 
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
             b = b_matrix[i]
             cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
-            cmap.set_bad('white', 1.0)
+            cmap.set_bad('darkgreen', 1.0)
             im = axsb[i // 2][i % 2].imshow(b,
                                             extent=(0, 161, 181, 0),
                                             interpolation='none',
@@ -502,7 +503,7 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
             cax = divider.append_axes('right', size='5%', pad=0.3)
             cbar = figb.colorbar(im, cax=cax, orientation='vertical')
 
-        figb.savefig(files_path_prefix + f'videos/tmp-coeff/b_{pic_num:05d}.png')
+        figb.savefig(files_path_prefix + f'videos/tmp-coeff/B_{pic_num:05d}.png')
         pic_num += 1
     return
 
@@ -515,18 +516,17 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1):
     :param files_path_prefix: path to the working directory
     :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
     presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
-    the list are np.arrays with shape (4, 161, 181) containing 4 matrices of correlation of A and B coefficients:
-    0 is for (a_sens, B11) correlation,
-    1 is for (a_lat, B22) correlation,
-    2 is for (a_sens, a_lat) correlation,
-    3 is for (B11, B22) correlation.
+    the list are np.arrays with shape (2, 161, 181) containing 4 matrices of correlation of A and B coefficients:
+    0 is for (a_sens, a_lat) correlation,
+    1 is for (B11, B22) correlation.
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
     :return:
     """
     print('Saving C pictures')
-    figc, axsc = plt.subplots(2, 2, figsize=(20, 15))
+    # figc, axsc = plt.subplots(2, 2, figsize=(20, 15))
+    figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
     pic_num = 0
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
@@ -535,58 +535,58 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1):
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         # cmap = truncate_colormap(cmap, 0.1, 1.0)
         cmap.set_bad('darkgreen', 1.0)
-        im = axsc[0][0].imshow(c_timelist[t][0],
+        im = axsc[0].imshow(c_timelist[t][0],
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
                             vmin=-1,
                             vmax=1)
-        axsc[0][0].set_title(f'A_sens - B11 correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[0][0])
+        axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
+        divider = make_axes_locatable(axsc[0])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figc.colorbar(im, cax=cax, orientation='vertical')
 
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         # cmap = truncate_colormap(cmap, 0.1, 1.0)
         cmap.set_bad('darkgreen', 1.0)
-        im = axsc[0][1].imshow(c_timelist[t][1],
+        im = axsc[1].imshow(c_timelist[t][1],
                             extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
                             vmin=-1,
                             vmax=1)
-        axsc[0][1].set_title(f'A_lat - B22 correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[0][1])
+        axsc[1].set_title(f'B11 - B22 correlation', fontsize=20)
+        divider = make_axes_locatable(axsc[1])
         cax = divider.append_axes('right', size='5%', pad=0.3)
         cbar = figc.colorbar(im, cax=cax, orientation='vertical')
 
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsc[1][0].imshow(c_timelist[t][2],
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
-        axsc[1][0].set_title(f'A_sens - A_lat correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[1][0])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
-
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsc[1][1].imshow(c_timelist[t][3],
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
-        axsc[1][1].set_title(f'B11 - B22 correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[1][1])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+        # cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
+        # # cmap = truncate_colormap(cmap, 0.1, 1.0)
+        # cmap.set_bad('darkgreen', 1.0)
+        # im = axsc[1][0].imshow(c_timelist[t][2],
+        #                     extent=(0, 161, 181, 0),
+        #                     interpolation='none',
+        #                     cmap=cmap,
+        #                     vmin=-1,
+        #                     vmax=1)
+        # axsc[1][0].set_title(f'', fontsize=20)
+        # divider = make_axes_locatable(axsc[1][0])
+        # cax = divider.append_axes('right', size='5%', pad=0.3)
+        # cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+        #
+        # cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
+        # # cmap = truncate_colormap(cmap, 0.1, 1.0)
+        # cmap.set_bad('darkgreen', 1.0)
+        # im = axsc[1][1].imshow(c_timelist[t][3],
+        #                     extent=(0, 161, 181, 0),
+        #                     interpolation='none',
+        #                     cmap=cmap,
+        #                     vmin=-1,
+        #                     vmax=1)
+        # axsc[1][1].set_title(f'', fontsize=20)
+        # divider = make_axes_locatable(axsc[1][1])
+        # cax = divider.append_axes('right', size='5%', pad=0.3)
+        # cbar = figc.colorbar(im, cax=cax, orientation='vertical')
 
         # figc.tight_layout()
         figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{pic_num:05d}.png')
@@ -618,4 +618,33 @@ def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
         fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
         pic_num += 1
 
+    return
+
+
+def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, step=1):
+    print('Saving F pictures')
+    fig, axs = plt.subplots(figsize=(15, 15))
+    pic_num = 0
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        f = f_timelist[t]
+        fig.suptitle(f'F coefficient\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+
+        f_min = borders[3]
+        f_max = borders[4]
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#dc143c'], [0, (1.0-f_min)/(f_max - f_min), 1])
+        cmap.set_bad('darkgreen', 1.0)
+        im = axs.imshow(f,
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            vmin=f_min,
+                            vmax=f_max)
+        divider = make_axes_locatable(axs)
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+
+        # fig.tight_layout()
+        fig.savefig(files_path_prefix + f'videos/tmp-coeff/F_{pic_num:05d}.png')
+        pic_num += 1
     return

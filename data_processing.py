@@ -103,71 +103,35 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
     return dataframes, indexes
 
 
-def save_ABC(files_path_prefix, a_timelist, b_timelist, c_timelist=None):
+def load_ABCF(files_path_prefix, time_start, time_end, load_c=False):
     """
-    Saves data to files_path_prefix + AB_coeff_data directory
-    :param files_path_prefix: path to the working directory
-    :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
-    np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
-    :param b_timelist: list with length = timesteps with b_matrix as elements, where b_matrix is np.array with shape
-    (4, 161, 181) containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
-    0 is for B11 = sensible at t0 - sensible at t1,
-    1 is for B12 = sensible at t0 - latent at t1,
-    2 is for B21 = latent at t0 - sensible at t1,
-    3 is for B22 = latent at t0 - latent at t1.
-    :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
-    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
-    the list are np.arrays with shape (2, 161, 181) containing 2 matrices of correlation of A and B coefficients:
-    0 is for (a_sens, B11) correlation,
-    1 is for (a_lat, B22) correlation
-    :return:
-    """
-    if not os.path.exists(files_path_prefix + 'AB_coeff_data'):
-        os.mkdir(files_path_prefix + 'AB_coeff_data')
-
-    if not a_timelist is None:
-        print('Saving ABC data')
-        for t in tqdm.tqdm(range(len(a_timelist))):
-            a_sens, a_lat = a_timelist[t]
-            np.save(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy', a_sens)
-            np.save(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy', a_lat)
-            b_matrix = b_timelist[t]
-            np.save(files_path_prefix + f'AB_coeff_data/{t}_B.npy', b_matrix)
-
-    if not c_timelist is None:
-        print('Saving C data')
-        for t in range(len(c_timelist)):
-            corr_matrix = c_timelist[t]
-            np.save(files_path_prefix + f'AB_coeff_data/{t}_Correlations.npy', corr_matrix)
-    return
-
-
-def load_ABC(files_path_prefix, time_start, time_end, load_c=False):
-    """
-    Loads data from files_path_prefix + AB_coeff_data directory
+    Loads data from files_path_prefix + AB_coeff_data directory and counts borders
     :param files_path_prefix: path to the working directory
     :param time_start: first time step
     :param time_end: last time step
     :param load_c: load C coefficients flag
     :return:
     """
-    a_timelist, b_timelist, c_timelist, borders = list(), list(), list(), list()
-    # borders = [a_max, a_min, b_max, 0, 1, 0]
+    a_timelist, b_timelist, c_timelist, f_timelist = list(), list(), list(), list()
 
     a_max = 0
     a_min = 0
     b_max = 0
+    f_min = 10e9
+    f_max = -1
     print('Loading ABC data')
     for t in tqdm.tqdm(range(time_start, time_end)):
-        a_sens = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_sensible.npy')
-        a_lat = np.load(files_path_prefix + f'AB_coeff_data/{t}_A_latent.npy')
+        a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
+        a_lat = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
         a_timelist.append([a_sens, a_lat])
-        b_matrix = np.load(files_path_prefix + f'AB_coeff_data/{t}_B.npy')
+        b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
         b_timelist.append(b_matrix)
+        f = np.load(files_path_prefix + f'Coeff_data/{t}_F.npy')
+        f_timelist.append(f)
 
         if load_c:
             try:
-                corr_matrix = np.load(files_path_prefix + f'AB_coeff_data/{t}_Correlations.npy')
+                corr_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_C.npy')
                 c_timelist.append(corr_matrix)
             except FileNotFoundError:
                 pass
@@ -175,6 +139,8 @@ def load_ABC(files_path_prefix, time_start, time_end, load_c=False):
         a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
         a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
         b_max = max(b_max, np.nanmax(b_matrix))
+        f_max = max(f_max, np.nanmax(f))
+        f_min = min(f_min, np.nanmin(f))
 
-    borders = [a_max, a_min, b_max, 0, 1, 0]
-    return a_timelist, b_timelist, c_timelist, borders
+    borders = [a_min, a_max, b_max, f_min, f_max]
+    return a_timelist, b_timelist, c_timelist, f_timelist, borders

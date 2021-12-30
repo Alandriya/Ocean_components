@@ -40,9 +40,6 @@ if __name__ == '__main__':
     #
     # sensible_array = scale_to_bins(sensible_array)
     # latent_array = scale_to_bins(latent_array)
-    #
-    # count_A_B_coefficients(files_path_prefix, mask, sensible_array, latent_array, 0, 2)
-    # ---------------------------------------------------------------------------------------
 
     # binary_to_array(files_path_prefix, flux_type, "l79-21")
     # ---------------------------------------------------------------------------------------
@@ -54,23 +51,23 @@ if __name__ == '__main__':
     # draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=timesteps)
     # create_video(files_path_prefix, files_path_prefix+'videos/{flux_type}/tmp/', '', f'{flux_type}_5years_weekly', speed=30)
     # ---------------------------------------------------------------------------------------
+    time_start = 0
+    time_end = 5
+    plot_step = 1
 
-    # a_timelist, b_timelist, borders = count_A_B_coefficients(files_path_prefix, mask, timesteps)
-    # save_AB(files_path_prefix, a_timelist, b_timelist, None)
+    # count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, time_start, time_end)
+    # a_timelist, b_timelist, _, f_timelist, borders = load_ABCF(files_path_prefix, time_start + 1, time_end)
+    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end-1, plot_step)
+    # plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end-1, plot_step)
 
-    # a_timelist, b_timelist, _, borders = load_ABC(files_path_prefix, 1, 1829)
-    # c_timelist = count_correlations(a_timelist, b_timelist)
-    # save_ABC(files_path_prefix, None, None, c_timelist)
-
-    # a_timelist, b_timelist, c_timelist, borders = load_ABC(files_path_prefix, 1, 1829, load_c=True)
-
-    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, 1, 1829, step=7)
-    # plot_c_coeff(files_path_prefix, c_timelist, 1, 1829, step=7)
-    # plot_c_coeff(files_path_prefix, c_timelist, 1, 100, step=1)
+    # count_c_coeff(files_path_prefix, a_timelist, b_timelist, 1, 3)
+    # a_timelist, b_timelist, c_timelist, f_timelist, borders = load_ABCF(files_path_prefix, time_start + 1, time_end, load_c=True)
+    # print('lol')
+    # plot_c_coeff(files_path_prefix, c_timelist, time_start, len(c_timelist), plot_step)
 
     # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'a_', 'a_weekly', 10)
     # create_video(files_path_prefix, files_path_prefix+'videos/tmp-coeff/', 'b_', 'b_weekly', 10)
-    create_video(files_path_prefix, files_path_prefix + 'videos/tmp-coeff/', 'C_', 'c_weekly', 10)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/tmp-coeff/', 'C_', 'c_weekly', 10)
 
     # count_correlation_fluxes(files_path_prefix, 0, 1829)
     # plot_flux_correlations(files_path_prefix, 0, 1829, step=7)
