@@ -1,10 +1,8 @@
 from skimage.measure import block_reduce
 from scipy.stats import pearsonr
 import numpy as np
-from math import sqrt
 import tqdm
 from struct import unpack
-import multiprocessing
 from multiprocessing import Pool
 import os
 from scipy.linalg import sqrtm
