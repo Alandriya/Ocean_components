@@ -4,6 +4,7 @@ import tqdm
 import numpy as np
 from struct import unpack
 from copy import deepcopy
+from skimage.measure import block_reduce
 
 
 def sort_by_means(files_path_prefix, flux_type):
@@ -39,7 +40,7 @@ def sort_by_means(files_path_prefix, flux_type):
     return
 
 
-def binary_to_array(files_path_prefix, flux_type, filename):
+def binary_to_array(files_path_prefix, input_filename, output_filename):
     """
     Creates np array from binary data
     :param files_path_prefix: path to the working directory
@@ -47,18 +48,19 @@ def binary_to_array(files_path_prefix, flux_type, filename):
     :param filename:
     :return:
     """
-    length = 7320
-    arr_5years = np.empty((length, 29141), dtype=float)
+    # length = 14640
+    length = 62396 - 14640 * 4
+    arr_10years = np.empty((length, 29141), dtype=float)
+    file = open(files_path_prefix + input_filename, "rb")
     for i in tqdm.tqdm(range(length)):
-        file = open(files_path_prefix + filename, "rb")
-        offset = 32 + (62396 - length) * 116564 + 116564 * i
+        offset = 32 + 116564 * i + 116564 * (length * 4)
         file.seek(offset, 0)
-        binary_values = file.read(116564)
-        file.close()
+        binary_values = file.read(116564)  # reading one timepoint
         point = unpack('f' * 29141, binary_values)
-        arr_5years[i] = point
-    np.save(files_path_prefix + f'5years_{flux_type}.npy', arr_5years.transpose())
-    del arr_5years
+        arr_10years[i] = point
+    file.close()
+    np.save(files_path_prefix + output_filename + '.npy', arr_10years.transpose())
+    del arr_10years
     return
 
 
@@ -103,7 +105,7 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
     return dataframes, indexes
 
 
-def load_ABCF(files_path_prefix, time_start, time_end, load_c=False):
+def load_ABCF(files_path_prefix, time_start, time_end, load_c=False, load_f=False):
     """
     Loads data from files_path_prefix + AB_coeff_data directory and counts borders
     :param files_path_prefix: path to the working directory
@@ -117,6 +119,7 @@ def load_ABCF(files_path_prefix, time_start, time_end, load_c=False):
     a_max = 0
     a_min = 0
     b_max = 0
+    b_min = 0
     f_min = 10e9
     f_max = -1
     print('Loading ABC data')
@@ -126,21 +129,58 @@ def load_ABCF(files_path_prefix, time_start, time_end, load_c=False):
         a_timelist.append([a_sens, a_lat])
         b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
         b_timelist.append(b_matrix)
-        f = np.load(files_path_prefix + f'Coeff_data/{t}_F.npy')
-        f_timelist.append(f)
 
+        # update borders
+        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
+        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
+        b_max = max(b_max, np.nanmax(b_matrix))
+        b_min = min(b_min, np.nanmin(b_matrix))
+
+        if load_f:
+            f = np.load(files_path_prefix + f'Coeff_data/{t}_F.npy')
+            f_timelist.append(f)
+            f_max = max(f_max, np.nanmax(f))
+            f_min = min(f_min, np.nanmin(f))
         if load_c:
             try:
                 corr_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_C.npy')
                 c_timelist.append(corr_matrix)
             except FileNotFoundError:
                 pass
-        # update borders
-        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
-        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
-        b_max = max(b_max, np.nanmax(b_matrix))
-        f_max = max(f_max, np.nanmax(f))
-        f_min = min(f_min, np.nanmin(f))
 
-    borders = [a_min, a_max, b_max, f_min, f_max]
+    borders = [a_min, a_max, b_min, b_max, f_min, f_max]
     return a_timelist, b_timelist, c_timelist, f_timelist, borders
+
+
+def scale_to_bins(arr):
+    # set each value with the number of quantile from 0 to 100 in which it belongs
+    quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
+    arr_digit = np.digitize(arr, quantiles)
+
+    # return nan back :)
+    arr_digit = arr_digit.astype(float)
+    arr_digit[np.isnan(arr)] = np.nan
+    return arr_digit
+
+
+def load_prepare_fluxes(mask, sensible_filename, latent_filename):
+    sensible_array = np.load(sensible_filename)
+    latent_array = np.load(latent_filename)
+
+    sensible_array = sensible_array.astype(float)
+    latent_array = latent_array.astype(float)
+    sensible_array[np.logical_not(mask), :] = np.nan
+    latent_array[np.logical_not(mask)] = np.nan
+
+    # mean by day = every 4 observations
+    pack_len = 4
+    sensible_array = block_reduce(sensible_array,
+                                  block_size=(1, pack_len),
+                                  func=np.mean, )
+    latent_array = block_reduce(latent_array,
+                                block_size=(1, pack_len),
+                                func=np.mean, )
+
+    sensible_array = scale_to_bins(sensible_array)
+    latent_array = scale_to_bins(latent_array)
+    return sensible_array, latent_array

@@ -10,7 +10,7 @@ import datetime
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as colors
 from copy import deepcopy
-from data_processing import EM_dataframes_to_grids
+from data_processing import EM_dataframes_to_grids, scale_to_bins
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import ticker
@@ -418,10 +418,10 @@ def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20, start=0
     return
 
 
-def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end, step=1):
+def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end, step=1, start_pic_num=0):
     """
     Plots A, B dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
-    directory.
+    directory starting from start_pic_num, with step 1 (in numbers of pictures).
     :param files_path_prefix: path to the working directory
     :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
     np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
@@ -432,86 +432,115 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
     2 is for B21 = latent at t0 - sensible at t1,
     3 is for B22 = latent at t0 - latent at t1.
     :param borders: min and max values of A and B to display on plot: assumed structure is
-    [a_max, a_min, b_max, b_min, c_max, c_min]. Note: b_min, c_max and c_min are not used now, and set as 0, 1, 0.
+    [a_min, a_max, b_min, b_max, f_min, f_max].
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
+    :param start_pic_num: number of first picture
     :return:
     """
     print('Saving A and B pictures')
 
     figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
     figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
+    img_a_sens, img_a_lat = None, None
+    img_b = [None for _ in range(4)]
 
-    pic_num = 0
+    # TODO FIX THIS
+    borders[3] = 100.0
+
+    a_min = borders[0]
+    a_max = borders[1]
+    b_min = borders[2]
+    b_max = borders[3]
+
+    cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
+    cmap_a.set_bad('darkgreen', 1.0)
+
+    axsa[1].set_title(f'Latent', fontsize=20)
+    divider = make_axes_locatable(axsa[1])
+    cax_a_lat = divider.append_axes('right', size='5%', pad=0.3)
+
+    axsa[0].set_title(f'Sensible', fontsize=20)
+    divider = make_axes_locatable(axsa[0])
+    cax_a_sens = divider.append_axes('right', size='5%', pad=0.3)
+
+    cax_b = list()
+    for i in range(4):
+        divider = make_axes_locatable(axsb[i // 2][i % 2])
+        cax_b.append(divider.append_axes('right', size='5%', pad=0.3))
+        if i == 0:
+            axsb[i // 2][i % 2].set_title(f'Sensible - sensible', fontsize=20)
+        elif i == 3:
+            axsb[i // 2][i % 2].set_title(f'Latent - latent', fontsize=20)
+        elif i == 1:
+            axsb[i // 2][i % 2].set_title(f'Sensible - latent', fontsize=20)
+        elif i == 2:
+            axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
+
+    zero_percent = abs(0 - b_min) / (b_max - b_min)
+    cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
+    cmap_b.set_bad('darkgreen', 1.0)
+
+    pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + t)
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
 
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
-        cmap = matplotlib.cm.get_cmap("Blues").copy()
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsa[0].imshow(a_sens,
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=borders[0],
-                            vmax=borders[1])
-        axsa[0].set_title(f'Sensible', fontsize=20)
-        divider = make_axes_locatable(axsa[0])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figa.colorbar(im, cax=cax, orientation='vertical')
+        if img_a_sens is None:
+            img_a_sens = axsa[0].imshow(a_sens,
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap_a,
+                                vmin=a_min,
+                                vmax=a_max)
+        else:
+            img_a_sens.set_data(a_sens)
 
-        cmap = matplotlib.cm.get_cmap("Blues").copy()
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsa[1].imshow(a_lat,
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=borders[0],
-                            vmax=borders[1])
-        axsa[1].set_title(f'Latent', fontsize=20)
-        divider = make_axes_locatable(axsa[1])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figa.colorbar(im, cax=cax, orientation='vertical')
+        figa.colorbar(img_a_sens, cax=cax_a_sens, orientation='vertical')
 
+        if img_a_lat is None:
+            img_a_lat = axsa[1].imshow(a_lat,
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap_a,
+                                vmin=a_min,
+                                vmax=a_max)
+        else:
+            img_a_lat.set_data(a_lat)
+
+        figa.colorbar(img_a_lat, cax=cax_a_lat, orientation='vertical')
         figa.savefig(files_path_prefix + f'videos/tmp-coeff/A_{pic_num:05d}.png')
 
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
-            b = b_matrix[i]
-            cmap = matplotlib.cm.get_cmap("YlOrRd").copy()
-            cmap.set_bad('darkgreen', 1.0)
-            im = axsb[i // 2][i % 2].imshow(b,
-                                            extent=(0, 161, 181, 0),
-                                            interpolation='none',
-                                            cmap=cmap,
-                                            vmin=0,
-                                            vmax=borders[2])
-            if i == 0:
-                axsb[i // 2][i % 2].set_title(f'Sensible - sensible', fontsize=20)
-            elif i == 3:
-                axsb[i // 2][i % 2].set_title(f'Latent - latent', fontsize=20)
-            elif i == 1:
-                axsb[i // 2][i % 2].set_title(f'Sensible - latent', fontsize=20)
-            elif i == 2:
-                axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
+            if img_b[i] is None:
+                img_b[i] = axsb[i // 2][i % 2].imshow(b_matrix[i],
+                                                extent=(0, 161, 181, 0),
+                                                interpolation='none',
+                                                cmap=cmap_b,
+                                                vmin=borders[2],
+                                                vmax=borders[3])
+            else:
+                img_b[i].set_data(b_matrix[i])
 
-            divider = make_axes_locatable(axsb[i // 2][i % 2])
-            cax = divider.append_axes('right', size='5%', pad=0.3)
-            cbar = figb.colorbar(im, cax=cax, orientation='vertical')
+            figb.colorbar(img_b[i], cax=cax_b[i], orientation='vertical')
 
         figb.savefig(files_path_prefix + f'videos/tmp-coeff/B_{pic_num:05d}.png')
         pic_num += 1
+
+        del a_sens, a_lat, b_matrix
+        gc.collect()
     return
 
 
-def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1):
+def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1, start_pic_num=0):
     """
     Plots C - correltion between A and B coefficients dynamics as frames and saves them into
-    files_path_prefix + videos/tmp-coeff directory.
+    files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
 
     :param files_path_prefix: path to the working directory
     :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
@@ -522,73 +551,52 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1):
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
+    :param start_pic_num: number of first picture
     :return:
     """
     print('Saving C pictures')
-    # figc, axsc = plt.subplots(2, 2, figsize=(20, 15))
+
+    # prepare images
     figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
-    pic_num = 0
+    axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
+    divider = make_axes_locatable(axsc[0])
+    cax_1 = divider.append_axes('right', size='5%', pad=0.3)
+
+    axsc[1].set_title(f'B11 - B22 correlation', fontsize=20)
+    divider = make_axes_locatable(axsc[1])
+    cax_2 = divider.append_axes('right', size='5%', pad=0.3)
+
+    img_1, img_2 = None, None
+    cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
+    cmap.set_bad('darkgreen', 1.0)
+
+    pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
         figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if img_1 is None:
+            img_1 = axsc[0].imshow(c_timelist[t][0],
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap,
+                                vmin=-1,
+                                vmax=1)
+        else:
+            img_1.set_data(c_timelist[t][0])
+        figc.colorbar(img_1, cax=cax_1, orientation='vertical')
 
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsc[0].imshow(c_timelist[t][0],
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
-        axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[0])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+        if img_2 is None:
+            img_2 = axsc[1].imshow(c_timelist[t][1],
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap,
+                                vmin=-1,
+                                vmax=1)
+        else:
+            img_2.set_data(c_timelist[t][1])
 
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        cmap.set_bad('darkgreen', 1.0)
-        im = axsc[1].imshow(c_timelist[t][1],
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
-        axsc[1].set_title(f'B11 - B22 correlation', fontsize=20)
-        divider = make_axes_locatable(axsc[1])
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = figc.colorbar(im, cax=cax, orientation='vertical')
+        figc.colorbar(img_2, cax=cax_2, orientation='vertical')
 
-        # cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        # cmap.set_bad('darkgreen', 1.0)
-        # im = axsc[1][0].imshow(c_timelist[t][2],
-        #                     extent=(0, 161, 181, 0),
-        #                     interpolation='none',
-        #                     cmap=cmap,
-        #                     vmin=-1,
-        #                     vmax=1)
-        # axsc[1][0].set_title(f'', fontsize=20)
-        # divider = make_axes_locatable(axsc[1][0])
-        # cax = divider.append_axes('right', size='5%', pad=0.3)
-        # cbar = figc.colorbar(im, cax=cax, orientation='vertical')
-        #
-        # cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        # # cmap = truncate_colormap(cmap, 0.1, 1.0)
-        # cmap.set_bad('darkgreen', 1.0)
-        # im = axsc[1][1].imshow(c_timelist[t][3],
-        #                     extent=(0, 161, 181, 0),
-        #                     interpolation='none',
-        #                     cmap=cmap,
-        #                     vmin=-1,
-        #                     vmax=1)
-        # axsc[1][1].set_title(f'', fontsize=20)
-        # divider = make_axes_locatable(axsc[1][1])
-        # cax = divider.append_axes('right', size='5%', pad=0.3)
-        # cbar = figc.colorbar(im, cax=cax, orientation='vertical')
-
-        # figc.tight_layout()
         figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{pic_num:05d}.png')
         pic_num += 1
     return
@@ -621,30 +629,47 @@ def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
     return
 
 
-def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, step=1):
+def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, step=1, start_pic_num=0):
+    """
+    Plots F - fraction of A and B coefficients as frames and saves them into
+    files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
+    :param files_path_prefix: path to the working directory
+    :param f_timelist:
+    :param borders: min and max values of A and B to display on plot: assumed structure is
+    [a_min, a_max, b_min, b_max, f_min, f_max].
+    :param time_start: start point for time
+    :param time_end: end point for time
+    :param step: step in time for loop
+    :param start_pic_num: number of first picture
+    :return:
+    """
     print('Saving F pictures')
     fig, axs = plt.subplots(figsize=(15, 15))
-    pic_num = 0
+    f_min = borders[4]
+    f_max = borders[5]
+    cmap = get_continuous_cmap(['#000080', '#ffffff', '#dc143c'], [0, (1.0 - f_min) / (f_max - f_min), 1])
+    cmap.set_bad('darkgreen', 1.0)
+    img_f = None
+    divider = make_axes_locatable(axs)
+    cax = divider.append_axes('right', size='5%', pad=0.3)
+
+    pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=t * 24)
         f = f_timelist[t]
         fig.suptitle(f'F coefficient\n {date.strftime("%Y-%m-%d")}', fontsize=30)
 
-        f_min = borders[3]
-        f_max = borders[4]
-        cmap = get_continuous_cmap(['#000080', '#ffffff', '#dc143c'], [0, (1.0-f_min)/(f_max - f_min), 1])
-        cmap.set_bad('darkgreen', 1.0)
-        im = axs.imshow(f,
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=f_min,
-                            vmax=f_max)
-        divider = make_axes_locatable(axs)
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+        if img_f is None:
+            img_f = axs.imshow(f,
+                                extent=(0, 161, 181, 0),
+                                interpolation='none',
+                                cmap=cmap,
+                                vmin=f_min,
+                                vmax=f_max)
+        else:
+            img_f.set_data(f)
 
-        # fig.tight_layout()
+        fig.colorbar(img_f, cax=cax, orientation='vertical')
         fig.savefig(files_path_prefix + f'videos/tmp-coeff/F_{pic_num:05d}.png')
         pic_num += 1
     return

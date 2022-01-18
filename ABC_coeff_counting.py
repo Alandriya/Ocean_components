@@ -10,23 +10,12 @@ import os
 from scipy.linalg import sqrtm
 from scipy.linalg.interpolative import estimate_spectral_norm
 from numpy.linalg import norm
+from data_processing import scale_to_bins
 
 files_path_prefix = 'D://Data/OceanFull/'
 
 
-def scale_to_bins(arr):
-    # set each value with the number of quantile from 0 to 100 in which it belongs
-    quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
-    arr_digit = np.digitize(arr, quantiles)
-
-    # return nan back :)
-    arr_digit = arr_digit.astype(float)
-    arr_digit[np.isnan(arr)] = np.nan
-
-    return arr_digit
-
-
-def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, time_start=0, time_end=0):
+def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, time_start=0, time_end=0, offset=0):
     """
     Counts A B and F coefficients, saves them to files_path_prefix + Coeff_data dir.
     a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
@@ -44,9 +33,9 @@ def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array
     :return:
     """
 
-    # for t in tqdm.tqdm(range(time_start + 1, time_end + 1)):
-    for t_absolute in range(time_start + 1, time_end + 1):
-        if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute}_A_sens.npy'):
+    for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):
+    # for t_absolute in range(time_start + 1, time_end + 1):
+        if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
             t_rel = t_absolute - time_start
             a_sens = np.zeros((161, 181))
             a_lat = np.zeros((161, 181))
@@ -147,10 +136,10 @@ def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array
                         f[i, j] = np.nan
 
             # save data
-            np.save(files_path_prefix + f'Coeff_data/{t_absolute}_A_sens.npy', a_sens)
-            np.save(files_path_prefix + f'Coeff_data/{t_absolute}_A_lat.npy', a_lat)
-            np.save(files_path_prefix + f'Coeff_data/{t_absolute}_B.npy', b_matrix)
-            np.save(files_path_prefix + f'Coeff_data/{t_absolute}_F.npy', f)
+            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_sens.npy', a_sens)
+            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
+            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
+            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
     return
 
 
@@ -212,24 +201,24 @@ def _parallel_AB_func(arg):
     :param arg:
     :return:
     """
-    borders, mask, sensible_array, latent_array = arg
+    offset, borders, mask, sensible_array, latent_array = arg
 
     print('My process id:', os.getpid())
     start, end = borders
     for t in range(start, end):
-        count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, start, end)
+        count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, start, end, offset)
     print(f'Process {os.getpid()} finished')
     return
 
 
-def parallel_AB(cpu_count):
+def parallel_AB(cpu_count, filename_sensible, filename_latent, offset):
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
 
-    sensible_array = np.load(files_path_prefix + f'5years_sensible.npy')
-    latent_array = np.load(files_path_prefix + f'5years_latent.npy')
+    sensible_array = np.load(files_path_prefix + filename_sensible)
+    latent_array = np.load(files_path_prefix + filename_latent)
 
     sensible_array = sensible_array.astype(float)
     latent_array = latent_array.astype(float)
@@ -256,7 +245,7 @@ def parallel_AB(cpu_count):
     masks = [mask for b in borders]
     sensible_part = [sensible_array[:, b[0]:b[1]+1] for b in borders]
     latent_part = [latent_array[:, b[0]:b[1]+1] for b in borders]
-    args = [[borders[i], masks[i], sensible_part[i], latent_part[i]] for i in range(cpu_count)]
+    args = [[offset, borders[i], masks[i], sensible_part[i], latent_part[i]] for i in range(cpu_count)]
 
     with Pool(cpu_count) as p:
         p.map(_parallel_AB_func, args)
