@@ -26,12 +26,21 @@ def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array
     1 is for B12 = sensible at t0 - latent at t1,
     2 is for B21 = latent at t0 - sensible at t1,
     3 is for B22 = latent at t0 - latent at t1.
+
     :param files_path_prefix: path to the working directory
-    :param mask:
-    :param time_start: first time step
-    :param time_end: last time step
+    :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
+    of interest
+    :param sensible_array: np.array with expected shape (161*181, days), where days amount may differ
+    :param latent_array: np.array with expected shape (161*181, days), where days amount may differ
+    :param time_start: offset in days from the beginning of the flux arrays for the first counted element
+    :param time_end: offset in days from the beginning of the flux arrays for the last counted element
+    (that day included!)
+    :param offset: offset in days from 01.01.1979, indicating the day of corresponding index 0 in flux arrays
     :return:
     """
+
+    # NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
+    # but it is absolute in terms of fluxes array from the input indexing
 
     for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):
     # for t_absolute in range(time_start + 1, time_end + 1):
@@ -161,6 +170,7 @@ def count_c_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=1, time_w
     2 is for B21 = latent at t0 - sensible at t1,
     3 is for B22 = latent at t0 - latent at t1.
     :param time_width: time window width = width of vectors going into pearsonr function
+    :param start_idx: from which number to save arrays
     :return:
     """
     print('Counting C')
@@ -171,6 +181,7 @@ def count_c_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=1, time_w
         a_sens_all = np.zeros((time_width, 161, 181), dtype=float)
         a_lat_all = np.zeros((time_width, 161, 181), dtype=float)
         b_all = np.zeros((time_width, 4, 161, 181), dtype=float)
+
         # filling values
         for k in range(time_width):
             t = window[k]
@@ -187,20 +198,17 @@ def count_c_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=1, time_w
                     c_grid[:, i, j] = np.nan
                 else:
                     # 0 - (a_sens, a_lat), 1 - (b_sens, b_lat), 2 - (a_sens, b_sens), 3 - (a_lat, b_lat),
-                    # c_grid[2, i, j] = pearsonr(a_sens_all[:, i, j], b_all[:, 0, i, j])[0]
-                    # c_grid[3, i, j] = pearsonr(a_lat_all[:, i, j], b_all[:, 3, i, j])[0]
                     c_grid[0, i, j] = pearsonr(a_sens_all[:, i, j], a_lat_all[:, i, j])[0]
                     c_grid[1, i, j] = pearsonr(b_all[:, 0, i, j], b_all[:, 3, i, j])[0]
+                    # c_grid[2, i, j] = pearsonr(a_sens_all[:, i, j], b_all[:, 0, i, j])[0]
+                    # c_grid[3, i, j] = pearsonr(a_lat_all[:, i, j], b_all[:, 3, i, j])[0]
         np.save(files_path_prefix + f'Coeff_data/{start_idx + t_start}_C.npy', c_grid)
     return
 
 
 def _parallel_AB_func(arg):
-    """
-    Func for each process in parallel counting AB
-    :param arg:
-    :return:
-    """
+    # Func for each process in parallel counting AB
+
     offset, borders, mask, sensible_array, latent_array = arg
 
     print('My process id:', os.getpid())
@@ -212,6 +220,14 @@ def _parallel_AB_func(arg):
 
 
 def parallel_AB(cpu_count, filename_sensible, filename_latent, offset):
+    """
+    Launches and controlls parallel A, B and F counting
+    :param cpu_count: amount of CPU to use
+    :param filename_sensible: filename containing data of sensible flux
+    :param filename_latent: filename containing data of latent flux
+    :param offset: offset from (01.01.1979) in days for the first element to count
+    :return:
+    """
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
@@ -255,6 +271,15 @@ def parallel_AB(cpu_count, filename_sensible, filename_latent, offset):
 
 
 def count_correlation_fluxes(files_path_prefix, start=0, end=0, time_width=14 * 4):
+    """
+    Counts correlation in time_width days interval starting from start day, and until the right border of the window is
+    less than end index.
+    :param files_path_prefix: path to the working directory
+    :param start: start index, and index of the 1st element of the first window position
+    :param end: end index
+    :param time_width: window width (in days)
+    :return:
+    """
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
@@ -293,6 +318,23 @@ def count_correlation_fluxes(files_path_prefix, start=0, end=0, time_width=14 * 
 
 
 def count_fraction(files_path_prefix, a_timelist, b_timelist, start=0, end=0, step=1):
+    """
+    Counts the F coeeficient with the meaning of a fraction ||A|| / ||B|| in each point of (161,181) grid array,
+    where A norm is standart Euclidean and B norm is an estimate norm of the B matrix
+    :param files_path_prefix: path to the working directory
+    a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
+    with values for A coefficient for sensible and latent fluxes, respectively
+    b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
+    containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+    0 is for B11 = sensible at t0 - sensible at t1,
+    1 is for B12 = sensible at t0 - latent at t1,
+    2 is for B21 = latent at t0 - sensible at t1,
+    3 is for B22 = latent at t0 - latent at t1.
+    :param start: start index
+    :param end: end index
+    :param step: step (in days) in loop
+    :return:
+    """
     for t in tqdm.tqdm(range(start, end, step)):
         f = np.zeros((161, 181), dtype=float)
         for i in range(161):

@@ -10,7 +10,7 @@ import datetime
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.colors as colors
 from copy import deepcopy
-from data_processing import EM_dataframes_to_grids, scale_to_bins
+from data_processing import EM_dataframes_to_grids
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import ticker
@@ -19,36 +19,40 @@ import gc
 
 
 def hex_to_rgb(value):
-    '''
+    """
     Converts hex to rgb colours
     value: string of 6 characters representing a hex colour.
-    Returns: list length 3 of RGB values'''
-    value = value.strip("#") # removes hash symbol if present
+    Returns: list length 3 of RGB values
+    """
+    value = value.strip("#")  # removes hash symbol if present
     lv = len(value)
     return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
 
 
 def rgb_to_dec(value):
-    '''
+    """
     Converts rgb to decimal colours (i.e. divides each value by 256)
     value: list (length 3) of RGB values
-    Returns: list (length 3) of decimal values'''
+    Returns: list (length 3) of decimal values
+    """
     return [v/256 for v in value]
 
 
 def get_continuous_cmap(hex_list, float_list=None):
-    ''' creates and returns a color map that can be used in heat map figures.
-        If float_list is not provided, colour map graduates linearly between each color in hex_list.
-        If float_list is provided, each color in hex_list is mapped to the respective location in float_list.
+    """
+    creates and returns a color map that can be used in heat map figures.
+    If float_list is not provided, colour map graduates linearly between each color in hex_list.
+    If float_list is provided, each color in hex_list is mapped to the respective location in float_list.
 
-        Parameters
-        ----------
-        hex_list: list of hex code strings
-        float_list: list of floats between 0 and 1, same length as hex_list. Must start with 0 and end with 1.
+    Parameters
+    ----------
+    hex_list: list of hex code strings
+    float_list: list of floats between 0 and 1, same length as hex_list. Must start with 0 and end with 1.
 
-        Returns
-        ----------
-        colour map'''
+    Returns
+    ----------
+    colour map
+    """
     rgb_list = [rgb_to_dec(hex_to_rgb(i)) for i in hex_list]
     if float_list:
         pass
@@ -602,39 +606,12 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1, st
     return
 
 
-def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
-    fig, axs = plt.subplots(figsize=(15, 15))
-    pic_num = 0
-    for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
-        corr = np.load(files_path_prefix + f'Flux_correlations/FL_Corr_{t}.npy')
-        fig.suptitle(f'Flux correlation\n {date.strftime("%Y-%m-%d")}', fontsize=30)
-
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        cmap.set_bad('darkgreen', 1.0)
-        im = axs.imshow(corr,
-                            extent=(0, 161, 181, 0),
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
-        divider = make_axes_locatable(axs)
-        cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = fig.colorbar(im, cax=cax, orientation='vertical')
-
-        # fig.tight_layout()
-        fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
-        pic_num += 1
-
-    return
-
-
 def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, step=1, start_pic_num=0):
     """
-    Plots F - fraction of A and B coefficients as frames and saves them into
+    Plots F - fraction ||A|| / ||B|| coefficients' norms and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
     :param files_path_prefix: path to the working directory
-    :param f_timelist:
+    :param f_timelist: list of np.arrays with shape (161, 181) containing fraction ||A||/||B|| in each point.
     :param borders: min and max values of A and B to display on plot: assumed structure is
     [a_min, a_max, b_min, b_max, f_min, f_max].
     :param time_start: start point for time
@@ -672,4 +649,40 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
         fig.colorbar(img_f, cax=cax, orientation='vertical')
         fig.savefig(files_path_prefix + f'videos/tmp-coeff/F_{pic_num:05d}.png')
         pic_num += 1
+    return
+
+
+def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
+    """
+    Plots fluxes correlation and saves them into
+    files_path_prefix + videos/tmp-coeff directory
+    :param files_path_prefix: path to the working directory
+    :param time_start: start point for time
+    :param time_end: end point for time
+    :param step: step in time for loop
+    :return:
+    """
+    fig, axs = plt.subplots(figsize=(15, 15))
+    pic_num = 0
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        corr = np.load(files_path_prefix + f'Flux_correlations/FL_Corr_{t}.npy')
+        fig.suptitle(f'Flux correlation\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+
+        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
+        cmap.set_bad('darkgreen', 1.0)
+        im = axs.imshow(corr,
+                            extent=(0, 161, 181, 0),
+                            interpolation='none',
+                            cmap=cmap,
+                            vmin=-1,
+                            vmax=1)
+        divider = make_axes_locatable(axs)
+        cax = divider.append_axes('right', size='5%', pad=0.3)
+        cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+
+        # fig.tight_layout()
+        fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
+        pic_num += 1
+
     return
