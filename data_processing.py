@@ -48,8 +48,8 @@ def binary_to_array(files_path_prefix, input_filename, output_filename):
     :param filename:
     :return:
     """
-    # length = 14640
-    length = 62396 - 14640 * 4
+    length = 14640
+    # length = 62396 - 14640 * 4
     arr_10years = np.empty((length, 29141), dtype=float)
     file = open(files_path_prefix + input_filename, "rb")
     for i in tqdm.tqdm(range(length)):
@@ -105,7 +105,7 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
     return dataframes, indexes
 
 
-def load_ABCF(files_path_prefix, time_start, time_end, load_c=False, load_f=False):
+def load_ABCF(files_path_prefix, time_start, time_end, load_a=False, load_b=False, load_c=False, load_f=False):
     """
     Loads data from files_path_prefix + AB_coeff_data directory and counts borders
     :param files_path_prefix: path to the working directory
@@ -120,26 +120,29 @@ def load_ABCF(files_path_prefix, time_start, time_end, load_c=False, load_f=Fals
     a_min = 0
     b_max = 0
     b_min = 0
-    f_min = 10e9
+    f_min = 10
     f_max = -1
     print('Loading ABC data')
     for t in tqdm.tqdm(range(time_start, time_end)):
-        a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
-        a_lat = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
-        a_timelist.append([a_sens, a_lat])
-        b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
-        b_timelist.append(b_matrix)
+        if load_a:
+            a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
+            a_lat = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
+            a_timelist.append([a_sens, a_lat])
 
-        # update borders
-        a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
-        a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
-        b_max = max(b_max, np.nanmax(b_matrix))
-        b_min = min(b_min, np.nanmin(b_matrix))
+            a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
+            a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
+
+        if load_b:
+            b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
+            b_timelist.append(b_matrix)
+            b_max = max(b_max, np.nanmax(b_matrix))
+            b_min = min(b_min, np.nanmin(b_matrix))
 
         if load_f:
             f = np.load(files_path_prefix + f'Coeff_data/{t}_F.npy')
             f_timelist.append(f)
-            f_max = max(f_max, np.nanmax(f))
+            if np.isfinite(np.nanmax(f)):
+                f_max = max(f_max, np.nanmax(f))
             f_min = min(f_min, np.nanmin(f))
         if load_c:
             try:

@@ -488,7 +488,7 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + t)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
@@ -576,7 +576,7 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1, st
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
@@ -624,7 +624,9 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
     fig, axs = plt.subplots(figsize=(15, 15))
     f_min = borders[4]
     f_max = borders[5]
-    cmap = get_continuous_cmap(['#000080', '#ffffff', '#dc143c'], [0, (1.0 - f_min) / (f_max - f_min), 1])
+
+    cmap = matplotlib.colors.ListedColormap(['white', 'red'])
+    norm = matplotlib.colors.BoundaryNorm([f_min, 1, f_max], cmap.N)
     cmap.set_bad('darkgreen', 1.0)
     img_f = None
     divider = make_axes_locatable(axs)
@@ -632,7 +634,7 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=t * 24)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         f = f_timelist[t]
         fig.suptitle(f'F coefficient\n {date.strftime("%Y-%m-%d")}', fontsize=30)
 
@@ -641,8 +643,7 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
                                 extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap,
-                                vmin=f_min,
-                                vmax=f_max)
+                                norm=norm)
         else:
             img_f.set_data(f)
 
@@ -652,7 +653,7 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
     return
 
 
-def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
+def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1, start_pic_num=0):
     """
     Plots fluxes correlation and saves them into
     files_path_prefix + videos/tmp-coeff directory
@@ -663,9 +664,9 @@ def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
     :return:
     """
     fig, axs = plt.subplots(figsize=(15, 15))
-    pic_num = 0
+    pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24)
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         corr = np.load(files_path_prefix + f'Flux_correlations/FL_Corr_{t}.npy')
         fig.suptitle(f'Flux correlation\n {date.strftime("%Y-%m-%d")}', fontsize=30)
 
@@ -684,5 +685,4 @@ def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1):
         # fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
         pic_num += 1
-
     return
