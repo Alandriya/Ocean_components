@@ -187,3 +187,30 @@ def load_prepare_fluxes(mask, sensible_filename, latent_filename):
     sensible_array = scale_to_bins(sensible_array)
     latent_array = scale_to_bins(latent_array)
     return sensible_array, latent_array
+
+
+def find_lost_pictures(files_path_prefix, type_prefix):
+    num_lost = []
+    for i in range(15598):
+        if not os.path.exists(files_path_prefix + f'tmp_coeff/{type_prefix}_{i}.npy'):
+            num_lost.append(i+1)
+
+    print(num_lost)
+    print(len(num_lost))
+
+    start = num_lost[0]
+    borders = []
+    sum_lost=0
+    for j in range(1, len(num_lost)):
+        if start is None:
+            start = num_lost[j]
+
+        # if (num_lost[j-1] == num_lost[j] - 1) and j != len(num_lost) - 1 and mask[j]:
+        #     pass
+        if not start is None and (num_lost[j-1] != num_lost[j] - 1):
+            borders.append([start, num_lost[j-1]])
+            sum_lost += num_lost[j-1] - start + 1
+            start = num_lost[j]
+
+    print(borders)
+    print(sum_lost)
