@@ -6,7 +6,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from scipy.optimize import leastsq
 from scipy.optimize import curve_fit
-from EM_staff import moving_average
 import math
 import matplotlib.ticker as mtick
 import pandas as pd

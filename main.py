@@ -4,7 +4,6 @@ import time
 import numpy as np
 import pandas as pd
 
-from EM_staff import *
 from video import *
 from data_processing import *
 from ABC_coeff_counting import *
