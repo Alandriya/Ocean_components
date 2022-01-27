@@ -13,33 +13,39 @@ from data_processing import scale_to_bins
 files_path_prefix = 'D://Data/OceanFull/'
 
 
-def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, time_start=0, time_end=0, offset=0):
+def count_abf_coefficients(files_path_prefix: str,
+                           mask: np.ndarray,
+                           sensible_array: np.ndarray,
+                           latent_array: np.ndarray,
+                           time_start: int = 0,
+                           time_end: int = 0,
+                           offset: int = 0):
     """
     Counts A B and F coefficients, saves them to files_path_prefix + Coeff_data dir.
-    a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
-    with values for A coefficient for sensible and latent fluxes, respectively
-    b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
-    containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
-    0 is for B11 = sensible at t0 - sensible at t1,
-    1 is for B12 = sensible at t0 - latent at t1,
-    2 is for B21 = latent at t0 - sensible at t1,
-    3 is for B22 = latent at t0 - latent at t1.
+
+    :param a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
+        with values for A coefficient for sensible and latent fluxes, respectively
+    :param b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
+        containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+        0 is for B11 = sensible at t0 - sensible at t1,
+        1 is for B12 = sensible at t0 - latent at t1,
+        2 is for B21 = latent at t0 - sensible at t1,
+        3 is for B22 = latent at t0 - latent at t1.
 
     :param files_path_prefix: path to the working directory
     :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
-    of interest
+        of interest
     :param sensible_array: np.array with expected shape (161*181, days), where days amount may differ
     :param latent_array: np.array with expected shape (161*181, days), where days amount may differ
     :param time_start: offset in days from the beginning of the flux arrays for the first counted element
     :param time_end: offset in days from the beginning of the flux arrays for the last counted element
-    (that day included!)
+        (that day included!)
     :param offset: offset in days from 01.01.1979, indicating the day of corresponding index 0 in flux arrays
     :return:
     """
 
-    # NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
+    # !!NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
     # but it is absolute in terms of fluxes array from the input indexing
-
     for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):
     # for t_absolute in range(time_start + 1, time_end + 1):
         if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
@@ -150,23 +156,24 @@ def count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array
     return
 
 
-def count_c_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=1, time_width=14):
+def count_c_coeff(files_path_prefix: str,
+                  a_timelist: list,
+                  b_timelist: list,
+                  start_idx: int = 1,
+                  time_width: int = 14):
     """
     Counts correlation between A and B coefficients on the range (0, len(a_timelist) - time_width) and saves them in
-    files_path_prefix + AB_coeff_data dir. Elements of the list are np.arrays with shape (4, 161, 181) containing
-    2 matrices of correlation of A and B coefficients:
-    0 is for (a_sens, a_lat) correlation,
-    1 is for (B11, B22) correlation.
+    files_path_prefix + AB_coeff_data dir.
 
     :param files_path_prefix: path to the working directory
     :param a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
-    with values for A coefficient for sensible and latent fluxes, respectively
+        with values for A coefficient for sensible and latent fluxes, respectively
     :param b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
-    containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
-    0 is for B11 = sensible at t0 - sensible at t1,
-    1 is for B12 = sensible at t0 - latent at t1,
-    2 is for B21 = latent at t0 - sensible at t1,
-    3 is for B22 = latent at t0 - latent at t1.
+        containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+        0 is for B11 = sensible at t0 - sensible at t1,
+        1 is for B12 = sensible at t0 - latent at t1,
+        2 is for B21 = latent at t0 - sensible at t1,
+        3 is for B22 = latent at t0 - latent at t1.
     :param time_width: time window width = width of vectors going into pearsonr function
     :param start_idx: from which number to save arrays
     :return:
@@ -217,9 +224,10 @@ def _parallel_AB_func(arg):
     return
 
 
-def parallel_AB(cpu_count, filename_sensible, filename_latent, offset):
+def parallel_AB(cpu_count: int, filename_sensible: str, filename_latent: str, offset: int):
     """
     Launches and controlls parallel A, B and F counting
+
     :param cpu_count: amount of CPU to use
     :param filename_sensible: filename containing data of sensible flux
     :param filename_latent: filename containing data of latent flux
@@ -268,10 +276,11 @@ def parallel_AB(cpu_count, filename_sensible, filename_latent, offset):
     return
 
 
-def count_correlation_fluxes(files_path_prefix, start=0, end=0, time_width=14 * 4):
+def count_correlation_fluxes(files_path_prefix: str, start: int = 0, end: int = 0, time_width: int = 14 * 4):
     """
     Counts correlation in time_width days interval starting from start day, and until the right border of the window is
     less than end index.
+
     :param files_path_prefix: path to the working directory
     :param start: start index, and index of the 1st element of the first window position
     :param end: end index
@@ -315,19 +324,25 @@ def count_correlation_fluxes(files_path_prefix, start=0, end=0, time_width=14 * 
     return
 
 
-def count_fraction(files_path_prefix, a_timelist, b_timelist, start=0, end=0, step=1):
+def count_fraction(files_path_prefix: str,
+                   a_timelist: list,
+                   b_timelist: list,
+                   start: int = 0,
+                   end: int = 0,
+                   step: int = 1):
     """
-    Counts the F coeeficient with the meaning of a fraction ||A|| / ||B|| in each point of (161,181) grid array,
-    where A norm is standart Euclidean and B norm is an estimate norm of the B matrix
+    Counts the F coefficient with the meaning of a fraction ||A|| / ||B|| in each point of (161,181) grid array,
+    where A norm is standard Euclidean norm and B norm is an estimated norm of the B matrix
+
     :param files_path_prefix: path to the working directory
     a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
-    with values for A coefficient for sensible and latent fluxes, respectively
+        with values for A coefficient for sensible and latent fluxes, respectively
     b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
-    containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
-    0 is for B11 = sensible at t0 - sensible at t1,
-    1 is for B12 = sensible at t0 - latent at t1,
-    2 is for B21 = latent at t0 - sensible at t1,
-    3 is for B22 = latent at t0 - latent at t1.
+        containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+        0 is for B11 = sensible at t0 - sensible at t1,
+        1 is for B12 = sensible at t0 - latent at t1,
+        2 is for B21 = latent at t0 - sensible at t1,
+        3 is for B22 = latent at t0 - latent at t1.
     :param start: start index
     :param end: end index
     :param step: step (in days) in loop

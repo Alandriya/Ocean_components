@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import tqdm
+import shutil
 import numpy as np
 from struct import unpack
 from copy import deepcopy
@@ -105,13 +106,24 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
     return dataframes, indexes
 
 
-def load_ABCF(files_path_prefix, time_start, time_end, load_a=False, load_b=False, load_c=False, load_f=False):
+def load_ABCF(files_path_prefix,
+              time_start,
+              time_end,
+              load_a=False,
+              load_b=False,
+              load_c=False,
+              load_f=False,
+              verbose=False):
     """
-    Loads data from files_path_prefix + AB_coeff_data directory and counts borders
+    Loads data from files_path_prefix + coeff_data directory and counts borders
     :param files_path_prefix: path to the working directory
     :param time_start: first time step
     :param time_end: last time step
-    :param load_c: load C coefficients flag
+    :param load_a: if to load A data or not
+    :param load_b:
+    :param load_c:
+    :param load_f:
+    :param verbose: if to print logs
     :return:
     """
     a_timelist, b_timelist, c_timelist, f_timelist = list(), list(), list(), list()
@@ -122,8 +134,10 @@ def load_ABCF(files_path_prefix, time_start, time_end, load_a=False, load_b=Fals
     b_min = 0
     f_min = 10
     f_max = -1
-    print('Loading ABC data')
-    for t in tqdm.tqdm(range(time_start, time_end)):
+
+    if verbose:
+        print('Loading ABC data')
+    for t in range(time_start, time_end):
         if load_a:
             a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
             a_lat = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
@@ -160,7 +174,7 @@ def scale_to_bins(arr):
     quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
     arr_digit = np.digitize(arr, quantiles)
 
-    # return nan back :)
+    # set nan back where it was - for land points
     arr_digit = arr_digit.astype(float)
     arr_digit[np.isnan(arr)] = np.nan
     return arr_digit
@@ -192,7 +206,8 @@ def load_prepare_fluxes(mask, sensible_filename, latent_filename):
 def find_lost_pictures(files_path_prefix, type_prefix):
     num_lost = []
     for i in range(15598):
-        if not os.path.exists(files_path_prefix + f'tmp_coeff/{type_prefix}_{i}.npy'):
+        if not os.path.exists(files_path_prefix + f'videos/tmp-coeff/C_{i:05d}.png'):
+            print(files_path_prefix + f'videos/tmp-coeff/C_{i:05d}.png')
             num_lost.append(i+1)
 
     print(num_lost)
@@ -214,3 +229,25 @@ def find_lost_pictures(files_path_prefix, type_prefix):
 
     print(borders)
     print(sum_lost)
+
+
+def init_directory(files_path_prefix: str, flux_type: str):
+    """
+    Creates (or re-creates) subdirectories for saving pictures and video
+
+    :param files_path_prefix: path to the working directory
+    :param flux_type: string of the flux type: 'sensible' or 'latent'
+    :return:
+    """
+    if not os.path.exists(files_path_prefix + f'videos/{flux_type}'):
+        os.mkdir(files_path_prefix + f'videos/{flux_type}')
+
+    if not os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}'):
+        os.mkdir(files_path_prefix + f'tmp_arrays/{flux_type}')
+
+    if os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
+        shutil.rmtree(files_path_prefix + f'videos/{flux_type}/tmp')
+
+    if not os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
+        os.mkdir(files_path_prefix + f'videos/{flux_type}/tmp')
+    return

@@ -1,5 +1,4 @@
 import os
-import shutil
 import tqdm
 import numpy as np
 import pandas as pd
@@ -80,27 +79,6 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)))
     return new_cmap
-
-
-def init_directory(files_path_prefix, flux_type):
-    """
-    Creates (or re-creates) subdirectories for saving pictures and video
-    :param files_path_prefix: path to the working directory
-    :param flux_type: string of the flux type: 'sensible' or 'latent'
-    :return:
-    """
-    if not os.path.exists(files_path_prefix + f'videos/{flux_type}'):
-        os.mkdir(files_path_prefix + f'videos/{flux_type}')
-
-    if not os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}'):
-        os.mkdir(files_path_prefix + f'tmp_arrays/{flux_type}')
-
-    if os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
-        shutil.rmtree(files_path_prefix + f'videos/{flux_type}/tmp')
-
-    if not os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
-        os.mkdir(files_path_prefix + f'videos/{flux_type}/tmp')
-    return
 
 
 def draw_4D(files_path_prefix,
@@ -400,11 +378,14 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
     return
 
 
-def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20, start=0):
+def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: str, speed: int = 20, start: int = 0):
     """
     Creates an .mp4 video from pictures in tmp subdirectory of full_prefix path with pic_prefix in filenames
+
     :param speed: coefficient of video speed, the more - the slower
     :param files_path_prefix: path to the working directory
+    :param tmp_dir: directory with pictures
+    :param pic_prefix: selects pictures with this prefix, e.g. A for A_00001.png, A_00002.png, ...
     :param name: short name of videofile to create
     :param start: start number of pictures
     :return:
@@ -422,21 +403,29 @@ def create_video(files_path_prefix, tmp_dir, pic_prefix, name, speed=20, start=0
     return
 
 
-def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end, step=1, start_pic_num=0):
+def plot_ab_coefficients(files_path_prefix: str,
+                         a_timelist: list,
+                         b_timelist: list,
+                         borders: list,
+                         time_start: int,
+                         time_end: int,
+                         step: int = 1,
+                         start_pic_num: int = 0):
     """
     Plots A, B dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
     directory starting from start_pic_num, with step 1 (in numbers of pictures).
+
     :param files_path_prefix: path to the working directory
     :param a_timelist: list with length = timesteps with structure [a_sens, a_lat], where a_sens and a_lat are
-    np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
+        np.arrays with shape (161, 181) with values for A coefficient for sensible and latent fluxes, respectively
     :param b_timelist: list with length = timesteps with b_matrix as elements, where b_matrix is np.array with shape
-    (4, 161, 181) containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
-    0 is for B11 = sensible at t0 - sensible at t1,
-    1 is for B12 = sensible at t0 - latent at t1,
-    2 is for B21 = latent at t0 - sensible at t1,
-    3 is for B22 = latent at t0 - latent at t1.
-    :param borders: min and max values of A and B to display on plot: assumed structure is
-    [a_min, a_max, b_min, b_max, f_min, f_max].
+        (4, 161, 181) containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+        0 is for B11 = sensible at t0 - sensible at t1,
+        1 is for B12 = sensible at t0 - latent at t1,
+        2 is for B21 = latent at t0 - sensible at t1,
+        3 is for B22 = latent at t0 - latent at t1.
+    :param borders: min and max values of A, B and F to display on plot: assumed structure is
+        [a_min, a_max, b_min, b_max, f_min, f_max].
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
@@ -450,7 +439,7 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
     img_a_sens, img_a_lat = None, None
     img_b = [None for _ in range(4)]
 
-    # TODO FIX THIS
+    # TODO change - it's not a very good way to cut the outliers
     borders[3] = 100.0
 
     a_min = borders[0]
@@ -541,17 +530,22 @@ def plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, tim
     return
 
 
-def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1, start_pic_num=0):
+def plot_c_coeff(files_path_prefix: str,
+                 c_timelist: list,
+                 time_start: int,
+                 time_end: int,
+                 step: int = 1,
+                 start_pic_num: int = 0):
     """
     Plots C - correltion between A and B coefficients dynamics as frames and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
 
     :param files_path_prefix: path to the working directory
     :param c_timelist: list with not strictly defined length because of using window of some width to count its values,
-    presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements of
-    the list are np.arrays with shape (2, 161, 181) containing 4 matrices of correlation of A and B coefficients:
-    0 is for (a_sens, a_lat) correlation,
-    1 is for (B11, B22) correlation.
+        presumably its length = timesteps - time_window_width, where the second is defined in another function. Elements
+        of the list are np.arrays with shape (2, 161, 181) containing 4 matrices of correlation of A and B coefficients:
+        0 is for (a_sens, a_lat) correlation,
+        1 is for (B11, B22) correlation.
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
@@ -606,14 +600,21 @@ def plot_c_coeff(files_path_prefix, c_timelist, time_start, time_end, step=1, st
     return
 
 
-def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, step=1, start_pic_num=0):
+def plot_f_coeff(files_path_prefix: str,
+                 f_timelist: list,
+                 borders: list,
+                 time_start: int,
+                 time_end: int,
+                 step: int = 1,
+                 start_pic_num: int = 0):
     """
     Plots F - fraction ||A|| / ||B|| coefficients' norms and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
+
     :param files_path_prefix: path to the working directory
     :param f_timelist: list of np.arrays with shape (161, 181) containing fraction ||A||/||B|| in each point.
     :param borders: min and max values of A and B to display on plot: assumed structure is
-    [a_min, a_max, b_min, b_max, f_min, f_max].
+        [a_min, a_max, b_min, b_max, f_min, f_max].
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
@@ -653,14 +654,19 @@ def plot_f_coeff(files_path_prefix, f_timelist, borders, time_start, time_end, s
     return
 
 
-def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1, start_pic_num=0):
+def plot_flux_correlations(files_path_prefix: str,
+                           time_start: int,
+                           time_end: int,
+                           step: int = 1,
+                           start_pic_num: int = 0):
     """
-    Plots fluxes correlation and saves them into
-    files_path_prefix + videos/tmp-coeff directory
+    Plots fluxes correlation and saves them into files_path_prefix + videos/tmp-coeff directory
+
     :param files_path_prefix: path to the working directory
     :param time_start: start point for time
     :param time_end: end point for time
     :param step: step in time for loop
+    :param start_pic_num: number of first picture
     :return:
     """
     fig, axs = plt.subplots(figsize=(15, 15))
@@ -680,7 +686,7 @@ def plot_flux_correlations(files_path_prefix, time_start, time_end, step=1, star
                             vmax=1)
         divider = make_axes_locatable(axs)
         cax = divider.append_axes('right', size='5%', pad=0.3)
-        cbar = fig.colorbar(im, cax=cax, orientation='vertical')
+        fig.colorbar(im, cax=cax, orientation='vertical')
 
         # fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
