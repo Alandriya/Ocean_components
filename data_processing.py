@@ -7,6 +7,8 @@ from struct import unpack
 from copy import deepcopy
 from skimage.measure import block_reduce
 
+files_path_prefix = 'D://Data/OceanFull/'
+
 
 def sort_by_means(files_path_prefix, flux_type):
     """
@@ -180,9 +182,14 @@ def scale_to_bins(arr):
     return arr_digit
 
 
-def load_prepare_fluxes(mask, sensible_filename, latent_filename):
-    sensible_array = np.load(sensible_filename)
-    latent_array = np.load(latent_filename)
+def load_prepare_fluxes(sensible_filename, latent_filename, prepare=True):
+    maskfile = open(files_path_prefix + "mask", "rb")
+    binary_values = maskfile.read(29141)
+    maskfile.close()
+    mask = unpack('?' * 29141, binary_values)
+
+    sensible_array = np.load(files_path_prefix + sensible_filename)
+    latent_array = np.load(files_path_prefix + latent_filename)
 
     sensible_array = sensible_array.astype(float)
     latent_array = latent_array.astype(float)
@@ -197,17 +204,17 @@ def load_prepare_fluxes(mask, sensible_filename, latent_filename):
     latent_array = block_reduce(latent_array,
                                 block_size=(1, pack_len),
                                 func=np.mean, )
-
-    sensible_array = scale_to_bins(sensible_array)
-    latent_array = scale_to_bins(latent_array)
+    if prepare:
+        sensible_array = scale_to_bins(sensible_array)
+        latent_array = scale_to_bins(latent_array)
     return sensible_array, latent_array
 
 
 def find_lost_pictures(files_path_prefix, type_prefix):
     num_lost = []
     for i in range(15598):
-        if not os.path.exists(files_path_prefix + f'videos/tmp-coeff/C_{i:05d}.png'):
-            print(files_path_prefix + f'videos/tmp-coeff/C_{i:05d}.png')
+        if not os.path.exists(files_path_prefix + f'videos/tmp-coeff/{type_prefix}_{i:05d}.png'):
+            print(files_path_prefix + f'videos/tmp-coeff/{type_prefix}_{i:05d}.png')
             num_lost.append(i+1)
 
     print(num_lost)
