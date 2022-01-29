@@ -244,7 +244,6 @@ def draw_2D(files_path_prefix,
             # cmap = truncate_colormap(cmap, 0.2, 1.0)
             cmap.set_bad('white', 1.0)
             im = axs[0, comp].imshow(masked_grid,
-                                     extent=(0, 161, 181, 0),
                                      interpolation='none',
                                      cmap=cmap,
                                      norm=norm)
@@ -261,7 +260,6 @@ def draw_2D(files_path_prefix,
             norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
             im = axs[1, comp].imshow(masked_grid,
-                                extent=(0, 161, 181, 0),
                                 interpolation='nearest',
                                 cmap=cmap,
                                 norm=norm)
@@ -278,7 +276,6 @@ def draw_2D(files_path_prefix,
             cmap = matplotlib.cm.get_cmap("jet").copy()
             cmap.set_bad('white', 1.0)
             im = axs[2, comp].imshow(masked_grid,
-                                extent=(0, 161, 181, 0),
                                 interpolation='nearest',
                                 cmap=cmap,
                                 vmin=0,
@@ -485,7 +482,6 @@ def plot_ab_coefficients(files_path_prefix: str,
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_a_sens is None:
             img_a_sens = axsa[0].imshow(a_sens,
-                                extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap_a,
                                 vmin=a_min,
@@ -497,7 +493,6 @@ def plot_ab_coefficients(files_path_prefix: str,
 
         if img_a_lat is None:
             img_a_lat = axsa[1].imshow(a_lat,
-                                extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap_a,
                                 vmin=a_min,
@@ -512,7 +507,6 @@ def plot_ab_coefficients(files_path_prefix: str,
         for i in range(4):
             if img_b[i] is None:
                 img_b[i] = axsb[i // 2][i % 2].imshow(b_matrix[i],
-                                                extent=(0, 161, 181, 0),
                                                 interpolation='none',
                                                 cmap=cmap_b,
                                                 vmin=borders[2],
@@ -574,7 +568,6 @@ def plot_c_coeff(files_path_prefix: str,
         figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
-                                extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap,
                                 vmin=-1,
@@ -585,7 +578,6 @@ def plot_c_coeff(files_path_prefix: str,
 
         if img_2 is None:
             img_2 = axsc[1].imshow(c_timelist[t][1],
-                                extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap,
                                 vmin=-1,
@@ -641,7 +633,6 @@ def plot_f_coeff(files_path_prefix: str,
 
         if img_f is None:
             img_f = axs.imshow(f,
-                                extent=(0, 161, 181, 0),
                                 interpolation='none',
                                 cmap=cmap,
                                 norm=norm)
@@ -679,7 +670,6 @@ def plot_flux_correlations(files_path_prefix: str,
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         cmap.set_bad('darkgreen', 1.0)
         im = axs.imshow(corr,
-                            extent=(0, 161, 181, 0),
                             interpolation='none',
                             cmap=cmap,
                             vmin=-1,
@@ -692,3 +682,31 @@ def plot_flux_correlations(files_path_prefix: str,
         fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
         pic_num += 1
     return
+
+
+def plot_typical_points(files_path_prefix, mask):
+    """
+    Creates and plots in points.png points where the fluxes distribution is observed
+
+    :param files_path_prefix: path to the working directory
+    :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
+        of interest
+    :return: list of points coordinates in tuple
+    """
+    mask = mask.reshape((161, 181))
+    fig, axs = plt.subplots(figsize=(15, 15))
+
+    cmap = matplotlib.colors.ListedColormap(['green', 'white', 'red'])
+    norm = matplotlib.colors.BoundaryNorm([0, 1, 2, 3], cmap.N)
+
+    points = [(15, 160), (15, 60), (40, 10), (40, 60), (45, 90), (40, 120), (40, 150), (60, 90), (60, 120), (60, 150),
+              (90, 40), (90, 60), (90, 90), (90, 120), (90, 150), (110, 40), (110, 60), (110, 90), (110, 120),
+              (110, 10), (130, 20), (150, 10), (130, 40), (130, 60), (130, 90), (130, 120), (150, 90), (150, 120)]
+
+    points_bigger = [(p[0] + i, p[1] + j) for p in points for i in [-1, 0, 1] for j in [-1, 0, 1]]
+    for point in points_bigger:
+        mask[point] = 2
+
+    axs.imshow(mask, interpolation='none', cmap=cmap, norm=norm)
+    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/points.png')
+    return points
