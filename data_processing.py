@@ -115,6 +115,7 @@ def load_ABCF(files_path_prefix,
               load_b=False,
               load_c=False,
               load_f=False,
+              load_fs=False,
               verbose=False):
     """
     Loads data from files_path_prefix + coeff_data directory and counts borders
@@ -128,7 +129,7 @@ def load_ABCF(files_path_prefix,
     :param verbose: if to print logs
     :return:
     """
-    a_timelist, b_timelist, c_timelist, f_timelist = list(), list(), list(), list()
+    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist = list(), list(), list(), list(), list()
 
     a_max = 0
     a_min = 0
@@ -160,6 +161,13 @@ def load_ABCF(files_path_prefix,
             if np.isfinite(np.nanmax(f)):
                 f_max = max(f_max, np.nanmax(f))
             f_min = min(f_min, np.nanmin(f))
+        if load_fs:
+            fs = np.load(files_path_prefix + f'Coeff_data/{t}_F_separate.npy')
+            fs_timelist.append(fs)
+            if np.isfinite(np.nanmax(fs)):
+                f_max = max(f_max, np.nanmax(fs))
+            f_min = min(f_min, np.nanmin(fs))
+
         if load_c:
             try:
                 corr_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_C.npy')
@@ -168,7 +176,7 @@ def load_ABCF(files_path_prefix,
                 pass
 
     borders = [a_min, a_max, b_min, b_max, f_min, f_max]
-    return a_timelist, b_timelist, c_timelist, f_timelist, borders
+    return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders
 
 
 def scale_to_bins(arr):

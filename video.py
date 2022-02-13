@@ -645,6 +645,75 @@ def plot_f_coeff(files_path_prefix: str,
     return
 
 
+def plot_fs_coeff(files_path_prefix: str,
+                          f_timelist: list,
+                          borders: list,
+                          time_start: int,
+                          time_end: int,
+                          step: int = 1,
+                          start_pic_num: int = 0):
+    """
+    Plots FS - fractions a_sens / B[0]  and a_sens / B[1] coefficients' norms and saves them into
+    files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
+
+    :param files_path_prefix: path to the working directory
+    :param f_timelist: list of np.arrays with shape (2, 161, 181)
+    :param borders: min and max values of A and B to display on plot: assumed structure is
+        [a_min, a_max, b_min, b_max, f_min, f_max].
+    :param time_start: start point for time
+    :param time_end: end point for time
+    :param step: step in time for loop
+    :param start_pic_num: number of first picture
+    :return:
+    """
+    print('Saving FS pictures')
+    f_min = borders[4]
+    f_max = borders[5]
+
+    # prepare images
+    figf, axsf = plt.subplots(1, 2, figsize=(20, 15))
+    axsf[0].set_title(f'a_sens / B[0]', fontsize=20)
+    divider = make_axes_locatable(axsf[0])
+    cax_1 = divider.append_axes('right', size='5%', pad=0.3)
+
+    axsf[1].set_title(f'a_lat / B[3]', fontsize=20)
+    divider = make_axes_locatable(axsf[1])
+    cax_2 = divider.append_axes('right', size='5%', pad=0.3)
+
+    img_1, img_2 = None, None
+    cmap = colors.ListedColormap(['lightblue', 'blue', 'red', 'DarkRed'])
+    boundaries = [0, 0.75, 1.0, 2.0, f_max]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    cmap.set_bad('darkgreen', 1.0)
+
+    pic_num = start_pic_num
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
+        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if img_1 is None:
+            img_1 = axsf[0].imshow(f_timelist[t][0],
+                                interpolation='none',
+                                cmap=cmap,
+                                norm=norm)
+        else:
+            img_1.set_data(f_timelist[t][0])
+        figf.colorbar(img_1, cax=cax_1, orientation='vertical')
+
+        if img_2 is None:
+            img_2 = axsf[1].imshow(f_timelist[t][1],
+                                interpolation='none',
+                                cmap=cmap,
+                                norm=norm)
+        else:
+            img_2.set_data(f_timelist[t][1])
+
+        figf.colorbar(img_2, cax=cax_2, orientation='vertical')
+        figf.tight_layout()
+        figf.savefig(files_path_prefix + f'videos/tmp-coeff/FS_{pic_num:05d}.png')
+        pic_num += 1
+    return
+
+
 def plot_flux_correlations(files_path_prefix: str,
                            time_start: int,
                            time_end: int,
@@ -693,7 +762,7 @@ def plot_typical_points(files_path_prefix, mask):
         of interest
     :return: list of points coordinates in tuple
     """
-    mask = mask.reshape((161, 181))
+    mask_map = deepcopy(mask).reshape((161, 181))
     fig, axs = plt.subplots(figsize=(15, 15))
 
     cmap = matplotlib.colors.ListedColormap(['green', 'white', 'red'])
@@ -705,8 +774,25 @@ def plot_typical_points(files_path_prefix, mask):
 
     points_bigger = [(p[0] + i, p[1] + j) for p in points for i in [-1, 0, 1] for j in [-1, 0, 1]]
     for point in points_bigger:
-        mask[point] = 2
+        mask_map[point] = 2
 
-    axs.imshow(mask, interpolation='none', cmap=cmap, norm=norm)
+    axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
     fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/points.png')
     return points
+
+
+def plot_current_bigpoint(files_path_prefix, mask, point, radius):
+    mask_map = deepcopy(mask).reshape((161, 181))
+    fig, axs = plt.subplots(figsize=(15, 15))
+
+    cmap = matplotlib.colors.ListedColormap(['green', 'white', 'red'])
+    norm = matplotlib.colors.BoundaryNorm([0, 1, 2, 3], cmap.N)
+
+    biases = [i for i in range(-radius, radius)]
+    point_bigger = [(point[0] + i, point[1] + j) for i in biases for j in biases]
+    for point in point_bigger:
+        mask_map[point] = 2
+
+    axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
+    fig.savefig(files_path_prefix + f'Func_repr/a-flux-monthly/point_({point[0]}, {point[1]}).png')
+    return

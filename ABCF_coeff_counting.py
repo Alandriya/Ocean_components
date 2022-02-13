@@ -211,6 +211,40 @@ def count_c_coeff(files_path_prefix: str,
     return
 
 
+def count_f_separate_coeff(files_path_prefix: str, a_timelist: list, b_timelist: list, start_idx: int = 1):
+    """
+    :param files_path_prefix: path to the working directory
+    :param a_timelist: list with structure [a_sens, a_lat], where a_sens and a_lat are np.arrays with shape (161, 181)
+        with values for A coefficient for sensible and latent fluxes, respectively
+    :param b_timelist: list with b_matrix as elements, where b_matrix is np.array with shape (4, 161, 181)
+        containing 4 matrices with elements of 2x2 matrix of coefficient B for every point of grid.
+        0 is for B11 = sensible at t0 - sensible at t1,
+        1 is for B12 = sensible at t0 - latent at t1,
+        2 is for B21 = latent at t0 - sensible at t1,
+        3 is for B22 = latent at t0 - latent at t1.
+    :param start_idx: from which number to save arrays
+    :return:
+    """
+    print('Counting F separate')
+    for t in tqdm.tqdm(range(0, len(a_timelist))):
+        f_grid = np.zeros((2, 161, 181), dtype=float)
+
+        a_sens = a_timelist[t][0]
+        a_lat = a_timelist[t][1]
+        b_matrix = b_timelist[t]
+
+        for i in range(161):
+            for j in range(181):
+                if np.isnan(a_sens[i, j]):
+                    f_grid[:, i, j] = np.nan
+                else:
+                    f_grid[0, i, j] = abs(a_sens[i, j]) / abs(b_matrix[0, i, j])
+                    f_grid[1, i, j] = abs(a_lat[i, j]) / abs(b_matrix[3, i, j])
+
+        np.save(files_path_prefix + f'Coeff_data/{start_idx + t}_F_separate.npy', f_grid)
+    return
+
+
 def _parallel_AB_func(arg):
     # Func for each process in parallel counting AB
 
