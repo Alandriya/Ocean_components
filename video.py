@@ -34,7 +34,7 @@ def rgb_to_dec(value):
     value: list (length 3) of RGB values
     Returns: list (length 3) of decimal values
     """
-    return [v/256 for v in value]
+    return [v / 256 for v in value]
 
 
 def get_continuous_cmap(hex_list, float_list=None):
@@ -99,7 +99,7 @@ def draw_4D(files_path_prefix,
     Y_grid = np.arange(0, 181)
     Z_grid = np.arange(0, timesteps)
     X, Y, Z = np.meshgrid(X_grid, Y_grid, Z_grid)
-    colors = np.zeros_like(X,dtype=float)
+    colors = np.zeros_like(X, dtype=float)
     for t in range(timesteps):
         means_grid = np.load(files_path_prefix + f'tmp_arrays/{flux_type}/means_{t}.npy')
         colors[:, :, t] = means_grid[component].T
@@ -144,7 +144,7 @@ def draw_3D(files_path_prefix,
     :return:
     """
     # plot surface
-    date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6*(62396 - 7320) + t*24*7)
+    date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
     X = range(0, 161)
     Y = range(0, 181)
     X, Y = np.meshgrid(X, Y)
@@ -260,9 +260,9 @@ def draw_2D(files_path_prefix,
             norm = matplotlib.colors.BoundaryNorm(levels, 256)
             cmap.set_bad('white', 1.0)
             im = axs[1, comp].imshow(masked_grid,
-                                interpolation='nearest',
-                                cmap=cmap,
-                                norm=norm)
+                                     interpolation='nearest',
+                                     cmap=cmap,
+                                     norm=norm)
             axs[1, comp].set_title(f'Sigma {comp + 1}', fontsize=20)
             # if comp == components_amount - 1:
             divider = make_axes_locatable(axs[1, comp])
@@ -276,10 +276,10 @@ def draw_2D(files_path_prefix,
             cmap = matplotlib.cm.get_cmap("jet").copy()
             cmap.set_bad('white', 1.0)
             im = axs[2, comp].imshow(masked_grid,
-                                interpolation='nearest',
-                                cmap=cmap,
-                                vmin=0,
-                                vmax=1)
+                                     interpolation='nearest',
+                                     cmap=cmap,
+                                     vmin=0,
+                                     vmax=1)
             axs[2, comp].set_title(f'Weight {comp + 1}', fontsize=20)
             # if comp == components_amount - 1:
             divider = make_axes_locatable(axs[2, comp])
@@ -431,8 +431,8 @@ def plot_ab_coefficients(files_path_prefix: str,
     """
     print('Saving A and B pictures')
 
-    figa, axsa = plt.subplots(1, 2, figsize=(20, 15))
-    figb, axsb = plt.subplots(2, 2, figsize=(20, 20))
+    figa, axsa = plt.subplots(1, 2, figsize=(20, 10))
+    figb, axsb = plt.subplots(2, 2, figsize=(20, 15))
     img_a_sens, img_a_lat = None, None
     img_b = [None for _ in range(4)]
 
@@ -482,10 +482,10 @@ def plot_ab_coefficients(files_path_prefix: str,
         figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_a_sens is None:
             img_a_sens = axsa[0].imshow(a_sens,
-                                interpolation='none',
-                                cmap=cmap_a,
-                                vmin=a_min,
-                                vmax=a_max)
+                                        interpolation='none',
+                                        cmap=cmap_a,
+                                        vmin=a_min,
+                                        vmax=a_max)
         else:
             img_a_sens.set_data(a_sens)
 
@@ -493,30 +493,30 @@ def plot_ab_coefficients(files_path_prefix: str,
 
         if img_a_lat is None:
             img_a_lat = axsa[1].imshow(a_lat,
-                                interpolation='none',
-                                cmap=cmap_a,
-                                vmin=a_min,
-                                vmax=a_max)
+                                       interpolation='none',
+                                       cmap=cmap_a,
+                                       vmin=a_min,
+                                       vmax=a_max)
         else:
             img_a_lat.set_data(a_lat)
 
         figa.colorbar(img_a_lat, cax=cax_a_lat, orientation='vertical')
-        figa.savefig(files_path_prefix + f'videos/tmp-coeff/A_{pic_num:05d}.png')
+        figa.savefig(files_path_prefix + f'videos/A/A_{pic_num:05d}.png')
 
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
             if img_b[i] is None:
                 img_b[i] = axsb[i // 2][i % 2].imshow(b_matrix[i],
-                                                interpolation='none',
-                                                cmap=cmap_b,
-                                                vmin=borders[2],
-                                                vmax=borders[3])
+                                                      interpolation='none',
+                                                      cmap=cmap_b,
+                                                      vmin=borders[2],
+                                                      vmax=borders[3])
             else:
                 img_b[i].set_data(b_matrix[i])
 
             figb.colorbar(img_b[i], cax=cax_b[i], orientation='vertical')
 
-        figb.savefig(files_path_prefix + f'videos/tmp-coeff/B_{pic_num:05d}.png')
+        figb.savefig(files_path_prefix + f'videos/B/B_{pic_num:05d}.png')
         pic_num += 1
 
         del a_sens, a_lat, b_matrix
@@ -549,7 +549,7 @@ def plot_c_coeff(files_path_prefix: str,
     print('Saving C pictures')
 
     # prepare images
-    figc, axsc = plt.subplots(1, 2, figsize=(20, 15))
+    figc, axsc = plt.subplots(1, 2, figsize=(20, 10))
     axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
     divider = make_axes_locatable(axsc[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
@@ -568,26 +568,26 @@ def plot_c_coeff(files_path_prefix: str,
         figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
-                                interpolation='none',
-                                cmap=cmap,
-                                vmin=-1,
-                                vmax=1)
+                                   interpolation='none',
+                                   cmap=cmap,
+                                   vmin=-1,
+                                   vmax=1)
         else:
             img_1.set_data(c_timelist[t][0])
         figc.colorbar(img_1, cax=cax_1, orientation='vertical')
 
         if img_2 is None:
             img_2 = axsc[1].imshow(c_timelist[t][1],
-                                interpolation='none',
-                                cmap=cmap,
-                                vmin=-1,
-                                vmax=1)
+                                   interpolation='none',
+                                   cmap=cmap,
+                                   vmin=-1,
+                                   vmax=1)
         else:
             img_2.set_data(c_timelist[t][1])
 
         figc.colorbar(img_2, cax=cax_2, orientation='vertical')
 
-        figc.savefig(files_path_prefix + f'videos/tmp-coeff/C_{pic_num:05d}.png')
+        figc.savefig(files_path_prefix + f'videos/C/C_{pic_num:05d}.png')
         pic_num += 1
     return
 
@@ -633,9 +633,9 @@ def plot_f_coeff(files_path_prefix: str,
 
         if img_f is None:
             img_f = axs.imshow(f,
-                                interpolation='none',
-                                cmap=cmap,
-                                norm=norm)
+                               interpolation='none',
+                               cmap=cmap,
+                               norm=norm)
         else:
             img_f.set_data(f)
 
@@ -646,14 +646,16 @@ def plot_f_coeff(files_path_prefix: str,
 
 
 def plot_fs_coeff(files_path_prefix: str,
-                          f_timelist: list,
-                          borders: list,
-                          time_start: int,
-                          time_end: int,
-                          step: int = 1,
-                          start_pic_num: int = 0):
+                  f_timelist: list,
+                  borders: list,
+                  time_start: int,
+                  time_end: int,
+                  step: int = 1,
+                  start_pic_num: int = 0,
+                  mean_width: int = 7):
     """
-    Plots FS - fractions a_sens / B[0]  and a_sens / B[1] coefficients' norms and saves them into
+    Plots FS - fractions mean(abs(a_sens)) / mean(abs(B[0]))  and mean(abs(a_lat) / mean(abs(B[1]))
+    coefficients' where mean is taken in [t, t + mean_width] days window and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
 
     :param files_path_prefix: path to the working directory
@@ -664,6 +666,7 @@ def plot_fs_coeff(files_path_prefix: str,
     :param time_end: end point for time
     :param step: step in time for loop
     :param start_pic_num: number of first picture
+    :param mean_width: width in days of window to count mean
     :return:
     """
     print('Saving FS pictures')
@@ -671,45 +674,46 @@ def plot_fs_coeff(files_path_prefix: str,
     f_max = borders[5]
 
     # prepare images
-    figf, axsf = plt.subplots(1, 2, figsize=(20, 15))
-    axsf[0].set_title(f'a_sens / B[0]', fontsize=20)
+    figf, axsf = plt.subplots(1, 2, figsize=(20, 10))
+    axsf[0].set_title(f'Sensible', fontsize=20)
     divider = make_axes_locatable(axsf[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
 
-    axsf[1].set_title(f'a_lat / B[3]', fontsize=20)
+    axsf[1].set_title(f'Latent', fontsize=20)
     divider = make_axes_locatable(axsf[1])
     cax_2 = divider.append_axes('right', size='5%', pad=0.3)
 
     img_1, img_2 = None, None
-    cmap = colors.ListedColormap(['lightblue', 'blue', 'red', 'DarkRed'])
-    boundaries = [0, 0.75, 1.0, 2.0, f_max]
+    cmap = colors.ListedColormap(['MintCream', 'Aquamarine', 'blue', 'red', 'DarkRed'])
+    boundaries = [0, 0.25, 0.5, 1.0, 1.5, max(f_max, 2.0)]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
     cmap.set_bad('darkgreen', 1.0)
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
-        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        date_end = date + datetime.timedelta(days=mean_width)
+        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsf[0].imshow(f_timelist[t][0],
-                                interpolation='none',
-                                cmap=cmap,
-                                norm=norm)
+                                   interpolation='none',
+                                   cmap=cmap,
+                                   norm=norm)
         else:
             img_1.set_data(f_timelist[t][0])
         figf.colorbar(img_1, cax=cax_1, orientation='vertical')
 
         if img_2 is None:
             img_2 = axsf[1].imshow(f_timelist[t][1],
-                                interpolation='none',
-                                cmap=cmap,
-                                norm=norm)
+                                   interpolation='none',
+                                   cmap=cmap,
+                                   norm=norm)
         else:
             img_2.set_data(f_timelist[t][1])
 
         figf.colorbar(img_2, cax=cax_2, orientation='vertical')
         figf.tight_layout()
-        figf.savefig(files_path_prefix + f'videos/tmp-coeff/FS_{pic_num:05d}.png')
+        figf.savefig(files_path_prefix + f'videos/FS/FS_{pic_num:05d}.png')
         pic_num += 1
     return
 
@@ -720,7 +724,7 @@ def plot_flux_correlations(files_path_prefix: str,
                            step: int = 1,
                            start_pic_num: int = 0):
     """
-    Plots fluxes correlation and saves them into files_path_prefix + videos/tmp-coeff directory
+    Plots fluxes correlation and saves them into files_path_prefix + videos/Flux-corr directory
 
     :param files_path_prefix: path to the working directory
     :param time_start: start point for time
@@ -739,21 +743,21 @@ def plot_flux_correlations(files_path_prefix: str,
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         cmap.set_bad('darkgreen', 1.0)
         im = axs.imshow(corr,
-                            interpolation='none',
-                            cmap=cmap,
-                            vmin=-1,
-                            vmax=1)
+                        interpolation='none',
+                        cmap=cmap,
+                        vmin=-1,
+                        vmax=1)
         divider = make_axes_locatable(axs)
         cax = divider.append_axes('right', size='5%', pad=0.3)
         fig.colorbar(im, cax=cax, orientation='vertical')
 
-        # fig.tight_layout()
+        fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/Flux-corr/FL_corr_{pic_num:05d}.png')
         pic_num += 1
     return
 
 
-def plot_typical_points(files_path_prefix, mask):
+def plot_typical_points(files_path_prefix: str, mask: np.ndarray):
     """
     Creates and plots in points.png points where the fluxes distribution is observed
 
@@ -781,7 +785,16 @@ def plot_typical_points(files_path_prefix, mask):
     return points
 
 
-def plot_current_bigpoint(files_path_prefix, mask, point, radius):
+def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple, radius: int):
+    """
+    Plots the "big point" which is a square area with the center in point and length of side 2*radius
+    :param files_path_prefix: path to the working directory
+    :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
+        of interest
+    :param point: tuple with point coordinates in a grid
+    :param radius: half of side length of a square
+    :return:
+    """
     mask_map = deepcopy(mask).reshape((161, 181))
     fig, axs = plt.subplots(figsize=(15, 15))
 
