@@ -13,6 +13,7 @@ from data_processing import load_prepare_fluxes
 from func_estimation import estimate_a_flux_by_months
 import cycler
 from EM_hybrid import *
+from fluxes_distribution import *
 
 
 # Parameters
@@ -135,32 +136,49 @@ if __name__ == '__main__':
     #     np.save(files_path_prefix + f'/TimeSeries/B_({p[0]}, {p[1]}).npy', ts_b)
 
 
-    # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_1979-1989.npy',
-    #                                                    'LATENT_1979-1989.npy',
-    #                                                    prepare=False)
+    sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_1979-1989.npy',
+                                                       'LATENT_1979-1989.npy',
+                                                       prepare=False)
 
-    sensible_array = np.load(files_path_prefix + 'sensible_all.npy')
-    time_start = 0
-    time_end = len(sensible_array)
-    print(sensible_array.shape[1])
-    point = 39
-    flux_type = 'sensible'
-    n_components = 3
-    window_width = 300
-
-
-    print(sum(mask))
-    raise ValueError
-
-    points = [39]
-    for i in tqdm.tqdm(points):
-        if mask[i]:
-            sample_sens = sensible_array[i, time_start:time_end]
-            point_df = hybrid(sample_sens, window_width, n_components, 5)
-            point_df.to_excel(files_path_prefix + f'Components/{flux_type}/raw/point_{i}.xlsx', index=False)
-
-            df = pd.read_excel(files_path_prefix + f'Components/{flux_type}/raw/point_{point}.xlsx')
-            new_df, new_n_components = cluster_components(df, n_components, point, files_path_prefix, flux_type)
-            new_df.to_excel(files_path_prefix + f'Components/{flux_type}/point_{point}.xlsx', index=False)
-    plot_components(new_df, new_n_components, point, files_path_prefix, flux_type)
+    # sensible_array = np.load(files_path_prefix + 'sensible_all.npy')
+    # time_start = 0
+    # time_end = len(sensible_array)
+    # print(sensible_array.shape[1])
+    # point = 39
+    # flux_type = 'sensible'
+    # n_components = 3
+    # window_width = 300
+    #
+    #
+    # print(sum(mask))
+    # raise ValueError
+    #
+    # points = [39]
+    # for i in tqdm.tqdm(points):
+    #     if mask[i]:
+    #         sample_sens = sensible_array[i, time_start:time_end]
+    #         point_df = hybrid(sample_sens, window_width, n_components, 5)
+    #         point_df.to_excel(files_path_prefix + f'Components/{flux_type}/raw/point_{i}.xlsx', index=False)
+    #
+    #         df = pd.read_excel(files_path_prefix + f'Components/{flux_type}/raw/point_{point}.xlsx')
+    #         new_df, new_n_components = cluster_components(df, n_components, point, files_path_prefix, flux_type)
+    #         new_df.to_excel(files_path_prefix + f'Components/{flux_type}/point_{point}.xlsx', index=False)
+    # plot_components(new_df, new_n_components, point, files_path_prefix, flux_type)
     # plot_a_sigma(df, n_components, point, files_path_prefix, flux_type)
+
+    # ----------------------------------------------------------------------------------------------
+    days_delta1 = (datetime.datetime(1979, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    time_start = days_delta1
+    days_delta2 = (datetime.datetime(1979, 2, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    time_end = time_start + days_delta2
+
+    sensible_array = sensible_array.astype(float)
+    latent_array = latent_array.astype(float)
+
+    sample_x = sensible_array[mask == 1, time_start: time_end].ravel()
+    sample_y = latent_array[mask == 1, time_start:time_end].ravel()
+
+    months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
+                    9: 'September', 10: 'October', 11: 'November', 12: 'December'}
+
+    draw_3d_hist(files_path_prefix, sample_x, sample_y, time_start, time_end, months_names[1])
