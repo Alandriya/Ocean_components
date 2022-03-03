@@ -801,7 +801,7 @@ def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple
     cmap = matplotlib.colors.ListedColormap(['green', 'white', 'red'])
     norm = matplotlib.colors.BoundaryNorm([0, 1, 2, 3], cmap.N)
 
-    biases = [i for i in range(-radius, radius)]
+    biases = [i for i in range(-radius, radius + 1)]
     point_bigger = [(point[0] + i, point[1] + j) for i in biases for j in biases]
     for point in point_bigger:
         mask_map[point] = 2

@@ -13,6 +13,9 @@ import matplotlib.cm
 import scipy.stats
 from VarGamma import fit_ml, pdf, cdf, fit_moments
 from data_processing import load_prepare_fluxes
+import plotly.express as px
+from symfit import parameters, variables, sin, cos, Fit
+from numpy.polynomial import Polynomial
 
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
@@ -22,22 +25,45 @@ font = {'size': 14}
 matplotlib.rc('font', **font)
 
 
-def func(x, a, b, c, d):
-    return a * np.sin(b * x + c) + d
+def func_sin(x, a, b, c, d, f, g, h):
+    return a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
 
 
-def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t):
+def fourier_series(x, f, n=0):
+    """
+    Returns a symbolic fourier series of order `n`.
+
+    :param n: Order of the fourier series.
+    :param x: Independent variable
+    :param f: Frequency of the fourier series
+    """
+    # Make the parameter objects for all the terms
+    a0, *cos_a = parameters(','.join(['a{}'.format(i) for i in range(0, n + 1)]))
+    sin_b = parameters(','.join(['b{}'.format(i) for i in range(1, n + 1)]))
+    # Construct the series
+    series = a0 + sum(ai * cos(i * f * x) + bi * sin(i * f * x)
+                     for i, (ai, bi) in enumerate(zip(cos_a, sin_b), start=1))
+    return series
+
+
+def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t, postfix='sin'):
     part = len(sens_res) // 3 * 2
     sens_res = sens_res[np.isfinite(sens_res)]
     lat_res = lat_res[np.isfinite(lat_res)]
 
     sens_norm = scipy.stats.norm.fit_loc_scale(sens_res)
     lat_norm = scipy.stats.norm.fit_loc_scale(lat_res)
-    print(f'Shapiro-Wilk normality test for sensible: {scipy.stats.shapiro(sens_res[:part])[1]:.5f}')
-    print(f'Shapiro-Wilk normality test for latent: {scipy.stats.shapiro(lat_res[:part])[1]:.5f}\n')
+    shapiro_sens = scipy.stats.shapiro(sens_res[:part])
+    shapiro_lat = scipy.stats.shapiro(lat_res[:part])
+
+    print(f'Shapiro-Wilk normality test for sensible: {shapiro_sens[1]:.5f}')
+    print(f'Shapiro-Wilk normality test for latent: {shapiro_lat[1]:.5f}\n')
 
     sens_vargamma = fit_ml(sens_res[:part])
     lat_vargamma = fit_ml(lat_res[:part])
+
+    sens_t = scipy.stats.t.fit(sens_res[:part])
+    lat_t = scipy.stats.t.fit(lat_res[:part])
 
     fig, axs = plt.subplots(1, 2, figsize=(25, 10))
 
@@ -47,8 +73,9 @@ def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t):
     axs[0].cla()
     axs[0].hist(sens_res, bins=20, density=True)
     axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
+    axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t),  label='Fitted t')
     axs[0].plot(x, pdf(x, *sens_vargamma), label='Fitted VarGamma')
-    axs[0].set_title(f'Residials for sensible')
+    axs[0].set_title(f'Residials for sensible \n Shapiro-Wiik test p-value = {shapiro_sens[1]:.5f}')
     axs[0].legend()
 
     mu, sigma = lat_norm
@@ -57,11 +84,12 @@ def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t):
     axs[1].cla()
     axs[1].hist(lat_res, bins=20, density=True)
     axs[1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
+    axs[1].plot(x, scipy.stats.t.pdf(x, *lat_t), label='Fitted t')
     axs[1].plot(x, pdf(x, *lat_vargamma), label='Fitted VarGamma')
-    axs[1].set_title(f'Residials for latent')
+    axs[1].set_title(f'Residials for latent \n Shapiro-Wiik test p-value = {shapiro_lat[1]:.5f}')
     axs[1].legend()
 
-    fig.savefig(files_path_prefix + f'Func_repr/a-flux-monthly/{month}/residuals_{t:05d}.png')
+    fig.savefig(files_path_prefix + f'Func_repr/a-flux-monthly/{month}/residuals_{t:05d}_{postfix}.png')
     return
 
 
@@ -73,7 +101,9 @@ def plot_estimate_a_flux(files_path_prefix: str,
                          time_start: int,
                          time_end: int,
                          step: int = 1,
-                         month: int = 1):
+                         month: int = 1,
+                         flat_points=None,
+                         point_center=None):
     """
     Estimates with scipy.optimize.fit_curve the dependence of A coefficient from flux values in shape of func, the
     estimation is carried on fixed month
@@ -89,88 +119,136 @@ def plot_estimate_a_flux(files_path_prefix: str,
     :param time_end: offset in days from the beginning of the flux arrays for the last counted element
     :param step: step in time for loop
     :param month: month number from 1 to 12
+    :param flat_points: 1d array of all coordinates of grid in bigger point
+    :param point_center: coordinate (in 1d format) of the center of point bigger
     :return:
     """
     fig, axs = plt.subplots(1, 2, figsize=(25, 10))
     date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
     date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
 
-    # Getting sets
-    sens_set = np.unique(sensible_array[:, time_start:time_end])
-    lat_set = np.unique(latent_array[:, time_start:time_end])
-    sens_set = sorted(list(sens_set))
-    lat_set = sorted(list(lat_set))
+    # sens_set = np.unique(sensible_array[flat_points, time_start:time_end])
+    # lat_set = np.unique(latent_array[flat_points, time_start:time_end])
+    # sens_set = sorted(list(sens_set))
+    # lat_set = sorted(list(lat_set))
 
-    # Counting y
+    # Getting x and y coordinates for scatter points
     sens_x, lat_x, sens_y, lat_y = list(), list(), list(), list()
     for t in range(time_start, time_end, step):
         a_sens = a_timelist[t - time_start][0]
         a_lat = a_timelist[t - time_start][1]
 
-        for val in sens_set:
-            if not np.isnan(val):
-                points_sensible = np.nonzero(sensible_array[:, t] == val)[0]
-                if len(points_sensible):
-                    sens_y.append(a_sens[points_sensible[0] // 181, points_sensible[0] % 181])
-                    sens_x.append(val)
+        sens_x.append(np.mean(sensible_array[flat_points, t]))
+        a_sens_point = [a_sens[p // 181, p % 181] for p in flat_points]
+        sens_y.append(np.mean(a_sens_point))
 
-        for val in lat_set:
-            if not np.isnan(val):
-                points_latent = np.nonzero(latent_array[:, t] == val)[0]
-                if len(points_latent):
-                    lat_y.append(a_lat[points_latent[0] // 181, points_latent[0] % 181])
-                    lat_x.append(val)
+        lat_x.append(np.mean(latent_array[flat_points, t]))
+        a_lat_point = [a_lat[p // 181, p % 181] for p in flat_points]
+        lat_y.append(np.mean(a_lat_point))
 
-    # Estimating
+        # for p in flat_points:
+        #     sens_x.append(sensible_array[p, t])
+        #     sens_y.append(a_sens[p // 181, p % 181])
+        #
+        #     lat_x.append(latent_array[p, t])
+        #     lat_y.append(a_lat[p // 181, p % 181])
+
     sens_x, sens_y = zip(*sorted(zip(sens_x, sens_y)))
     lat_x, lat_y = zip(*sorted(zip(lat_x, lat_y)))
     sens_x = np.array(sens_x)
     lat_x = np.array(lat_x)
     sens_y = np.array(sens_y)
     lat_y = np.array(lat_y)
-    sens_popt, sens_pcov = curve_fit(func, sens_x, sens_y, p0=[20, (math.pi / 2) / 50, math.pi / 6, 5], maxfev=10000)
-    sens_residuals = sens_y - func(sens_x, *sens_popt)
-    sens_ss = np.sum(sens_residuals ** 2)
 
-    lat_popt, lat_pcov = curve_fit(func, lat_x, lat_y, p0=[10, (math.pi / 2) / 40, math.pi / 6, 5], maxfev=10000)
-    lat_residuals = lat_y - func(lat_y, *lat_popt)
-    lat_ss = np.sum(lat_residuals ** 2)
+    # cut tails in quantiles
+    q_bigger_tr = 100
+    q_less_tr = 0
+    sens_y = sens_y[sens_x < q_bigger_tr]
+    sens_x = sens_x[sens_x < q_bigger_tr]
+    lat_y = lat_y[lat_x < q_bigger_tr]
+    lat_x = lat_x[lat_x < q_bigger_tr]
+    sens_y = sens_y[sens_x > q_less_tr]
+    sens_x = sens_x[sens_x > q_less_tr]
+    lat_y = lat_y[lat_x > q_less_tr]
+    lat_x = lat_x[lat_x > q_less_tr]
+
+    # polynomial
+    sens_fit = Polynomial.fit(sens_x, sens_y, 5)
+    lat_fit = Polynomial.fit(lat_x, lat_y, 5)
+    sens_residuals_poly = sens_y - sens_fit(sens_x)
+    sens_ss_poly = np.sum(sens_residuals_poly**2)
+    lat_residuals_poly = lat_y - lat_fit(lat_x)
+    lat_ss_poly = np.sum(lat_residuals_poly**2)
+
+    # # sin
+    # # a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
+    # params_guess = [5, (math.pi / 2) / 5, math.pi] + list(sens_fit)
+    # sens_popt, sens_pcov = curve_fit(func_sin, sens_x, sens_y, p0=params_guess, maxfev=10000)
+    # sens_residuals = sens_y - func_sin(sens_x, *sens_popt)
+    # sens_ss = np.sum(sens_residuals ** 2)
+
+    # params_guess = [5, (math.pi / 2) / 5, 0] + list(lat_fit)
+    # lat_popt, lat_pcov = curve_fit(func_sin, lat_x, lat_y, p0=params_guess, maxfev=10000)
+    # lat_residuals = lat_y - func_sin(lat_y, *lat_popt)
+    # lat_ss = np.sum(lat_residuals ** 2)
+
+    # # Fourier
+    # x, y = variables('x, y')
+    # w, = parameters('w')
+    # model_dict = {y: fourier_series(x, f=w, n=10)}
+    # fit = Fit(model_dict, x=sens_x, y=sens_y)
+    # fit_sens = fit.execute()
+    # sens_popt_fourier = fit_sens.params
+    # print(sens_popt_fourier)
 
     # estimate and plot residuals
-    plot_estimate_residuals(files_path_prefix, month, sens_residuals, lat_residuals, time_start)
+    # plot_estimate_residuals(files_path_prefix, month, sens_residuals, lat_residuals, time_start)
+    plot_estimate_residuals(files_path_prefix, month, sens_residuals_poly, lat_residuals_poly, time_start, 'polynomial')
 
+    # plot everything
     fig.suptitle(f'A-flux value dependence \n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}',
                  fontsize=25)
+
     axs[0].cla()
     axs[0].scatter(sens_x, sens_y, c='r')
-    a, b, c, d = sens_popt
-    # label = f'{a:.3f} * x^2 + {b:.3f} * x + {c:.3f}'
-    label = f'{a:.1f} * sin({b:.5f} * x + {c:.1f}) + {d:.1f}'
-    axs[0].plot(sens_x, func(sens_x, *sens_popt), c='b', label=label)
+
+    # a, b, c, d = sens_popt
+    # label_sin = f'{a:.1f} * sin({b:.5f} * x + {c:.1f}) + {d:.1f}'
+    # axs[0].plot(sens_x, func_sin(sens_x, *sens_popt), c='b')
+
+    # axs[0].plot(sens_x, np.array(fit.model(sens_x, **sens_popt_fourier)).flat, c='violet')
+
+    label_polynomial = sens_fit
+    axs[0].plot(sens_x, sens_fit(sens_x), c='cyan', label=label_polynomial)
+
     # axs[0].plot(sens_mean_x, sens_mean, c='g', label='mean')
     axs[0].set_ylabel('A_sens', fontsize=20)
     axs[0].set_xlabel('Sensible flux', fontsize=20)
     axs[0].set_ylim([borders[0], borders[1]])
-    axs[0].set_title(f'Sum of squared residuals = {sens_ss:.2f}')
+    axs[0].set_title(f'SS (polynomial) = {sens_ss_poly: .1f}')
     axs[0].legend()
 
     axs[1].cla()
     axs[1].scatter(lat_x, lat_y, c='orange')
-    a, b, c, d = lat_popt
-    # label = f'{a:.3f} * x^2 + {b:.3f} * x + {c:.3f}'
-    label = f'{a:.1f} * sin({b:.5f} * x + {c:.1f}) + {d:.1f}'
-    axs[1].plot(lat_x, func(lat_x, *lat_popt), c='b', label=label)
+
+    # a, b, c, d = lat_popt
+    # label_sin = f'{a:.1f} * sin({b:.5f} * x + {c:.1f}) + {d:.1f}'
+    # axs[1].plot(lat_x, func_sin(lat_x, *lat_popt), c='b', label=label_sin)
+
+    label_polynomial = lat_fit
+    axs[1].plot(lat_x, lat_fit(lat_x), c='cyan', label=label_polynomial)
+
     # axs[1].plot(lat_mean_x, lat_mean, c='g', label='mean')
     axs[1].set_ylabel('A_lat', fontsize=20)
     axs[1].set_xlabel('Latent flux', fontsize=20)
     axs[1].set_ylim([borders[0], borders[1]])
-    axs[1].set_title(f'Sum of squared residuals = {lat_ss:.2f}')
+    axs[1].set_title(f'SS (polynomial) = {lat_ss_poly:.1f}')
     axs[1].legend()
     fig.savefig(files_path_prefix + f'Func_repr/a-flux-monthly/{month}/{time_start:05d}.png')
-    return sens_popt, lat_popt, sens_ss, lat_ss
+    return sens_fit, lat_fit, sens_ss_poly, lat_ss_poly
 
 
-def estimate_a_flux_by_months(files_path_prefix: str, month: int):
+def estimate_a_flux_by_months(files_path_prefix: str, month: int, point, radius):
     """
     Estimates the dependence of A coefficient from flux values in shape of func, the estimation is carried on all data
     of fixed month: e.g, all Januaries, all Februaries, ...
@@ -181,6 +259,13 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int):
     """
     sensible_array = np.load(files_path_prefix + 'sensible_all.npy')
     latent_array = np.load(files_path_prefix + 'latent_all.npy')
+    # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_1979-1989.npy',
+    #                                                    'LATENT_1979-1989.npy',
+    #                                                    prepare=False)
+
+    biases = [i for i in range(-radius, radius+1)]
+    point_bigger = [(point[0] + i, point[1] + j) for i in biases for j in biases]
+    flat_points = np.array([p[0] * 181 + p[1] for p in point_bigger])
 
     df_sens = pd.DataFrame(columns=['dates', 'a', 'b', 'c', 'd', 'ss'])
     df_lat = pd.DataFrame(columns=['dates', 'a', 'b', 'c', 'd', 'ss'])
@@ -196,42 +281,37 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int):
         years = 42
         max_year = 2021
 
+    sens_fits, lat_fits = list(), list()
     for i in range(0, years):
         time_start = (datetime.datetime(1979 + i, month, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
         if month != 12:
-            time_end = (datetime.datetime(1979 + i, month + 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+            time_end = (datetime.datetime(1979 + i + 3, month + 0, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
         else:
             time_end = (datetime.datetime(1979 + i + 1, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
 
-        a_timelist, _, _, _, borders = load_ABCF(files_path_prefix, time_start + 1, time_end + 1, load_a=True)
-        sens_params, lat_params, sens_err, lat_err = plot_estimate_a_flux(files_path_prefix, a_timelist, borders,
+        a_timelist, _, _, _, _, borders = load_ABCF(files_path_prefix, time_start + 1, time_end + 1, load_a=True)
+        sens_fit, lat_fit, sens_err, lat_err = plot_estimate_a_flux(files_path_prefix, a_timelist, borders,
                                                                           sensible_array, latent_array, time_start,
-                                                                          time_end, month=month)
+                                                                          time_end, month=month, flat_points=flat_points,
+                                                                          point_center=point[0] * 181 + point[1])
         del a_timelist
         date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
         date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-        df_sens.loc[len(df_sens)] = [f"{date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}"] + list(
-            sens_params) + [sens_err]
-        df_lat.loc[len(df_lat)] = [f"{date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}"] + list(
-            lat_params) + [lat_err]
-
-    df_sens.to_csv(files_path_prefix + f"Func_repr/a-flux-monthly/{month}/sens_params_{months_names[month]}.csv",
-                   index=False, sep=';')
-    df_lat.to_csv(files_path_prefix + f"Func_repr/a-flux-monthly/{month}/lat_params_{months_names[month]}.csv",
-                  index=False, sep=';')
+        sens_fits.append(sens_fit)
+        lat_fits.append(lat_fit)
 
     # plot
     fig, axes = plt.subplots(1, 2, figsize=(25, 10))
     x = np.linspace(np.nanmin(sensible_array), np.nanmax(sensible_array), 100)
     for i in range(0, 42):
-        sens_params = df_sens[['a', 'b', 'c', 'd']].loc[i].values
-        lat_params = df_lat[['a', 'b', 'c', 'd']].loc[i].values
+        # sens_params = df_sens[['a', 'b', 'c', 'd']].loc[i].values
+        # lat_params = df_lat[['a', 'b', 'c', 'd']].loc[i].values
         if i > 30:
             color = plt.cm.tab20(i % 20)
         else:
             color = 'gray'
-        axes[0].plot(x, func(x, *sens_params), label=f'{1979 + i}', c=color)
-        axes[1].plot(x, func(x, *lat_params), label=f'{1979 + i}', c=color)
+        axes[0].plot(x, sens_fits[i](x), label=f'{1979 + i}', c=color)
+        axes[1].plot(x, lat_fits[i](x), label=f'{1979 + i}', c=color)
 
     axes[0].legend(loc='upper left', bbox_to_anchor=(1, 1.0), ncol=2, fancybox=True, shadow=True)
     axes[1].legend(loc='upper left', bbox_to_anchor=(1, 1.0), ncol=2, fancybox=True, shadow=True)
@@ -306,33 +386,27 @@ def plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, ti
     return
 
 
-def plot_estimate_fluxes_2d(files_path_prefix, month, sens_val, lat_val, time_start, time_end):
-    part = 2000
-    sens_val = sens_val[np.isfinite(sens_val)]
-    lat_val = lat_val[np.isfinite(lat_val)]
+def plot_fluxes_2d(files_path_prefix, sens_val, lat_val, time_start, time_end):
+    fig = plt.figure(figsize=(15, 15))
+    # axs = fig.add_subplot(1, 2, 1, projection='3d')
+    xedges = np.linspace(np.nanmin(sens_val), np.nanmax(sens_val), 100)
+    yedges = np.linspace(np.nanmin(lat_val), np.nanmax(lat_val), 100)
+    # xx, yy = np.meshgrid(x, y)
 
-    fig, axs = plt.subplots(figsize=(15, 15))
-    xx, yy = np.meshgrid(sens_val[:part], lat_val[:part])
+    H, xedges, yedges = np.histogram2d(sens_val, lat_val, bins=(xedges, yedges))
 
-    xdata = np.vstack((xx.ravel(), yy.ravel()))
-    # ydata = data_noisy.ravel()
-
-
-    # fitting normal
-    # amplitude, xo, yo, sigma_x, sigma_y, theta, offset
-    initial_guess = (3, 0, 0, 25, 50, 0, 1)
-    # popt, pcov = scipy.optimize.curve_fit(twoD_Gaussian, (xx, yy), data, p0=initial_guess)
-
-
-    axs.cla()
-    axs.hist2d(sens_val[:part], lat_val[:part], bins=50, density=True, cmap='Reds')
+    # axs.cla()
+    axs = fig.add_subplot(132, title=f'Sensible and latent fluxes distribution', aspect='equal')
+    X, Y = np.meshgrid(xedges, yedges)
+    # axs.pcolormesh(X, Y, H.T)
+    axs.hist2d(sens_val, lat_val, bins=50, density=True, cmap='Reds')
     axs.set_title(f'Sensible and latent fluxes distribution')
     axs.legend()
 
     date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
     date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
     fig.suptitle(f"{date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}")
-    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/{month}/fluxes_2D_{time_start:05d}.png')
+    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/fluxes_2D_{time_start:05d}.png')
     return
 
 
@@ -365,8 +439,8 @@ def estimate_flux(files_path_prefix: str, sensible_array, latent_array, month: i
             np.save(files_path_prefix +
                     f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_latent.npy", lat_val)
 
-        plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, time_end, point)
-        # plot_estimate_fluxes_2d(files_path_prefix, month, sens_val, lat_val, time_start, time_end)
+        # plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, time_end, point)
+        plot_fluxes_2d(files_path_prefix, sens_val, lat_val, time_start, time_end)
     return
 
 
