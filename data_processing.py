@@ -6,6 +6,7 @@ import numpy as np
 from struct import unpack
 from copy import deepcopy
 from skimage.measure import block_reduce
+import datetime
 
 files_path_prefix = 'D://Data/OceanFull/'
 
@@ -179,15 +180,17 @@ def load_ABCF(files_path_prefix,
     return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders
 
 
-def scale_to_bins(arr):
-    # set each value with the number of quantile from 0 to 100 in which it belongs
-    quantiles = np.nanquantile(arr, np.linspace(0, 1, 100, endpoint=False))
-    arr_digit = np.digitize(arr, quantiles)
+def scale_to_bins(arr, bins=100):
+    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins - 1, endpoint=False)))
+    quantiles += [np.nanmax(arr)]
 
-    # set nan back where it was - for land points
-    arr_digit = arr_digit.astype(float)
-    arr_digit[np.isnan(arr)] = np.nan
-    return arr_digit
+    arr_scaled = np.zeros_like(arr)
+    arr_scaled[np.isnan(arr)] = np.nan
+    for j in tqdm.tqdm(range(bins - 1)):
+        arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
+            (quantiles[j] + quantiles[j + 1]) / 2
+
+    return arr_scaled, quantiles
 
 
 def load_prepare_fluxes(sensible_filename, latent_filename, prepare=True):
@@ -223,23 +226,23 @@ def find_lost_pictures(files_path_prefix, type_prefix):
     for i in range(15598):
         if not os.path.exists(files_path_prefix + f'videos/tmp-coeff/{type_prefix}_{i:05d}.png'):
             print(files_path_prefix + f'videos/tmp-coeff/{type_prefix}_{i:05d}.png')
-            num_lost.append(i+1)
+            num_lost.append(i + 1)
 
     print(num_lost)
     print(len(num_lost))
 
     start = num_lost[0]
     borders = []
-    sum_lost=0
+    sum_lost = 0
     for j in range(1, len(num_lost)):
         if start is None:
             start = num_lost[j]
 
         # if (num_lost[j-1] == num_lost[j] - 1) and j != len(num_lost) - 1 and mask[j]:
         #     pass
-        if not start is None and (num_lost[j-1] != num_lost[j] - 1):
-            borders.append([start, num_lost[j-1]])
-            sum_lost += num_lost[j-1] - start + 1
+        if not start is None and (num_lost[j - 1] != num_lost[j] - 1):
+            borders.append([start, num_lost[j - 1]])
+            sum_lost += num_lost[j - 1] - start + 1
             start = num_lost[j]
 
     print(borders)
