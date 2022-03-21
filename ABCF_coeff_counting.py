@@ -34,16 +34,16 @@ def count_abf_coefficients(files_path_prefix: str,
     :param offset: offset in days from 01.01.1979, indicating the day of corresponding index 0 in flux arrays
     :return:
     """
-
     # !!NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
     # but it is absolute in terms of fluxes array from the input indexing
     for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
     # for t_absolute in range(time_start + 1, time_end + 1):
         if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
+        # if True:
             t_rel = t_absolute - time_start
-            a_sens = np.zeros((161, 181))
-            a_lat = np.zeros((161, 181))
-            b_matrix = np.zeros((4, 161, 181))
+            a_sens = np.zeros((161, 181), dtype=float)
+            a_lat = np.zeros((161, 181), dtype=float)
+            b_matrix = np.zeros((4, 161, 181), dtype=float)
             f = np.zeros((161, 181), dtype=float)
 
             # set nan where is not ocean in arrays
@@ -54,19 +54,19 @@ def count_abf_coefficients(files_path_prefix: str,
                     b_matrix[:, i // 181, i % 181] = np.nan
                     f[i // 181, i % 181] = np.nan
 
-            set_sens = set(sensible_array[:, t_rel - 1])
-            set_lat = set(latent_array[:, t_rel - 1])
+            set_sens = np.unique(sensible_array[:, t_rel - 1])
+            set_lat = np.unique(latent_array[:, t_rel - 1])
 
             for val_t0 in set_sens:
                 if not np.isnan(val_t0):
-                    points_sensible = np.nonzero(sensible_array[:, t_rel - 1] == val_t0)[0]
+                    points_sensible = np.where(sensible_array[:, t_rel - 1] == val_t0)[0]
                     amount_t0 = len(points_sensible)
 
                     # sensible t0 - sensible t1
-                    set_t1 = set(sensible_array[points_sensible][:, t_rel])
+                    set_t1 = np.unique(sensible_array[points_sensible, t_rel])
                     probabilities = list()
                     for val_t1 in set_t1:
-                        prob = sum(np.where(sensible_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        prob = len(np.where(sensible_array[points_sensible, t_rel] == val_t1)[0]) * 1.0 / amount_t0
                         probabilities.append(prob)
 
                     a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
@@ -78,12 +78,11 @@ def count_abf_coefficients(files_path_prefix: str,
                         b_matrix[0][idx // 181][idx % 181] = b_squared
 
                     # sensible t0 - latent t1
-                    set_t1 = set(latent_array[points_sensible][:, t_rel])
+                    set_t1 = np.unique(latent_array[points_sensible, t_rel])
                     probabilities = list()
                     for val_t1 in set_t1:
-                        prob = sum(np.where(latent_array[points_sensible][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        prob = len(np.where(latent_array[points_sensible, t_rel] == val_t1)[0]) * 1.0 / amount_t0
                         probabilities.append(prob)
-
                     b_squared = sum(
                         [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
 
@@ -92,33 +91,34 @@ def count_abf_coefficients(files_path_prefix: str,
 
             for val_t0 in set_lat:
                 if not np.isnan(val_t0):
-                    points_latent = np.nonzero(latent_array[:, t_rel - 1] == val_t0)[0]
+                    points_latent = np.where(latent_array[:, t_rel - 1] == val_t0)[0]
                     amount_t0 = len(points_latent)
 
                     # latent - latent
-                    set_t1 = set(latent_array[points_latent][:, t_rel])
+                    set_t1 = np.unique(latent_array[points_latent, t_rel])
                     probabilities = list()
                     for val_t1 in set_t1:
-                        prob = sum(np.where(latent_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        prob = len(np.where(latent_array[points_latent, t_rel] == val_t1)[0]) * 1.0 / amount_t0
                         probabilities.append(prob)
 
-                    a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                    a = sum([(set_t1[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
                     b_squared = sum(
-                        [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+                        [(set_t1[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
 
                     for idx in points_latent:
                         a_lat[idx // 181][idx % 181] = a
                         b_matrix[3][idx // 181][idx % 181] = b_squared
 
                     # latent t0 - sensible t1
-                    set_t1 = set(sensible_array[points_latent][:, t_rel])
+                    set_t1 = np.unique(sensible_array[points_latent, t_rel])
                     probabilities = list()
                     for val_t1 in set_t1:
-                        prob = sum(np.where(sensible_array[points_latent][:, t_rel] == val_t1, 1, 0)) * 1.0 / amount_t0
+                        prob = len(np.where(sensible_array[points_latent, t_rel] == val_t1)[0]) * 1.0 / amount_t0
                         probabilities.append(prob)
 
                     b_squared = sum(
                         [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+
                     for idx in points_latent:
                         b_matrix[2][idx // 181][idx % 181] = b_squared
 
