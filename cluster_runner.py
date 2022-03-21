@@ -56,8 +56,9 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
     means_cols = [f'mean_{i}' for i in range(1, new_n_components + 1)]
     sigmas_cols = [f'sigma_{i}' for i in range(1, new_n_components + 1)]
     weights_cols = [f'weight_{i}' for i in range(1, new_n_components + 1)]
-    new_df = pd.DataFrame(columns=['time', 'ts'] + means_cols + sigmas_cols + weights_cols)
-    new_df[means_cols + sigmas_cols + weights_cols] = np.zeros((len(df), 3*new_n_components))
+    new_df = pd.DataFrame(columns=['time', 'ts'] + means_cols + sigmas_cols + weights_cols,
+                          data=np.zeros((len(df), 3*new_n_components + 2)))
+
     for i in range(0, len(df)):
         for j in range(n_components):
             label = labels[j * len(df) + i]
