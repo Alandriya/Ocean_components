@@ -119,7 +119,7 @@ def plot_components(df: pd.DataFrame, n_components: int, point: int, files_path_
 def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_prefix: str, flux_type: str,
                        draw: bool = False):
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
-    X = np.zeros((len(df) * n_components, 3), dtype=float)
+    X = np.zeros((len(df) * n_components, 2), dtype=float)
     eps = 0.05
     means_cols_hybrid = [f'mean_{i}_hybrid' for i in range(1, n_components + 1)]
     sigmas_cols_hybrid = [f'sigma_{i}_hybrid' for i in range(1, n_components + 1)]
@@ -130,7 +130,7 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
     for comp in range(n_components):
         X[comp * len(df): (comp + 1) * len(df), 0] = df[f'sigma_{comp + 1}_hybrid'] / max_sigma
         X[comp * len(df): (comp + 1) * len(df), 1] = (df[f'mean_{comp + 1}_hybrid'] - min_mean) / (max_mean - min_mean)
-        X[comp * len(df): (comp + 1) * len(df), 2] = df[f'weight_{comp + 1}_hybrid']
+        # X[comp * len(df): (comp + 1) * len(df), 2] = df[f'weight_{comp + 1}_hybrid']
 
     new_n_components = 3
     kmeans = KMeans(n_clusters=new_n_components, random_state=0).fit(X)
@@ -180,7 +180,7 @@ def plot_a_sigma(df: pd.DataFrame, n_components, point: int, files_path_prefix: 
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
 
     for comp in range(n_components):
-        axs.scatter(df[f'weight_{comp + 1}_hybrid'], df[f'mean_{comp + 1}_hybrid']/df[f'sigma_{comp + 1}_hybrid'], color=colors[comp])
+        axs.scatter(df[f'sigma_{comp + 1}_hybrid'], df[f'mean_{comp + 1}_hybrid'], color=colors[comp])
 
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_point_{point}.png')
