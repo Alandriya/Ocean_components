@@ -437,7 +437,7 @@ def plot_ab_coefficients(files_path_prefix: str,
     img_b = [None for _ in range(4)]
 
     # TODO change - it's not a very good way to cut the outliers
-    borders[3] = 100.0
+    # borders[3] = 1000.0
 
     a_min = borders[0]
     a_max = borders[1]
