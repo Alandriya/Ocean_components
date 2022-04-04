@@ -36,8 +36,8 @@ def count_abf_coefficients(files_path_prefix: str,
     """
     # !!NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
     # but it is absolute in terms of fluxes array from the input indexing
-    for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
-    # for t_absolute in range(time_start + 1, time_end + 1):
+    # for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
+    for t_absolute in range(time_start + 1, time_end + 1):
         if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
         # if True:
             t_rel = t_absolute - time_start
