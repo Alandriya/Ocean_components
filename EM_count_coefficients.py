@@ -14,14 +14,19 @@ def count_abf_Kor_from_points(files_path_prefix: str, time_start: int, time_end:
     sens_df_list = list()
     sens_idxes = list()
 
+    n_components = 3
+    means_cols = [f'mean_{i}' for i in range(1, n_components + 1)]
+    sigmas_cols = [f'sigma_{i}' for i in range(1, n_components + 1)]
+    weights_cols = [f'weight_{i}' for i in range(1, n_components + 1)]
+
     print('Loading data')
     for p in tqdm.tqdm(range(point_start, point_end)):
-        if os.path.exists(files_path_prefix + f'Components/raw_sensible/point_{p}.xlsx'):
-            raw_sens = pd.read_excel(files_path_prefix + f'Components/raw_sensible/point_{p}.xlsx')
+        if os.path.exists(files_path_prefix + f'Components/sensible/raw/point_{p}.xlsx'):
+            raw_sens = pd.read_excel(files_path_prefix + f'Components/sensible/raw/point_{p}.xlsx')
+            raw_sens.columns = ['time', 'ts'] + means_cols + sigmas_cols + weights_cols
             sens_df_list.append(raw_sens)
             sens_idxes.append(p)
 
-    print('Counting difference')
     for t in tqdm.tqdm(range(time_start, time_end)):
         a_sens = np.zeros((161, 181))
         # a_lat = np.zeros((161, 181))
@@ -153,39 +158,79 @@ def plot_a_diff(files_path_prefix, time_start, time_end, start_pic_num):
     return
 
 
-def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point_start: int, point_end: int):
-    components = 3
-
+def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point_start: int, point_end: int,
+                       n_components, window_width):
     a_sens_list = list()
-    for t in range(time_start, time_end):
+    b_list = list()
+    for t in range(time_start + window_width//2, time_end):
         a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
         a_sens_list.append(a_sens)
 
-    for p in tqdm.tqdm(range(point_start, point_end)):
-        if os.path.exists(files_path_prefix + f'Components/raw_sensible/point_{p}.xlsx'):
-            df = pd.read_excel(files_path_prefix + f'Components/raw_sensible/point_{p}.xlsx')
-            df.fillna(0, inplace=True)
-            sens_Kor_ts = 0
-            for comp in range(1, components + 1):
-                sens_Kor_ts += df[f'mean_{comp}'] * df[f'weight_{comp}']
-            sens_Bel_ts = list()
-            for i in range(len(a_sens_list)):
-                sens_Bel_ts.append(a_sens_list[i][p // 181, p % 181])
+        b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
+        b_list.append(b_matrix)
 
-            diff = np.abs(np.array(sens_Kor_ts[time_start:time_end] - sens_Bel_ts))
-            np.save(files_path_prefix + f'Components/difference_1d/point_{p}.npy', diff)
+    means_cols = [f'mean_{i}' for i in range(1, n_components + 1)]
+    sigmas_cols = [f'sigma_{i}' for i in range(1, n_components + 1)]
+    weights_cols = [f'weight_{i}' for i in range(1, n_components + 1)]
+
+    for p in tqdm.tqdm(range(point_start, point_end)):
+        if os.path.exists(files_path_prefix + f'Components/sensible/raw/point_{p}.xlsx'):
+            df = pd.read_excel(files_path_prefix + f'Components/sensible/raw/point_{p}.xlsx')
+            df.fillna(0, inplace=True)
+            df.columns = ['time', 'ts'] + means_cols + sigmas_cols + weights_cols
+
+            a_sens_Kor = 0.0
+            tmp_1 = 0.0
+            for comp in range(1, n_components + 1):
+                a_sens_Kor += df[f'mean_{comp}'] * df[f'weight_{comp}']
+                tmp_1 += df[f'weight_{comp}'] * (df[f'mean_{comp}'] ** 2 + df[f'sigma_{comp}']**2)
+
+            b_sens_Kor = tmp_1 - a_sens_Kor**2
+            b_sens_Kor = np.sqrt(np.array(b_sens_Kor))
+
+            a_sens_Bel = list()
+            b_sens_Bel = list()
+            for i in range(len(a_sens_list)):
+                a_sens_Bel.append(a_sens_list[i][p // 181, p % 181])
+                b_sens_Bel.append(b_list[i][0, p // 181, p % 181])
+
+            # diff = np.abs(np.array(sens_Kor_ts[time_start:time_end - window_width//2] - sens_Bel_ts))
+            # np.save(files_path_prefix + f'Components/difference_1d/point_{p}.npy', diff)
 
             fig = plt.figure(figsize=(30, 10))
             fig.suptitle(f'Point {p}')
-            plt.plot(range(time_start, time_end), sens_Bel_ts, c='b', label='Bel')
+            x = range(time_start, time_end - window_width // 2)
+            colors = [0, 'Lime', 'Orchid', 'Purple', 'g', 'b']
+            # for comp in range(1, n_components + 1):
+            #     plt.plot(x,
+            #              np.array(df[f'mean_{comp}'] * df[f'weight_{comp}'])[time_start:time_end- window_width//2],
+            #              c=colors[comp], label=f'Comp_{comp}')
+            plt.plot(x, a_sens_Kor.loc[x], c='y', label='Kor')
+            # plt.plot(x, diff, c='r', label='difference')
+            # plt.legend()
+            # plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_A.png')
 
-            colors = [0, 'Lime', 'Orchid', 'Purple']
-            for comp in range(1, components + 1):
-                plt.plot(range(time_start, time_end),
-                         np.array(df[f'mean_{comp}'] * df[f'weight_{comp}'])[time_start:time_end],
-                         c=colors[comp], label=f'Comp_{comp}')
-            plt.plot(range(time_start, time_end), sens_Kor_ts[time_start:time_end], c='y', label='Kor')
-            plt.plot(range(time_start, time_end), diff, c='r', label='difference')
+            plt.plot(x, np.array(a_sens_Bel) / window_width, c='b', label='Bel * 0.01')
+            # plt.plot(x, diff, c='r', label='difference')
             plt.legend()
-            plt.savefig(files_path_prefix + f'Components/tmp/point_{p}.png')
+            plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_A_difference.png')
+
+
+            # fig = plt.figure(figsize=(30, 10))
+            # fig.suptitle(f'Point {p}')
+            # x = range(time_start, time_end - window_width // 2)
+            # plt.plot(x, b_sens_Kor[x], c='y', label='Kor')
+            # colors = [0, 'Lime', 'Orchid', 'Purple']
+            # for comp in range(1, n_components + 1):
+            #     plt.plot(x,
+            #              np.array(df[f'weight_{comp}'] * (df[f'sigma_{comp}'] - a_sens_Kor) ** 2)[time_start:time_end- window_width//2],
+            #              c=colors[comp], label=f'Comp_{comp}')
+            # plt.legend()
+            # plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_B.png')
+
+            # plt.plot(x, np.array(b_sens_Bel), c='b', label='Bel')
+            # plt.legend()
+            # plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_B_difference.png')
+
+
     return
