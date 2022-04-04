@@ -132,7 +132,10 @@ def plot_fluxes(files_path_prefix: str,
     for t in tqdm.tqdm(range(start, end)):
         date = start_date + datetime.timedelta(hours=6 * group * (t - start))
 
-        fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if group == 1:
+            fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
+        else:
+            fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_sens is None:
             img_sens = axs[0].imshow(sensible[:, t].reshape(161, 181),
                                      interpolation='none',
