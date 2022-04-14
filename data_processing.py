@@ -44,20 +44,17 @@ def sort_by_means(files_path_prefix, flux_type):
     return
 
 
-def binary_to_array(files_path_prefix, input_filename, output_filename):
-    """
-    Creates np array from binary data
-    :param files_path_prefix: path to the working directory
-    :param flux_type: string of the flux type: 'sensible' or 'latent'
-    :param filename:
-    :return:
-    """
-    length = 14640
-    # length = 62396 - 14640 * 4
+def binary_to_array(files_path_prefix, input_filename, output_filename, date_start, date_end):
+    days_delta = (date_start - datetime.datetime(1979, 1, 1)).days
+    # length_1 = 62396 - days_delta * 4
+    length = (date_end - date_start).days * 4
+
     arr_10years = np.empty((length, 29141), dtype=float)
     file = open(files_path_prefix + input_filename, "rb")
     for i in tqdm.tqdm(range(length)):
-        offset = 32 + 116564 * i + 116564 * (length * 4)
+        # offset_1 = 32 + (62396 - length) * 116564 + 116564 * i
+        offset = 32 + (days_delta * 4) * 116564 + 116564 * i
+
         file.seek(offset, 0)
         binary_values = file.read(116564)  # reading one timepoint
         point = unpack('f' * 29141, binary_values)
