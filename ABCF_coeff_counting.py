@@ -163,15 +163,15 @@ def count_c_coeff(files_path_prefix: str,
     :param start_idx: from which number to save arrays
     :return:
     """
+    a_sens_all = np.zeros((time_width, 161, 181), dtype=float)
+    a_lat_all = np.zeros((time_width, 161, 181), dtype=float)
+    b_all = np.zeros((time_width, 4, 161, 181), dtype=float)
+    c_grid = np.zeros((2, 161, 181), dtype=float)
+
     print('Counting C')
     for t_start in tqdm.tqdm(range(0, len(a_timelist) - time_width)):
         # c_grid = np.zeros((4, 161, 181), dtype=float)
-        c_grid = np.zeros((2, 161, 181), dtype=float)
         window = range(t_start, t_start + time_width)
-        a_sens_all = np.zeros((time_width, 161, 181), dtype=float)
-        a_lat_all = np.zeros((time_width, 161, 181), dtype=float)
-        b_all = np.zeros((time_width, 4, 161, 181), dtype=float)
-
         # filling values
         for k in range(time_width):
             t = window[k]
