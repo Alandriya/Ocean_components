@@ -1,3 +1,4 @@
+import datetime
 import os.path
 import time
 
@@ -6,11 +7,14 @@ import pandas as pd
 import tqdm
 
 from video import *
+from plot_fluxes import *
+from plot_Bel_coefficients import *
 from data_processing import *
 from ABCF_coeff_counting import *
 from func_estimation import *
 from data_processing import load_prepare_fluxes
 from func_estimation import estimate_a_flux_by_months
+from extreme_evolution import *
 import cycler
 from EM_hybrid import *
 from fluxes_distribution import *
@@ -33,18 +37,13 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
-
-    # ---------------------------------------------------------------------------------------
-    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989.npy')
-    # print(sensible_array.shape)
-    # sens_scaled, quantiles = scale_to_bins(sensible_array, 1000)
-    # np.save(files_path_prefix + 'sensible_grouped_1979-1989(scaled).npy', sens_scaled)
-    # np.save(files_path_prefix + 'Quantiles/sensible_1979-1989(quantiles).npy', np.array(quantiles))
-    #
-    # latent_array = np.load(files_path_prefix + 'latent_grouped_1979-1989.npy')
-    # latent_scaled, quantiles = scale_to_bins(latent_array, 1000)
-    # np.save(files_path_prefix + 'latent_grouped_1979-1989(scaled).npy', latent_scaled)
-    # np.save(files_path_prefix + 'Quantiles/latent_1979-1989(quantiles).npy', np.array(quantiles))
+    # # ---------------------------------------------------------------------------------------
+    # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2021.npy')
+    # sensible_array[np.logical_not(mask), :] = np.nan
+    # latent_array = np.load(files_path_prefix + 'LATENT_2019-2021.npy')
+    # latent_array[np.logical_not(mask), :] = np.nan
+    # offset = (datetime.datetime(2021, 7, 1) - datetime.datetime(2019, 1, 1)).days * 4
+    # plot_fluxes(files_path_prefix, sensible_array, latent_array, offset, offset + 10, 1, datetime.datetime(2021, 7, 1))
     # ---------------------------------------------------------------------------------------
     # raise ValueError
     # sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989(scaled).npy')
@@ -53,6 +52,45 @@ if __name__ == '__main__':
     # sensible_array = np.diff(sensible_array)
     # latent_array = latent_array.astype(float)
     # latent_array = np.diff(latent_array)
+
+    # lost = list()
+    # for i in range(1, 15796):
+    #     if not os.path.exists(files_path_prefix + f'Coeff_data/{i}_A_sens.npy'):
+    #         lost.append(i)
+    #
+    # print(lost)
+    # raise ValueError
+    # [3653, 7305, 10958, 14610]
+    # hole = 14610
+
+    # time1 = '2009-2019'
+    # time2 = '2019-2022'
+    #
+    # days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    # days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
+    # days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
+    # days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
+    # days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    #
+    # sensible1 = np.load(files_path_prefix + f'sensible_grouped_{time1}(scaled).npy')
+    # sensible2 = np.load(files_path_prefix + f'sensible_grouped_{time2}(scaled).npy')
+    # sensible3 = np.zeros((161*181, sensible1.shape[1] + sensible2.shape[1]))
+    # sensible3[:, :sensible1.shape[1]] = sensible1
+    # sensible3[:, sensible1.shape[1]:] = sensible2
+    # del sensible1
+    # del sensible2
+    #
+    # latent1 = np.load(files_path_prefix + f'latent_grouped_{time1}(scaled).npy')
+    # latent2 = np.load(files_path_prefix + f'latent_grouped_{time2}(scaled).npy')
+    # latent3 = np.zeros((161*181, latent1.shape[1] + latent2.shape[1]))
+    # latent3[:, :latent1.shape[1]] = latent1
+    # latent3[:, latent1.shape[1]:] = latent2
+    # # del latent1
+    # del latent2
+    #
+    # count_abf_coefficients(files_path_prefix, mask, sensible3, latent3, time_start=latent1.shape[1] - 1, time_end=latent1.shape[1]+1,
+    #                            offset=days_delta1 + days_delta2 + days_delta3)
+
     #
     # for border in borders:
     #     start = border[0]
@@ -65,7 +103,8 @@ if __name__ == '__main__':
     # parallel_AB(4, 'SENSIBLE_1989-1999.npy', 'LATENT_1989-1999.npy', offset)
 
     # ---------------------------------------------------------------------------------------
-    # binary_to_array(files_path_prefix, "s79-21", 'SENSIBLE_2019-2021')
+    # binary_to_array(files_path_prefix, "s79-21", 'SENSIBLE_1979-1989', datetime.datetime(2019, 1, 1), datetime.datetime(2021, 9, 16))
+    # binary_to_array(files_path_prefix, "l79-21", 'LATENT_2009-2019', datetime.datetime(2009, 1, 1), datetime.datetime(2019, 1, 1))
     # ---------------------------------------------------------------------------------------
     # Components determination part
     # sort_by_means(files_path_prefix, flux_type)
@@ -98,68 +137,92 @@ if __name__ == '__main__':
     # ---------------------------------------------------------------------------------------
 
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-    # days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
-    # days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
-    # # # days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
+    days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
+    days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
+    days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
+    days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
 
-    print(days_delta1)
     # time_start = 1
-    # time_end = 914
+    # time_end = 10
     # mean_width = 7
     #
     # plot_step = 1
     # delta = 0
+    #
+    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989.npy')
+    # latent_array = np.load(files_path_prefix + 'latent_grouped_1979-1989.npy')
+    # plot_fluxes(files_path_prefix, sensible_array, latent_array, time_start, time_end)
+    # raise ValueError
 
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_a=True, load_b=True)
+    # count_c_coeff(files_path_prefix, a_timelist, b_timelist, time_start, 14)
     # count_f_separate_coeff(files_path_prefix, a_timelist, b_timelist, time_start, mean_width)
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_fs=True)
     # plot_fs_coeff(files_path_prefix, fs_timelist, borders, 0, time_end-time_start - delta, start_pic_num=time_start + delta, mean_width=mean_width)
 
-    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, 0, time_end-time_start - delta, plot_step, start_pic_num=time_start + delta)
+    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, delta, time_end-time_start, plot_step, start_pic_num=time_start + delta)
     # plot_f_coeff(files_path_prefix, f_timelist, borders, 0, time_end-time_start - delta, plot_step, start_pic_num=time_start + delta)
+
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                  time_end, load_c=True)
+    # plot_c_coeff(files_path_prefix, c_timelist, delta, len(c_timelist), 1, time_start + delta)
+
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                  time_end, load_fs=True)
+    # plot_fs_coeff(files_path_prefix, fs_timelist, borders, delta, len(fs_timelist), 1, time_start + delta, mean_width)
+
+
+    # year = 1979
+    # time_start = (datetime.datetime(year, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days + 1
+    # time_end = (datetime.datetime(year, 12, 31, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                  time_end, load_a=True, load_b=True)
+    # plot_mean_year_AB(files_path_prefix, time_start, time_end, a_timelist, b_timelist, borders, year)
+
+    # ---------------------------------------------------------------------------------------
+    # time_start = 1
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                  time_end, load_a=True, load_b=True)
+
+
     # raise ValueError
     # ---------------------------------------------------------------------------------------
-    # create_video(files_path_prefix, files_path_prefix+'videos/A/', 'A_', 'a_daily_FAST', 3)
+    # create_video(files_path_prefix, files_path_prefix+'videos/A/', 'A_', 'a_daily', 10)
     # create_video(files_path_prefix, files_path_prefix+'videos/B/', 'B_', 'b_daily', 10)
     # create_video(files_path_prefix, files_path_prefix + 'videos/C/', 'C_', 'c_daily', 10)
-    # create_video(files_path_prefix, files_path_prefix + 'videos/Flux-corr/', 'FL_corr_', 'flux_correlation_weekly', 10)
-    # create_video(files_path_prefix, files_path_prefix + 'videos/FS/', 'FS_', 'FS_daily_mean_7', 4)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/F/', 'F_', 'f_daily', 10)
+    # # create_video(files_path_prefix, files_path_prefix + 'videos/Flux-corr/', 'FL_corr_', 'flux_correlation_weekly', 10)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/FS/', 'FS_', 'FS_daily_mean_7', 10)
     # ---------------------------------------------------------------------------------------
 
     # count_correlation_fluxes(files_path_prefix, 0, 1829)
     # plot_flux_correlations(files_path_prefix, 0, 1829, step=7)
 
-    # # ---------------------------------------------------------------------------------------
-    # # create timeseries for students
-    # points = plot_typical_points(files_path_prefix, mask)
-    #
-    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
-    #                                                                                  time_end, load_a=True, load_b=True)
-    # for p in points:
-    #     ts_a = list()
-    #     ts_b = list()
-    #     for t in range(0, time_end - time_start):
-    #         ts_a.append(np.array(a_timelist[t])[:, p[0], p[1]])
-    #         ts_b.append(np.array(b_timelist[t])[:, p[0], p[1]])
-    #
-    #     ts_a = np.array(ts_a)
-    #     ts_b = np.array(ts_b)
-    #     print(ts_b.shape)
-    #
-    #     np.save(files_path_prefix + f'/TimeSeries/A_({p[0]}, {p[1]}).npy', ts_a)
-    #     np.save(files_path_prefix + f'/TimeSeries/B_({p[0]}, {p[1]}).npy', ts_b)
 
-
-    sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_2019-2021.npy',
-                                                       'LATENT_2019-2021.npy',
-                                                       prepare=False)
-
-    np.save(files_path_prefix + 'sensible_grouped_2019-2021.npy', sensible_array)
-    np.save(files_path_prefix + 'latent_grouped_2019-2021.npy', latent_array)
+    # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_2019-2022.npy',
+    #                                                    'LATENT_2019-2022.npy',
+    #                                                    prepare=False)
+    #
+    # np.save(files_path_prefix + 'sensible_grouped_2019-2022.npy', sensible_array)
+    # np.save(files_path_prefix + 'latent_grouped_2019-2022.npy', latent_array)
+    # ---------------------------------------------------------------------------------------
+    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_2019-2022.npy')
+    # print(sensible_array.shape)
+    # sens_scaled, quantiles = scale_to_bins(sensible_array, 1000)
+    # np.save(files_path_prefix + 'sensible_grouped_2019-2022(scaled).npy', sens_scaled)
+    # np.save(files_path_prefix + 'Quantiles/sensible_2019-2022(quantiles).npy', np.array(quantiles))
+    #
+    # latent_array = np.load(files_path_prefix + 'latent_grouped_2019-2022.npy')
+    # latent_scaled, quantiles = scale_to_bins(latent_array, 1000)
+    # np.save(files_path_prefix + 'latent_grouped_2019-2022(scaled).npy', latent_scaled)
+    # np.save(files_path_prefix + 'Quantiles/latent_2019-2022(quantiles).npy', np.array(quantiles))
 
     # # ----------------------------------------------------------------------------------------------
+
     # n_components = 3
-    # window_width = 60
+    # window_width = 30
     #
     # sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989(scaled).npy')
     # latent_array = np.load(files_path_prefix + 'latent_grouped_1979-1989(scaled).npy')
@@ -167,7 +230,7 @@ if __name__ == '__main__':
     # latent_array = latent_array.astype(float)
     # time_start, time_end = 1, 1500
     # point_start, point_end = 39, 41
-    #
+
     # points = range(point_start, point_end)
     # for point in tqdm.tqdm(points):
     #     if mask[point]:
@@ -212,3 +275,44 @@ if __name__ == '__main__':
     # print(sensible_array[39])
     # plt.hist(sensible_array[39, 0:300], bins=20)
     # plt.savefig(files_path_prefix + f'Components/tmp/hist.png')
+    # ----------------------------------------------------------------------------------------------
+    # time_start = 0
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    #
+    # sensible_all = np.zeros((161*181, time_end-time_start))
+    # latent_all = np.zeros((161*181, time_end-time_start))
+    # start = 0
+    # for years in ['1979-1989', '1989-1999', '1999-2009', '2009-2019', '2019-2022']:
+    #     sens_part = np.load(files_path_prefix + f'sensible_grouped_{years}.npy')
+    #     sensible_all[:, start:start + sens_part.shape[1]] = sens_part
+    #
+    #     lat_part = np.load(files_path_prefix + f'latent_grouped_{years}.npy')
+    #     latent_all[:, start:start + lat_part.shape[1]] = lat_part
+    #     start += sens_part.shape[1]
+    #
+    # np.save(files_path_prefix + 'sensible_all.npy', sensible_all)
+    # np.save(files_path_prefix + 'latent_all.npy', latent_all)
+    # ----------------------------------------------------------------------------------------------
+    # year = 2021
+    # time_start = (datetime.datetime(year, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    # time_end = (datetime.datetime(year, 12, 31, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                  time_end, load_a=True, load_b=True)
+    # mean_days = 1
+    # coeff_type = 'a'
+    # extract_extreme(files_path_prefix, a_timelist, coeff_type, time_start, time_end, mean_days)
+    # plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
+    #
+    # coeff_type = 'b'
+    # extract_extreme(files_path_prefix, b_timelist, coeff_type, time_start, time_end, mean_days)
+    # plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
+
+    # mean_days = 365
+    # extract_extreme(files_path_prefix, b_timelist, coeff_type, time_start, time_end, mean_days)
+    # plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
+
+    # sensible_all = np.load(files_path_prefix + 'sensible_all.npy')
+    # latent_all = np.load(files_path_prefix + 'latent_all.npy')
+    # check_conditions(files_path_prefix, time_start, time_end, sensible_all, latent_all, mask)
+    # ----------------------------------------------------------------------------------------------
