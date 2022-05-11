@@ -133,17 +133,25 @@ def plot_estimate_a_flux(files_path_prefix: str,
     # lat_set = sorted(list(lat_set))
 
     # Getting x and y coordinates for scatter points
+    time_window = 14
+    step = 7
     sens_x, lat_x, sens_y, lat_y = list(), list(), list(), list()
-    for t in range(time_start, time_end, step):
-        a_sens = a_timelist[t - time_start][0]
-        a_lat = a_timelist[t - time_start][1]
+    for t in range(time_start, time_end - time_window, step):
+        a_sens_mean = np.zeros_like(a_timelist[t-time_start][0])
+        a_lat_mean = np.zeros_like(a_timelist[t-time_start][1])
+        for i in range(time_window):
+            a_sens_mean += a_timelist[t - time_start + i][0]
+            a_lat_mean += a_timelist[t - time_start + i][1]
+
+        a_sens_mean /= time_window
+        a_lat_mean /= time_window
 
         sens_x.append(np.mean(sensible_array[flat_points, t]))
-        a_sens_point = [a_sens[p // 181, p % 181] for p in flat_points]
+        a_sens_point = [a_sens_mean[p // 181, p % 181] for p in flat_points]
         sens_y.append(np.mean(a_sens_point))
 
         lat_x.append(np.mean(latent_array[flat_points, t]))
-        a_lat_point = [a_lat[p // 181, p % 181] for p in flat_points]
+        a_lat_point = [a_lat_mean[p // 181, p % 181] for p in flat_points]
         lat_y.append(np.mean(a_lat_point))
 
         # for p in flat_points:
@@ -160,17 +168,26 @@ def plot_estimate_a_flux(files_path_prefix: str,
     sens_y = np.array(sens_y)
     lat_y = np.array(lat_y)
 
-    # cut tails in quantiles
-    q_bigger_tr = 100
-    q_less_tr = 0
-    sens_y = sens_y[sens_x < q_bigger_tr]
-    sens_x = sens_x[sens_x < q_bigger_tr]
-    lat_y = lat_y[lat_x < q_bigger_tr]
-    lat_x = lat_x[lat_x < q_bigger_tr]
-    sens_y = sens_y[sens_x > q_less_tr]
-    sens_x = sens_x[sens_x > q_less_tr]
-    lat_y = lat_y[lat_x > q_less_tr]
-    lat_x = lat_x[lat_x > q_less_tr]
+    # transform
+    # sens_x = -sens_x
+    # sens_x += abs(min(sens_x)) + 1
+    # sens_x = np.log(sens_x)
+    # sens_x = np.power(sens_x, 0.5)
+    # lat_x = -lat_x
+    # lat_x += min(lat_x) + 1
+    # lat_x = np.power(np.abs(lat_x), 0.3)
+
+    # # cut tails in quantiles
+    # q_bigger_tr = 1000
+    # q_less_tr = 0
+    # sens_y = sens_y[sens_x < q_bigger_tr]
+    # sens_x = sens_x[sens_x < q_bigger_tr]
+    # lat_y = lat_y[lat_x < q_bigger_tr]
+    # lat_x = lat_x[lat_x < q_bigger_tr]
+    # sens_y = sens_y[sens_x > q_less_tr]
+    # sens_x = sens_x[sens_x > q_less_tr]
+    # lat_y = lat_y[lat_x > q_less_tr]
+    # lat_x = lat_x[lat_x > q_less_tr]
 
     # polynomial
     sens_fit = Polynomial.fit(sens_x, sens_y, 5)
@@ -182,12 +199,12 @@ def plot_estimate_a_flux(files_path_prefix: str,
 
     # # sin
     # # a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
-    # params_guess = [5, (math.pi / 2) / 5, math.pi] + list(sens_fit)
+    # params_guess = [5, (math.pi / 2) / 5, math.pi] + [0, 0, 0, 0]
     # sens_popt, sens_pcov = curve_fit(func_sin, sens_x, sens_y, p0=params_guess, maxfev=10000)
     # sens_residuals = sens_y - func_sin(sens_x, *sens_popt)
     # sens_ss = np.sum(sens_residuals ** 2)
-
-    # params_guess = [5, (math.pi / 2) / 5, 0] + list(lat_fit)
+    #
+    # params_guess = [5, (math.pi / 2) / 5, 0] + [0, 0, 0, 0]
     # lat_popt, lat_pcov = curve_fit(func_sin, lat_x, lat_y, p0=params_guess, maxfev=10000)
     # lat_residuals = lat_y - func_sin(lat_y, *lat_popt)
     # lat_ss = np.sum(lat_residuals ** 2)
@@ -200,10 +217,14 @@ def plot_estimate_a_flux(files_path_prefix: str,
     # fit_sens = fit.execute()
     # sens_popt_fourier = fit_sens.params
     # print(sens_popt_fourier)
+    #
+    # sens_residuals_fourier = sens_y - np.array(fit.model(sens_x, **sens_popt_fourier)).flat
+    # lat_residuals_fourier = lat_y - 0
 
     # estimate and plot residuals
     # plot_estimate_residuals(files_path_prefix, month, sens_residuals, lat_residuals, time_start)
     plot_estimate_residuals(files_path_prefix, month, sens_residuals_poly, lat_residuals_poly, time_start, 'polynomial')
+    # plot_estimate_residuals(files_path_prefix, month, sens_residuals_fourier, lat_residuals_fourier, time_start, 'fourier')
 
     # plot everything
     fig.suptitle(f'A-flux value dependence \n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}',
@@ -212,7 +233,6 @@ def plot_estimate_a_flux(files_path_prefix: str,
     axs[0].cla()
     axs[0].scatter(sens_x, sens_y, c='r')
 
-    # a, b, c, d = sens_popt
     # label_sin = f'{a:.1f} * sin({b:.5f} * x + {c:.1f}) + {d:.1f}'
     # axs[0].plot(sens_x, func_sin(sens_x, *sens_popt), c='b')
 
@@ -257,11 +277,8 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int, point, radius)
     :param month: month number from 1 to 12
     :return:
     """
-    sensible_array = np.load(files_path_prefix + 'sensible_all.npy')
-    latent_array = np.load(files_path_prefix + 'latent_all.npy')
-    # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_1979-1989.npy',
-    #                                                    'LATENT_1979-1989.npy',
-    #                                                    prepare=False)
+    sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989(scaled).npy')
+    latent_array = np.load(files_path_prefix + 'latent_grouped_1979-1989(scaled).npy')
 
     biases = [i for i in range(-radius, radius+1)]
     point_bigger = [(point[0] + i, point[1] + j) for i in biases for j in biases]
@@ -273,19 +290,14 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int, point, radius)
     if not os.path.exists(files_path_prefix + f"Func_repr/a-flux-monthly/{month}"):
         os.mkdir(files_path_prefix + f"Func_repr/a-flux-monthly/{month}")
 
-    # estimate and save
-    if month < 9:
-        years = 43
-        max_year = 2022
-    else:
-        years = 42
-        max_year = 2021
+    years = 10
+    max_year = 1988
 
     sens_fits, lat_fits = list(), list()
     for i in range(0, years):
         time_start = (datetime.datetime(1979 + i, month, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
         if month != 12:
-            time_end = (datetime.datetime(1979 + i + 3, month + 0, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+            time_end = (datetime.datetime(1979 + i + 2, month + 0, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
         else:
             time_end = (datetime.datetime(1979 + i + 1, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
 
@@ -303,7 +315,7 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int, point, radius)
     # plot
     fig, axes = plt.subplots(1, 2, figsize=(25, 10))
     x = np.linspace(np.nanmin(sensible_array), np.nanmax(sensible_array), 100)
-    for i in range(0, 42):
+    for i in range(0, 10):
         # sens_params = df_sens[['a', 'b', 'c', 'd']].loc[i].values
         # lat_params = df_lat[['a', 'b', 'c', 'd']].loc[i].values
         if i > 30:
