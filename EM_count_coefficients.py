@@ -162,7 +162,7 @@ def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point_
                        n_components, window_width):
     a_sens_list = list()
     b_list = list()
-    for t in range(time_start + window_width//2, time_end):
+    for t in range(time_start + window_width - 7, time_end):
         a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
         a_sens_list.append(a_sens)
 
@@ -199,7 +199,7 @@ def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point_
 
             fig = plt.figure(figsize=(30, 10))
             fig.suptitle(f'Point {p}')
-            x = range(time_start, time_end - window_width // 2)
+            x = range(time_start, time_end - window_width + 7)
             colors = [0, 'Lime', 'Orchid', 'Purple', 'g', 'b']
             # for comp in range(1, n_components + 1):
             #     plt.plot(x,
@@ -210,7 +210,7 @@ def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point_
             # plt.legend()
             # plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_A.png')
 
-            plt.plot(x, np.array(a_sens_Bel) / window_width, c='b', label='Bel * 0.01')
+            plt.plot(x, np.array(a_sens_Bel) / window_width, c='b', label='Bel / window_width')
             # plt.plot(x, diff, c='r', label='difference')
             plt.legend()
             plt.savefig(files_path_prefix + f'Components/tmp/point_{p}_A_difference.png')

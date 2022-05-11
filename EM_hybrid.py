@@ -37,9 +37,12 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
 
     eps = 0.3
 
-    for i in range(0, sample_length - window_width):
-        window = np.nan_to_num(sample[i:i + window_width])
-        if i == 0:
+    # for i in range(window_width // 2, sample_length - window_width // 2):
+    #     window = np.nan_to_num(sample[i - window_width // 2 : i + window_width // 2])
+    #         if i == window_width // 2:
+    for i in range(window_width, sample_length - window_width):
+        window = np.nan_to_num(sample[i - window_width: i])
+        if i == window_width:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
                                  covariance_type='spherical',
@@ -130,9 +133,11 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
     for comp in range(n_components):
         X[comp * len(df): (comp + 1) * len(df), 0] = df[f'sigma_{comp + 1}_hybrid'] / max_sigma
         X[comp * len(df): (comp + 1) * len(df), 1] = (df[f'mean_{comp + 1}_hybrid'] - min_mean) / (max_mean - min_mean)
+        # X[comp * len(df): (comp + 1) * len(df), 0] = df[f'sigma_{comp + 1}_hybrid']
+        # X[comp * len(df): (comp + 1) * len(df), 1] = df[f'mean_{comp + 1}_hybrid']
         # X[comp * len(df): (comp + 1) * len(df), 2] = df[f'weight_{comp + 1}_hybrid']
 
-    new_n_components = 3
+    new_n_components = n_components
     kmeans = KMeans(n_clusters=new_n_components, random_state=0).fit(X)
     labels = kmeans.labels_
 
@@ -164,6 +169,8 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
                 new_df.loc[i, f'weight_{k + 1}'] = None
 
     if draw:
+        plt.xlabel('Sigma')
+        plt.ylabel('Mean')
         fig_new.tight_layout()
         fig_new.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_clustered_point_{point}.png')
 
