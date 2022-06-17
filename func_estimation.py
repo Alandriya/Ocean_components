@@ -29,7 +29,7 @@ def func_sin(x, a, b, c, d, f, g, h):
     return a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
 
 
-def fourier_series(x, f, n=0):
+def fourier_series(x, f, n=10):
     """
     Returns a symbolic fourier series of order `n`.
 
@@ -349,110 +349,6 @@ def estimate_a_flux_by_months(files_path_prefix: str, month: int, point, radius)
     return
 
 
-def plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, time_end, point):
-    sens_val = sens_val[np.isfinite(sens_val)]
-    lat_val = lat_val[np.isfinite(lat_val)]
-    part = len(sens_val) // 4 * 3
-    # sens_norm = scipy.stats.norm.fit_loc_scale(sens_val[:part])
-    # lat_norm = scipy.stats.norm.fit_loc_scale(lat_val[:part])
-    # print(f'Shapiro-Wilk normality test for sensible: {scipy.stats.shapiro(sens_val[part:part*2])[1]:.5f}')
-    # print(f'Shapiro-Wilk normality test for latent: {scipy.stats.shapiro(lat_val[part:part*2])[1]:.5f}\n')
-    #
-    # sens_t = scipy.stats.t.fit(sens_val[:part])
-    # lat_t = scipy.stats.t.fit(lat_val[:part])
-    #
-    # sens_vargamma = fit_ml(sens_val[:part])
-    # lat_vargamma = fit_ml(lat_val[:part])
 
-    fig, axs = plt.subplots(1, 2, figsize=(25, 10))
-
-    # mu, sigma = sens_norm
-    # x = np.linspace(-200, 100, 300)
-    # print(f'Kolmogorov-Smirnov test for VarGamma for sensible: {scipy.stats.kstest(sens_val[part:part*2], cdf, sens_vargamma)[1]}')
-    axs[0].cla()
-    axs[0].hist(sens_val[part:part*2], bins=15, density=True)
-    # axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
-    # axs[0].plot(x, pdf(x, *sens_vargamma), label='Fitted VarGamma')
-    # axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t),  label='Fitted t')
-    axs[0].set_title(f'Sensible flux distribution')
-    # axs[0].legend()
-
-    # mu, sigma = lat_norm
-    # x = np.linspace(-200, 100, 300)
-    # print(f'Kolmogorov-Smirnov test for VarGamma for latent: {scipy.stats.kstest(lat_val[part:part*2], cdf, lat_vargamma)[1]}\n')
-    axs[1].cla()
-    axs[1].hist(lat_val[part:part*2], bins=15, density=True)
-    # axs[1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
-    # axs[1].plot(x, pdf(x, *lat_vargamma), label='Fitted VarGamma')
-    # axs[1].plot(x, scipy.stats.t.pdf(x, *lat_t), label='Fitted t')
-    axs[1].set_title(f'Latent flux distribution')
-    # axs[1].legend()
-
-    date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
-    date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-    fig.suptitle(f"{date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}")
-
-    fig.savefig(files_path_prefix +
-                f"Func_repr/fluxes_distribution/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}).png")
-    plt.close(fig)
-    return
-
-
-def plot_fluxes_2d(files_path_prefix, sens_val, lat_val, time_start, time_end):
-    fig = plt.figure(figsize=(15, 15))
-    # axs = fig.add_subplot(1, 2, 1, projection='3d')
-    xedges = np.linspace(np.nanmin(sens_val), np.nanmax(sens_val), 100)
-    yedges = np.linspace(np.nanmin(lat_val), np.nanmax(lat_val), 100)
-    # xx, yy = np.meshgrid(x, y)
-
-    H, xedges, yedges = np.histogram2d(sens_val, lat_val, bins=(xedges, yedges))
-
-    # axs.cla()
-    axs = fig.add_subplot(132, title=f'Sensible and latent fluxes distribution', aspect='equal')
-    X, Y = np.meshgrid(xedges, yedges)
-    # axs.pcolormesh(X, Y, H.T)
-    axs.hist2d(sens_val, lat_val, bins=50, density=True, cmap='Reds')
-    axs.set_title(f'Sensible and latent fluxes distribution')
-    axs.legend()
-
-    date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
-    date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-    fig.suptitle(f"{date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}")
-    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/fluxes_2D_{time_start:05d}.png')
-    return
-
-
-def estimate_flux(files_path_prefix: str, sensible_array, latent_array, month: int, point):
-    point_bigger = [(point[0] + i, point[1] + j) for i in [-1, 0, 1] for j in [-1, 0, 1]]
-    flat_points = np.array([p[0] * 181 + p[1] for p in point_bigger])
-
-    years = 1
-    for i in range(0, years):
-        time_start = (datetime.datetime(1979 + i, month, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-        if month != 12:
-            time_end = (datetime.datetime(1979 + i, month + 6, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-        else:
-            time_end = (datetime.datetime(1979 + i + 1, 5, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-
-        date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
-        date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-
-        if os.path.exists(files_path_prefix +
-                          f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_sensible.npy"):
-            sens_val = np.load(files_path_prefix +
-                               f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_sensible.npy")
-            lat_val = np.load(files_path_prefix +
-                              f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_latent.npy")
-        else:
-            sens_val = sensible_array[flat_points, time_start:time_end].flatten()
-            lat_val = latent_array[flat_points, time_start:time_end].flatten()
-            np.save(files_path_prefix +
-                    f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_sensible.npy", sens_val)
-            np.save(files_path_prefix +
-                    f"Func_repr/fluxes_distribution/data/POINT_({point[0]}, {point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')})_latent.npy", lat_val)
-
-        # plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, time_end, point)
-        plot_fluxes_2d(files_path_prefix, sens_val, lat_val, time_start, time_end)
-    return
 
 
