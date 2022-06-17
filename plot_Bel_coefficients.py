@@ -1,21 +1,10 @@
 import numpy as np
-import tqdm
-import matplotlib.pyplot as plt
-import matplotlib
-import datetime
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.colors as colors
-import gc
-from video import get_continuous_cmap
 import datetime
 import gc
-
-import matplotlib
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
 from video import get_continuous_cmap
 
 
@@ -221,7 +210,7 @@ def plot_f_coeff(files_path_prefix: str,
                  start_pic_num: int = 0,
                  mean_width: int = 7):
     """
-    Plots F - fraction ||A|| / ||B|| coefficients' norms and saves them into
+    Plots F - fraction of coefficients' norms and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
 
     :param files_path_prefix: path to the working directory
@@ -341,6 +330,12 @@ def plot_fs_coeff(files_path_prefix: str,
 
 
 def plot_mean_year(files_path_prefix: str, coeff_name: str):
+    """
+    Plots 2x3 graphics of "mean year" of coefficient coeff_name
+    :param files_path_prefix: path to the working directory
+    :param coeff_name: 'A_sens' or 'A_lat' or 'B11' or 'B22' or 'F'
+    :return:
+    """
     mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_name}.npy')
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
     fig.suptitle(f'{coeff_name} mean year', fontsize=30)
