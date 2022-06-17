@@ -160,7 +160,7 @@ def load_ABCF(files_path_prefix,
                 f_max = max(f_max, np.nanmax(f))
             f_min = min(f_min, np.nanmin(f))
         if load_fs:
-            fs = np.load(files_path_prefix + f'Coeff_data/{t}_F_separate.npy')
+            fs = np.load(files_path_prefix + f'Coeff_data/{t}_F_new.npy')
             fs_timelist.append(fs)
             if np.isfinite(np.nanmax(fs)):
                 f_max = max(f_max, np.nanmax(fs))
@@ -179,13 +179,14 @@ def load_ABCF(files_path_prefix,
 
 def scale_to_bins(arr, bins=100):
     quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins - 1, endpoint=False)))
-    quantiles += [np.nanmax(arr)]
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
     for j in tqdm.tqdm(range(bins - 1)):
         arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
             (quantiles[j] + quantiles[j + 1]) / 2
+
+    quantiles += [np.nanmax(arr)]
 
     return arr_scaled, quantiles
 
@@ -202,7 +203,7 @@ def load_prepare_fluxes(sensible_filename, latent_filename, prepare=True):
     sensible_array = sensible_array.astype(float)
     latent_array = latent_array.astype(float)
     sensible_array[np.logical_not(mask), :] = np.nan
-    latent_array[np.logical_not(mask)] = np.nan
+    latent_array[np.logical_not(mask), :] = np.nan
 
     # mean by day = every 4 observations
     pack_len = 4
