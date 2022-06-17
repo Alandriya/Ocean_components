@@ -184,7 +184,8 @@ def plot_c_coeff(files_path_prefix: str,
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
-        figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        date_end = date + datetime.timedelta(days=14)
+        figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
                                    interpolation='none',
@@ -217,7 +218,8 @@ def plot_f_coeff(files_path_prefix: str,
                  time_start: int,
                  time_end: int,
                  step: int = 1,
-                 start_pic_num: int = 0):
+                 start_pic_num: int = 0,
+                 mean_width: int = 7):
     """
     Plots F - fraction ||A|| / ||B|| coefficients' norms and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -233,23 +235,25 @@ def plot_f_coeff(files_path_prefix: str,
     :return:
     """
     print('Saving F pictures')
-    fig, axs = plt.subplots(figsize=(15, 15))
-    f_min = borders[4]
     f_max = borders[5]
 
-    cmap = matplotlib.colors.ListedColormap(['white', 'red'])
-    norm = matplotlib.colors.BoundaryNorm([f_min, 1, f_max], cmap.N)
-    cmap.set_bad('darkgreen', 1.0)
-    img_f = None
+    # prepare images
+    fig, axs = plt.subplots(1, 1, figsize=(20, 10))
     divider = make_axes_locatable(axs)
     cax = divider.append_axes('right', size='5%', pad=0.3)
+    img_f = None
 
+    cmap = colors.ListedColormap(['MintCream', 'Aquamarine', 'blue', 'red', 'DarkRed'])
+    boundaries = [0, 0.25, 0.5, 1.0, 1.5, max(f_max, 2.0)]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    cmap.set_bad('darkgreen', 1.0)
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
+        date_end = date + datetime.timedelta(days=mean_width)
+        fig.suptitle(f'Fraction of coefficients\n {date.strftime("%Y-%m-%d")} - '
+                     f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
         f = f_timelist[t]
-        fig.suptitle(f'F coefficient\n {date.strftime("%Y-%m-%d")}', fontsize=30)
-
         if img_f is None:
             img_f = axs.imshow(f,
                                interpolation='none',
@@ -257,9 +261,8 @@ def plot_f_coeff(files_path_prefix: str,
                                norm=norm)
         else:
             img_f.set_data(f)
-
         fig.colorbar(img_f, cax=cax, orientation='vertical')
-        fig.savefig(files_path_prefix + f'videos/tmp-coeff/F_{pic_num:05d}.png')
+        fig.savefig(files_path_prefix + f'videos/FN/FN_{pic_num:05d}.png')
         pic_num += 1
     return
 
@@ -289,7 +292,6 @@ def plot_fs_coeff(files_path_prefix: str,
     :return:
     """
     print('Saving FS pictures')
-    f_min = borders[4]
     f_max = borders[5]
 
     # prepare images
@@ -312,7 +314,8 @@ def plot_fs_coeff(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         date_end = date + datetime.timedelta(days=mean_width)
-        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - '
+                      f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsf[0].imshow(f_timelist[t][0],
                                    interpolation='none',
@@ -336,93 +339,65 @@ def plot_fs_coeff(files_path_prefix: str,
         pic_num += 1
     return
 
-def plot_mean_year_AB(files_path_prefix: str, time_start: int, time_end: int, a_timelist: list, b_timelist: list, borders: list,
-                      year):
-    figa, axsa = plt.subplots(1, 2, figsize=(20, 10))
-    figb, axsb = plt.subplots(2, 2, figsize=(20, 15))
-    img_a_sens, img_a_lat = None, None
-    img_b = [None for _ in range(4)]
 
-    # # TODO change - it's not a very good way to cut the outliers
-    # borders[3] = 1000.0
+def plot_mean_year(files_path_prefix: str, coeff_name: str):
+    mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_name}.npy')
+    fig, axs = plt.subplots(2, 3, figsize=(20, 10))
+    fig.suptitle(f'{coeff_name} mean year', fontsize=30)
+    axs[0][0].title.set_text('February, 15')
+    axs[0][1].title.set_text('April, 15')
+    axs[0][2].title.set_text('June, 15')
+    axs[1][0].title.set_text('August, 15')
+    axs[1][1].title.set_text('October, 15')
+    axs[1][2].title.set_text('December, 15')
+    img = [None for _ in range(6)]
+    cax = [None for _ in range(6)]
+    days = [(datetime.datetime(1979, i*2, 15) - datetime.datetime(1979, 1, 2)).days for i in range(1, 7)]
+    if coeff_name == 'A_sens' or coeff_name == 'A_lat':
+        a_min = np.nanmin(mean_year)
+        a_max = np.nanmax(mean_year)
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
+        cmap.set_bad('darkgreen', 1.0)
+        for i in range(6):
+            divider = make_axes_locatable(axs[i // 3][i % 3])
+            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
+            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
+                                               interpolation='none',
+                                               cmap=cmap,
+                                               vmin=a_min,
+                                               vmax=a_max)
+            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
 
-    axsa[1].set_title(f'Latent', fontsize=20)
-    divider = make_axes_locatable(axsa[1])
-    cax_a_lat = divider.append_axes('right', size='5%', pad=0.3)
-
-    axsa[0].set_title(f'Sensible', fontsize=20)
-    divider = make_axes_locatable(axsa[0])
-    cax_a_sens = divider.append_axes('right', size='5%', pad=0.3)
-
-    cax_b = list()
-    for i in range(4):
-        divider = make_axes_locatable(axsb[i // 2][i % 2])
-        cax_b.append(divider.append_axes('right', size='5%', pad=0.3))
-        if i == 0:
-            axsb[i // 2][i % 2].set_title(f'Sensible - sensible', fontsize=20)
-        elif i == 3:
-            axsb[i // 2][i % 2].set_title(f'Latent - latent', fontsize=20)
-        elif i == 1:
-            axsb[i // 2][i % 2].set_title(f'Sensible - latent', fontsize=20)
-        elif i == 2:
-            axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
-
-
-    a_sens_mean = np.zeros((161, 181))
-    a_lat_mean = np.zeros((161, 181))
-    b_mean = np.zeros((4, 161, 181))
-    for t in range(0, len(a_timelist)):
-        a_sens_mean += a_timelist[t][0]
-        a_lat_mean += a_timelist[t][1]
-        b_mean += b_timelist[t]
-
-    a_sens_mean /= len(a_timelist)
-    a_lat_mean /= len(a_timelist)
-    b_mean /= len(b_timelist)
-
-    a_min = min(np.nanmin(a_sens_mean), np.nanmin(a_lat_mean))
-    a_max = max(np.nanmax(a_sens_mean), np.nanmax(a_lat_mean))
-    b_min = min(np.nanmin(b_mean), np.nanmin(b_mean))
-    b_max = 300
-
-    cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
-    cmap_a.set_bad('darkgreen', 1.0)
-    zero_percent = abs(0 - b_min) / (b_max - b_min)
-    cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
-    cmap_b.set_bad('darkgreen', 1.0)
-
-    date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
-    date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-    figa.suptitle(f'A coeff mean\n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
-
-    img_a_sens = axsa[0].imshow(a_sens_mean,
-                                interpolation='none',
-                                cmap=cmap_a,
-                                vmin=a_min,
-                                vmax=a_max)
-
-    figa.colorbar(img_a_sens, cax=cax_a_sens, orientation='vertical')
-
-    img_a_lat = axsa[1].imshow(a_lat_mean,
-                               interpolation='none',
-                               cmap=cmap_a,
-                               vmin=a_min,
-                               vmax=a_max)
-
-    figa.colorbar(img_a_lat, cax=cax_a_lat, orientation='vertical')
-    plt.tight_layout()
-    figa.savefig(files_path_prefix + f'videos/A_year_{year}.png')
-
-    figb.suptitle(f'B coeff mean\n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
-    for i in range(4):
-
-        img_b[i] = axsb[i // 2][i % 2].imshow(b_mean[i],
-                                              interpolation='none',
-                                              cmap=cmap_b,
-                                              vmin=b_min,
-                                              vmax=b_max)
-        figb.colorbar(img_b[i], cax=cax_b[i], orientation='vertical')
+    elif coeff_name == 'B11' or coeff_name == 'B22':
+        b_min = np.nanmin(mean_year)
+        b_max = np.nanmax(mean_year)
+        zero_percent = abs(0 - b_min) / (b_max - b_min)
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
+        cmap.set_bad('darkgreen', 1.0)
+        for i in range(6):
+            divider = make_axes_locatable(axs[i // 3][i % 3])
+            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
+            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
+                                               interpolation='none',
+                                               cmap=cmap,
+                                               vmin=b_min,
+                                               vmax=b_max)
+            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
+    elif coeff_name == 'F':
+        f_max = np.nanmax(mean_year)
+        cmap = colors.ListedColormap(['MintCream', 'Aquamarine', 'blue', 'red', 'DarkRed'])
+        boundaries = [0, 0.25, 0.5, 1.0, 1.5, max(f_max, 2.0)]
+        norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+        cmap.set_bad('darkgreen', 1.0)
+        for i in range(6):
+            divider = make_axes_locatable(axs[i // 3][i % 3])
+            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
+            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
+                                               interpolation='none',
+                                               cmap=cmap,
+                                               norm=norm)
+            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
 
     plt.tight_layout()
-    figb.savefig(files_path_prefix + f'videos/B_year_{year}.png')
+    fig.savefig(files_path_prefix + f'videos/Mean_year/{coeff_name}.png')
     return
