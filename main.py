@@ -114,9 +114,9 @@ if __name__ == '__main__':
     # draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=timesteps)
     # create_video(files_path_prefix, files_path_prefix+'videos/{flux_type}/tmp/', '', f'{flux_type}_5years_weekly', speed=30)
     # ---------------------------------------------------------------------------------------
-    # mask = np.array(mask, dtype=int)
-    # points = plot_typical_points(files_path_prefix, mask)
-    # point = points[12]
+    mask = np.array(mask, dtype=int)
+    points = plot_typical_points(files_path_prefix, mask)
+
     # radius = 2
     # month = 1
     #
@@ -142,23 +142,37 @@ if __name__ == '__main__':
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
 
-    # time_start = 1
-    # time_end = 10
-    # mean_width = 7
-    #
-    # plot_step = 1
+    time_start = (datetime.datetime(2022, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    time_end = (datetime.datetime(2022, 2, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    mean_width = 7
+
+    plot_step = 1
     # delta = 0
-    #
-    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_1979-1989.npy')
-    # latent_array = np.load(files_path_prefix + 'latent_grouped_1979-1989.npy')
-    # plot_fluxes(files_path_prefix, sensible_array, latent_array, time_start, time_end)
+    # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2022.npy')
+    # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022.npy')
+
+    # point = points[1]
+    # estimate_flux(files_path_prefix, sensible_array, latent_array, month=1, point=point)
+    # for point in points:
+    #     estimate_flux(files_path_prefix, sensible_array, latent_array, month=1, point=point)
+
+    # sample_x = sensible_array[:, 0:31]
+    # sample_x = sample_x[np.logical_not(np.isnan(sample_x))]
+    # sample_y = latent_array[:, 0:31]
+    # sample_y = sample_y[np.logical_not(np.isnan(sample_y))]
+    # draw_3d_hist(files_path_prefix, sample_x, sample_y, time_start, time_end, postfix='1')
+
+
+    # plot_fluxes(files_path_prefix, sensible_array, latent_array, time_start, time_end, start_date=datetime.datetime(2022, 1, 1, 0, 0))
     # raise ValueError
 
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_a=True, load_b=True)
+    # count_fraction(files_path_prefix, a_timelist, b_timelist, mask, mean_width, start_idx=time_start)
     # count_c_coeff(files_path_prefix, a_timelist, b_timelist, time_start, 14)
     # count_f_separate_coeff(files_path_prefix, a_timelist, b_timelist, time_start, mean_width)
+
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_fs=True)
-    # plot_fs_coeff(files_path_prefix, fs_timelist, borders, 0, time_end-time_start - delta, start_pic_num=time_start + delta, mean_width=mean_width)
+    # plot_f_coeff(files_path_prefix, fs_timelist, borders, 0, time_end-time_start - delta, start_pic_num=time_start + delta, mean_width=mean_width)
 
     # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, delta, time_end-time_start, plot_step, start_pic_num=time_start + delta)
     # plot_f_coeff(files_path_prefix, f_timelist, borders, 0, time_end-time_start - delta, plot_step, start_pic_num=time_start + delta)
@@ -192,7 +206,7 @@ if __name__ == '__main__':
     # create_video(files_path_prefix, files_path_prefix+'videos/A/', 'A_', 'a_daily', 10)
     # create_video(files_path_prefix, files_path_prefix+'videos/B/', 'B_', 'b_daily', 10)
     # create_video(files_path_prefix, files_path_prefix + 'videos/C/', 'C_', 'c_daily', 10)
-    # create_video(files_path_prefix, files_path_prefix + 'videos/F/', 'F_', 'f_daily', 10)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/FN/', 'FN_', 'fn_daily_mean', 10)
     # # create_video(files_path_prefix, files_path_prefix + 'videos/Flux-corr/', 'FL_corr_', 'flux_correlation_weekly', 10)
     # create_video(files_path_prefix, files_path_prefix + 'videos/FS/', 'FS_', 'FS_daily_mean_7', 10)
     # ---------------------------------------------------------------------------------------
@@ -293,16 +307,38 @@ if __name__ == '__main__':
     # np.save(files_path_prefix + 'sensible_all.npy', sensible_all)
     # np.save(files_path_prefix + 'latent_all.npy', latent_all)
     # ----------------------------------------------------------------------------------------------
-    # year = 2021
-    # time_start = (datetime.datetime(year, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-    # time_end = (datetime.datetime(year, 12, 31, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    # q_max = 0.0
+    # q_min = 10000
+    # for time_start in range(1, 15796, 1000):
+    #     time_end = time_start + 1000
+    #     a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                      min(time_end, 15796), load_a=True)
     #
+    #     a_flat = list()
+    #     for a in a_timelist:
+    #         a_flat += a[0].flat
+    #         a_flat += a[1].flat
+    #
+    #     del a_timelist
+    #     q = np.nanquantile(a_flat, 0.97)
+    #     print(q)
+    #     q_max = max(q_max, q)
+    #     q = np.nanquantile(a_flat, 0.03)
+    #     print(q)
+    #     print()
+    #     q_min = min(q_min, q)
+    #     del a_flat
+    #
+    # print(f'Max {q_max}')
+    # print(f'Min {q_min}')
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
     #                                                                                  time_end, load_a=True, load_b=True)
-    # mean_days = 1
-    # coeff_type = 'a'
+    mean_days = 1
+    time_start = 15341
+    time_end = 15705
+    coeff_type = 'b'
     # extract_extreme(files_path_prefix, a_timelist, coeff_type, time_start, time_end, mean_days)
-    # plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
+    plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
     #
     # coeff_type = 'b'
     # extract_extreme(files_path_prefix, b_timelist, coeff_type, time_start, time_end, mean_days)
@@ -315,4 +351,18 @@ if __name__ == '__main__':
     # sensible_all = np.load(files_path_prefix + 'sensible_all.npy')
     # latent_all = np.load(files_path_prefix + 'latent_all.npy')
     # check_conditions(files_path_prefix, time_start, time_end, sensible_all, latent_all, mask)
+    # ----------------------------------------------------------------------------------------------
+    # mean_years = np.zeros((365, 161, 181))
+    # for year in tqdm.tqdm(range(1979, 2022)):
+    #     time_start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=1979, month=1, day=1)).days
+    #     time_end = time_start + 364
+    #     a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+    #                                                                                      time_end, load_fs=True)
+    #     for day in range(364):
+    #         mean_years[day, :, :] += fs_timelist[day]
+    #
+    # mean_years /= (2022 - 1979)
+    # np.save(files_path_prefix + f'Mean_year/F.npy', mean_years)
+
+    # plot_mean_year(files_path_prefix, 'F')
     # ----------------------------------------------------------------------------------------------
