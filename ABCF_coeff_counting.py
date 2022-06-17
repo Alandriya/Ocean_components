@@ -1,3 +1,5 @@
+import math
+
 from skimage.measure import block_reduce
 from scipy.stats import pearsonr
 import numpy as np
@@ -311,9 +313,9 @@ def count_correlation_fluxes(files_path_prefix: str, start: int = 0, end: int = 
 def count_fraction(files_path_prefix: str,
                    a_timelist: list,
                    b_timelist: list,
-                   start: int = 0,
-                   end: int = 0,
-                   step: int = 1):
+                   mask: np.array,
+                   mean_width: int = 7,
+                   start_idx: int = 1):
     """
     Counts the F coefficient with the meaning of a fraction ||A|| / ||B|| in each point of (161,181) grid array,
     where A norm is standard Euclidean norm and B norm is an estimated norm of the B matrix
@@ -332,16 +334,36 @@ def count_fraction(files_path_prefix: str,
     :param step: step (in days) in loop
     :return:
     """
-    for t in tqdm.tqdm(range(start, end, step)):
+    for t_start in tqdm.tqdm(range(0, len(a_timelist) - mean_width)):
         f = np.zeros((161, 181), dtype=float)
+        a_sens = np.zeros((161, 181), dtype=float)
+        a_lat = np.zeros((161, 181), dtype=float)
+        b = np.zeros((4, 161, 181), dtype=float)
+
+        for t in range(mean_width):
+            a_sens += a_timelist[t_start + t][0]
+            a_lat += a_timelist[t_start + t][1]
+            b += b_timelist[t_start + t]
+
+        a_sens /= mean_width
+        a_lat /= mean_width
+        b /= mean_width
+
+        f[:, :] = np.nan
         for i in range(161):
             for j in range(181):
-                a_vec = [a_timelist[t][0, i, j], a_timelist[1, i, j]]
-                b_part = b_timelist[t][:, i, j].reshape(2, 2)
+                if mask[i*181 + j]:
+                    a_vec = [a_sens[i, j], a_lat[i, j]]
+                    b_part = b[:, i, j].reshape(2, 2)
 
-                f[i, j] = norm(a_vec, 2) / estimate_spectral_norm(b_part)
-
-        np.save(files_path_prefix + f'Coeff_data/{t}_F.npy', f)
+                    # f[i, j] = norm(a_vec, 2) / estimate_spectral_norm(b_part)
+                    if b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0] >= 0:
+                        f[i, j] = (abs(a_vec[0] + a_vec[1]))/math.sqrt(b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0])
+                    else:
+                        print(f'point ({i}, {j}) time {t_start} value {b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0]: .10f}')
+                        f[i, j] = np.nan
+        # np.save(files_path_prefix + f'Coeff_data/{t}_F.npy', f)
+        np.save(files_path_prefix + f'Coeff_data/{t_start + start_idx}_F_new.npy', f)
     return
 
 
