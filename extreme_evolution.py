@@ -9,6 +9,11 @@ import matplotlib
 import seaborn as sns
 from scipy.optimize import curve_fit
 import numpy, scipy.optimize
+from data_processing import load_ABCF
+
+
+def fit_linear(x, a, b):
+    return a*x + b
 
 
 def fit_sin(tt, yy):
@@ -24,6 +29,7 @@ def fit_sin(tt, yy):
     guess = numpy.array([guess_amp, 2. * numpy.pi * guess_freq, 0., guess_offset])
 
     def sinfunc(t, A, w, p, c): return A * numpy.sin(w * t + p) + c
+
     popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess, maxfev=10000)
     A, w, p, c = popt
     f = w / (2. * numpy.pi)
@@ -208,7 +214,8 @@ def plot_extreme(files_path_prefix: str, coeff_type: str, time_start: int, time_
     return
 
 
-def check_conditions(files_path_prefix: str, time_start: int, time_end: int, sensible_all: np.ndarray, latent_all: np.ndarray):
+def check_conditions(files_path_prefix: str, time_start: int, time_end: int, sensible_all: np.ndarray,
+                     latent_all: np.ndarray):
     """
     Estimates the constants K1 and K2 from the conditions on the fluxes from Skorohod book
     :param files_path_prefix: path to the working directory
@@ -264,3 +271,138 @@ def check_conditions(files_path_prefix: str, time_start: int, time_end: int, sen
         print(K_array)
         print(max(K_array))
     return
+
+
+def extract_extreme_coeff_flux(files_path_prefix: str,
+                               coeff_type: str,
+                               time_start: int,
+                               time_end: int,
+                               sensible_array: np.ndarray,
+                               latent_array: np.ndarray,
+                               window: int = 1):
+    max_sens, min_sens, med_sens, max_lat, min_lat, med_lat = list(), list(), list(), list(), list(), list()
+    for t in tqdm.tqdm(range(0, time_end - time_start - window, window)):
+        a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+                                                                                         time_start + t,
+                                                                                         time_start + t + window,
+                                                                                         load_a=True, load_b=True)
+        if coeff_type == 'a':
+            timelist = a_timelist
+        else:
+            timelist = b_timelist
+
+        sens_coeff = np.zeros((sensible_array.shape[0], window))
+        lat_coeff = np.zeros((latent_array.shape[0], window))
+        for i in range(window):
+            if coeff_type == 'a':
+                sens_coeff[:, i] = timelist[i][0].flatten()
+                lat_coeff[:, i] = timelist[i][1].flatten()
+            else:
+                sens_coeff[:, i] = timelist[i][0].flatten()
+                lat_coeff[:, i] = timelist[i][3].flatten()
+
+        sens_coeff = sens_coeff.flatten()
+        lat_coeff = lat_coeff.flatten()
+
+        max_points = np.nanargmax(sensible_array[:, t:t + window])
+        min_points = np.nanargmin(sensible_array[:, t:t + window])
+        med = np.nanmedian(sensible_array[:, t:t + window])
+        med_points = np.flatnonzero(sensible_array[:, t:t + window] == med)
+
+        max_sens.append(np.max(sens_coeff[max_points]))
+        min_sens.append(np.min(sens_coeff[min_points]))
+        med_sens.append(np.median(sens_coeff[med_points]))
+
+        max_points = np.nanargmax(latent_array[:, t:t + window])
+        min_points = np.nanargmin(latent_array[:, t:t + window])
+        med = np.nanmedian(latent_array[:, t:t + window])
+        med_points = np.flatnonzero(latent_array[:, t:t + window] == med)
+
+        max_lat.append(np.max(lat_coeff[max_points]))
+        min_lat.append(np.min(lat_coeff[min_points]))
+        med_lat.append(np.median(lat_coeff[med_points]))
+
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_min_sens({time_start}-{time_end})_{window}.npy',
+            min_sens)
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_max_sens({time_start}-{time_end})_{window}.npy',
+            max_sens)
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_med_sens({time_start}-{time_end})_{window}.npy',
+            med_sens)
+
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_min_lat({time_start}-{time_end})_{window}.npy',
+            min_lat)
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_max_lat({time_start}-{time_end})_{window}.npy',
+            max_lat)
+    np.save(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_med_lat({time_start}-{time_end})_{window}.npy',
+            med_lat)
+    return
+
+
+def plot_extreme_coeff_flux(files_path_prefix: str,
+         coeff_type: str,
+         time_start: int,
+         time_end: int,
+         window: int = 1):
+    min_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_min_sens({time_start}-{time_end})_{window}.npy')
+    max_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_max_sens({time_start}-{time_end})_{window}.npy')
+    med_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_med_sens({time_start}-{time_end})_{window}.npy')
+
+    min_lat = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_min_lat({time_start}-{time_end})_{window}.npy')
+    max_lat = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_max_lat({time_start}-{time_end})_{window}.npy')
+    med_lat = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_med_lat({time_start}-{time_end})_{window}.npy')
+
+    font = {'size': 16}
+    font_names = {'weight': 'bold', 'size': 20}
+    matplotlib.rc('font', **font)
+    sns.set_style("whitegrid")
+
+    fig, axs = plt.subplots(2, 1, figsize=(15, 10))
+    fig.suptitle(f'{coeff_type}-flux dependence at extreme points \n window = {window} days', fontsize=20, fontweight='bold')
+    axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+    axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+    axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+    axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+    x = np.array(range(time_start, time_end - window, window))
+    days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in range(time_start, time_end - window, window)]
+
+    approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
+    axs[0].set_title('Sensible', fontdict=font_names)
+
+    axs[0].plot(days, max_sens, c='r', label=f'at max points')
+    # res = fit_sin(x, max_sens)
+    # rss = np.sqrt(np.sum((max_sens - res["fitfunc"](x)) ** 2)) / len(x)
+    # axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+    popt, pcov = curve_fit(fit_linear, x, max_sens)
+    axs[0].plot(days, fit_linear(x, *popt), '--', c='darkviolet', label=f'Linear fit, k = {popt[0]:.1e}')
+
+
+    axs[0].plot(days, min_sens, c='b', label=f'at min points')
+    # res = fit_sin(x, min_sens)
+    # rss = np.sqrt(np.sum((min_sens - res["fitfunc"](x)) ** 2)) / len(x)
+    # axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+    popt, pcov = curve_fit(fit_linear, x, min_sens)
+    axs[0].plot(days, fit_linear(x, *popt), '--', c='orange', label=f'Linear fit, k = {popt[0]:.1e}')
+
+    axs[0].plot(days, med_sens, c='y', label=f'at med points')
+    axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+    axs[1].set_title('Latent', fontdict=font_names)
+    axs[1].plot(days, max_lat, c='r', label=f'at max points')
+    # res = fit_sin(x, max_lat)
+    # rss = np.sqrt(np.sum((max_lat - res["fitfunc"](x)) ** 2)) / len(x)
+    # axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+    popt, pcov = curve_fit(fit_linear, x, max_lat)
+    axs[1].plot(days, fit_linear(x, *popt), '--', c='darkviolet', label=f'Linear fit, k = {popt[0]:.1e}')
+
+    axs[1].plot(days, min_lat, c='b', label=f'at min points')
+    # res = fit_sin(x, min_lat)
+    # rss = np.sqrt(np.sum((min_lat - res["fitfunc"](x)) ** 2)) / len(x)
+    # axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+    popt, pcov = curve_fit(fit_linear, x, min_lat)
+    axs[1].plot(days, fit_linear(x, *popt), '--', c='orange', label=f'Linear fit, k = {popt[0]:.1e}')
+
+    axs[1].plot(days, med_lat, c='y', label=f'at med points')
+    axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'Extreme/plots/Flux/{coeff_type}_({time_start}-{time_end})_{window}_fit.png')

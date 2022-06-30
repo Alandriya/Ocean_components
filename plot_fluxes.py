@@ -95,11 +95,11 @@ def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple
 
     biases = [i for i in range(-radius, radius + 1)]
     point_bigger = [(point[0] + i, point[1] + j) for i in biases for j in biases]
-    for point in point_bigger:
-        mask_map[point] = 2
+    for p in point_bigger:
+        mask_map[p] = 2
 
     axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
-    fig.savefig(files_path_prefix + f'Func_repr/a-flux-monthly/point_({point[0]}, {point[1]}).png')
+    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})/point_({point[0]},{point[1]}).png')
     return
 
 

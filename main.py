@@ -20,6 +20,8 @@ from EM_hybrid import *
 from fluxes_distribution import *
 from EM_count_coefficients import *
 from copy import deepcopy
+import shutil
+
 
 # Parameters
 files_path_prefix = 'D://Data/OceanFull/'
@@ -114,47 +116,58 @@ if __name__ == '__main__':
     # draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=timesteps)
     # create_video(files_path_prefix, files_path_prefix+'videos/{flux_type}/tmp/', '', f'{flux_type}_5years_weekly', speed=30)
     # ---------------------------------------------------------------------------------------
-    mask = np.array(mask, dtype=int)
-    points = plot_typical_points(files_path_prefix, mask)
-
+    # mask = np.array(mask, dtype=int)
+    # points = plot_typical_points(files_path_prefix, mask)
+    #
     # radius = 2
     # month = 1
-    #
-    # import shutil
+
     # shutil.rmtree(files_path_prefix + f'Func_repr/a-flux-monthly/{month}')
     # os.mkdir(files_path_prefix + f'Func_repr/a-flux-monthly/{month}')
-    #
-    # plot_current_bigpoint(files_path_prefix, mask, point, radius)
     # estimate_a_flux_by_months(files_path_prefix, month, point, radius)
     # raise ValueError
-    # start_month = 1
-    # points = plot_typical_points(files_path_prefix, np.array(mask, dtype=int))
-    # # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_1979-1989.npy', 'LATENT_1979-1989.npy', False)
-    # sensible_array, latent_array = None, None
-    # for p in points:
-    #     estimate_flux(files_path_prefix, sensible_array, latent_array, start_month, p)
-    #     raise ValueError
-    # ---------------------------------------------------------------------------------------
 
+    # ---------------------------------------------------------------------------------------
+    # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2022.npy')
+    # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022.npy')
+    #
+    # mask = np.array(mask, dtype=int)
+    # points = plot_typical_points(files_path_prefix, mask)
+    #
+    # radius = 5
+    # month = 1
+
+    # point = points[2]
+    # if os.path.exists(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})'):
+    #     shutil.rmtree(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})')
+    # os.mkdir(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})')
+    # plot_current_bigpoint(files_path_prefix, mask, point, radius)
+    # estimate_flux(files_path_prefix, sensible_array, latent_array, month, point, radius)
+
+    # for point in points:
+    #     if os.path.exists(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})'):
+    #         shutil.rmtree(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})')
+    #     os.mkdir(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})')
+    #     plot_current_bigpoint(files_path_prefix, mask, point, radius)
+    #     estimate_flux(files_path_prefix, sensible_array, latent_array, month, point, radius)
+
+    # ---------------------------------------------------------------------------------------
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
     days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
 
-    time_start = (datetime.datetime(2022, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-    time_end = (datetime.datetime(2022, 2, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
+    time_start = 1
+    time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
     mean_width = 7
+    window = 30
 
     plot_step = 1
     # delta = 0
+
     # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2022.npy')
     # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022.npy')
-
-    # point = points[1]
-    # estimate_flux(files_path_prefix, sensible_array, latent_array, month=1, point=point)
-    # for point in points:
-    #     estimate_flux(files_path_prefix, sensible_array, latent_array, month=1, point=point)
 
     # sample_x = sensible_array[:, 0:31]
     # sample_x = sample_x[np.logical_not(np.isnan(sample_x))]
@@ -331,14 +344,16 @@ if __name__ == '__main__':
     #
     # print(f'Max {q_max}')
     # print(f'Min {q_min}')
+    # time_start = 15341
+    # time_end = 15705
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
     #                                                                                  time_end, load_a=True, load_b=True)
-    mean_days = 1
-    time_start = 15341
-    time_end = 15705
-    coeff_type = 'b'
+    # mean_days = 1
+    # time_start = 15341
+    # time_end = 15705
+    # coeff_type = 'a'
     # extract_extreme(files_path_prefix, a_timelist, coeff_type, time_start, time_end, mean_days)
-    plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
+    # plot_extreme(files_path_prefix, coeff_type, time_start, time_end, mean_days)
     #
     # coeff_type = 'b'
     # extract_extreme(files_path_prefix, b_timelist, coeff_type, time_start, time_end, mean_days)
@@ -351,6 +366,22 @@ if __name__ == '__main__':
     # sensible_all = np.load(files_path_prefix + 'sensible_all.npy')
     # latent_all = np.load(files_path_prefix + 'latent_all.npy')
     # check_conditions(files_path_prefix, time_start, time_end, sensible_all, latent_all, mask)
+    # ----------------------------------------------------------------------------------------------
+    # sensible_all = np.load(files_path_prefix + 'sensible_all.npy')
+    # latent_all = np.load(files_path_prefix + 'latent_all.npy')
+    # extract_extreme_coeff_flux(files_path_prefix, 'a', time_start, time_end, sensible_all, latent_all, 365)
+    # plot_extreme_coeff_flux(files_path_prefix, 'a', time_start, time_end, 30)
+
+    # ----------------------------------------------------------------------------------------------
+    time_start = days_delta1 + days_delta2 + days_delta3
+    time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    mask = np.array(mask, dtype=int)
+    points = plot_typical_points(files_path_prefix, mask)
+
+    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
+                                                                                     time_end, load_a=True, load_b=False)
+    for point in points:
+        plot_estimate_ab_distributions(files_path_prefix, a_timelist, b_timelist,time_start, time_end, point)
     # ----------------------------------------------------------------------------------------------
     # mean_years = np.zeros((365, 161, 181))
     # for year in tqdm.tqdm(range(1979, 2022)):
