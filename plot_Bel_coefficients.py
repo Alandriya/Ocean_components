@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from video import get_continuous_cmap
+import seaborn as sns
+import scipy
+from VarGamma import fit_ml, pdf, cdf
 
 
 def plot_ab_coefficients(files_path_prefix: str,
@@ -395,4 +398,86 @@ def plot_mean_year(files_path_prefix: str, coeff_name: str):
 
     plt.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Mean_year/{coeff_name}.png')
+    return
+
+
+def plot_estimate_ab_distributions(files_path_prefix: str,
+                          a_timelist:list,
+                          b_timelist:list,
+                          time_start:int,
+                          time_end:int,
+                          point: tuple):
+    a_sens_sample = list()
+    a_lat_sample = list()
+    for t in tqdm.tqdm(range(0, time_end-time_start)):
+        a_sens_sample.append(a_timelist[t][0][point])
+        a_lat_sample.append(a_timelist[t][1][point])
+    # a_sens_sample = np.load(files_path_prefix + f'Extreme/data/Flux_a_max_sens(1-15797)_30.npy')
+    # a_lat_sample = np.load(files_path_prefix + f'Extreme/data/Flux_a_max_lat(1-15797)_30.npy')
+
+    part = len(a_sens_sample) // 4 * 3
+    sens_norm = scipy.stats.norm.fit_loc_scale(a_sens_sample[:part])
+    lat_norm = scipy.stats.norm.fit_loc_scale(a_lat_sample[:part])
+    print(f'Shapiro-Wilk normality test for sensible: {scipy.stats.shapiro(a_sens_sample[part:part*2])[1]:.5f}')
+    print(f'Shapiro-Wilk normality test for latent: {scipy.stats.shapiro(a_lat_sample[part:part*2])[1]:.5f}\n')
+
+    sens_t = scipy.stats.t.fit(a_sens_sample[:part])
+    sens_t_pval = scipy.stats.kstest(a_sens_sample[part:], scipy.stats.t.cdf, sens_t)[1]
+    lat_t = scipy.stats.t.fit(a_lat_sample[:part])
+    lat_t_pval = scipy.stats.kstest(a_lat_sample[part:], scipy.stats.t.cdf, lat_t)[1]
+
+    sens_vargamma = fit_ml(a_sens_sample[:part])
+    sens_vg_pval = scipy.stats.kstest(a_sens_sample[part:], cdf, sens_vargamma)[1]
+    lat_vargamma = fit_ml(a_lat_sample[:part])
+    lat_vg_pval = scipy.stats.kstest(a_lat_sample[part:], cdf, lat_vargamma)[1]
+    print(f'Sensible parameters: {sens_vargamma}')
+    print(f'Latent parameters: {lat_vargamma}')
+
+    sns.set_style('whitegrid')
+    fig, axs = plt.subplots(1, 2, figsize=(15, 8))
+    date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
+    date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
+    fig.suptitle(
+        f"a1 and a2 distributions at ({point[0]}, {point[1]})\n {date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}",
+        fontsize=20)
+
+    # fig.suptitle(
+    #     f"Max of a1 and a2 \n {date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}",
+    #     fontsize=20)
+
+    x = np.linspace(-300, 300, 1000)
+    data = a_sens_sample
+    binwidth=5
+    sns.histplot(a_sens_sample, bins=np.arange(min(data), max(data) + binwidth, binwidth), kde=False, ax=axs[0], stat='density')
+    axs[0].set_title(f'a1', fontsize=16)
+    mu, sigma = sens_norm
+    axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal', c='y')
+    axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t), label=f'Fitted t, p_value = {sens_t_pval:.5f}', c='orange')
+    axs[0].plot(x, pdf(x, *sens_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+                                                 f'{sens_vargamma[0]:.1f}; '
+                                                 f'{chr(946)}={sens_vargamma[1]:.1f}; '
+                                                 f'{chr(955)}={sens_vargamma[2]:.1f}; '
+                                                 f'{chr(947)}={sens_vargamma[3]:.1f}\n'
+                                                 f'p_value = {sens_vg_pval:.5f}', c='g')
+    axs[0].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")
+
+    data = a_lat_sample
+    binwidth=5
+    sns.histplot(a_lat_sample, bins=np.arange(min(data), max(data) + binwidth, binwidth), kde=False, ax=axs[1], stat='density')
+    axs[1].set_title(f'a2', fontsize=16)
+    mu, sigma = lat_norm
+    axs[1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal', c='y')
+    axs[1].plot(x, pdf(x, *lat_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+                                                f'{lat_vargamma[0]:.1f}; '
+                                                f'{chr(946)}={lat_vargamma[1]:.1f}; '
+                                                f'{chr(955)}={lat_vargamma[2]:.1f}; '
+                                                f'{chr(947)}={lat_vargamma[3]:.1f}\n'
+                                                f'p_value = {lat_vg_pval:.5f}', c='g')
+    axs[1].plot(x, scipy.stats.t.pdf(x, *lat_t), label=f'Fitted t, p_value = {lat_t_pval:.5f}', c='orange')
+    axs[1].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")
+
+    plt.tight_layout()
+    fig.savefig(files_path_prefix +
+                f"Distributions/AB_distr/A_HIST_POINT_({point[0]},{point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}).png")
+    plt.close(fig)
     return
