@@ -341,7 +341,7 @@ def plot_mean_year(files_path_prefix: str, coeff_name: str):
     """
     mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_name}.npy')
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
-    fig.suptitle(f'{coeff_name} mean year', fontsize=30)
+    # fig.suptitle(f'{coeff_name} mean year', fontsize=30)
     axs[0][0].title.set_text('February, 15')
     axs[0][1].title.set_text('April, 15')
     axs[0][2].title.set_text('June, 15')
@@ -394,6 +394,21 @@ def plot_mean_year(files_path_prefix: str, coeff_name: str):
                                                interpolation='none',
                                                cmap=cmap,
                                                norm=norm)
+            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
+    # elif coeff_name == 'C_0':
+    #     fig.suptitle(f'A_sens - A_lat correlation mean year', fontsize=30)
+    elif coeff_name == 'C_1':
+        fig.suptitle(f'B11 - B22 correlation mean year', fontsize=30)
+        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
+        cmap.set_bad('darkgreen', 1.0)
+        for i in range(6):
+            divider = make_axes_locatable(axs[i // 3][i % 3])
+            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
+            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
+                                               interpolation='none',
+                                               cmap=cmap,
+                                               vmin=-1,
+                                               vmax=1)
             fig.colorbar(img[i], cax=cax[i], orientation='vertical')
 
     plt.tight_layout()
