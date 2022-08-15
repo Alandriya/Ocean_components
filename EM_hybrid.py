@@ -21,7 +21,15 @@ def mixture_density(x, means, sigmas, weights):
     return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
 
 
-def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: int):
+def plot_hist(window):
+    files_path_prefix = 'D://Data/OceanFull/'
+    fig, axes = plt.subplots(1,1)
+    axes.hist(window, bins=15)
+    fig.savefig(files_path_prefix + 'Components/plots/distribution.png')
+    return
+
+
+def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: int, step:int = 1):
     means_cols_hybrid = [f'mean_{i}_hybrid' for i in range(1, n_components + 1)]
     sigmas_cols_hybrid = [f'sigma_{i}_hybrid' for i in range(1, n_components + 1)]
     weights_cols_hybrid = [f'weight_{i}_hybrid' for i in range(1, n_components + 1)]
@@ -40,8 +48,10 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     # for i in range(window_width // 2, sample_length - window_width // 2):
     #     window = np.nan_to_num(sample[i - window_width // 2 : i + window_width // 2])
     #         if i == window_width // 2:
-    for i in range(window_width, sample_length - window_width):
+    for i in range(window_width, sample_length - window_width, step):
         window = np.nan_to_num(sample[i - window_width: i])
+        if i == window_width:
+            plot_hist(window)
         if i == window_width:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
@@ -50,36 +60,36 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
                                  init_params='random',
                                  n_init=30
                                  ).fit(window.reshape(-1, 1))
-            means_hybrid[i, :] = gm.means_.reshape(1, -1)
-            sigmas_hybrid[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
-            weights_hybrid[i, :] = gm.weights_.reshape(1, -1)
+            means_hybrid[i//step, :] = gm.means_.reshape(1, -1)
+            sigmas_hybrid[i//step, :] = np.sqrt(gm.covariances_.reshape(1, -1))
+            weights_hybrid[i//step, :] = gm.weights_.reshape(1, -1)
 
         elif i % EM_steps == 0:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-3,
                                  covariance_type='spherical',
                                  max_iter=10000,
-                                 means_init=means_hybrid[i - 1, :].reshape(-1, 1),
-                                 weights_init=weights_hybrid[i - 1, :],
+                                 means_init=means_hybrid[i//step - 1, :].reshape(-1, 1),
+                                 weights_init=weights_hybrid[i//step - 1, :],
                                  init_params='random',
                                  n_init=15).fit(window.reshape(-1, 1))
 
-            means_hybrid[i, :] = gm.means_.reshape(1, -1)
-            sigmas_hybrid[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
-            weights_hybrid[i, :] = gm.weights_.reshape(1, -1)
+            means_hybrid[i//step, :] = gm.means_.reshape(1, -1)
+            sigmas_hybrid[i//step, :] = np.sqrt(gm.covariances_.reshape(1, -1))
+            weights_hybrid[i//step, :] = gm.weights_.reshape(1, -1)
         else:
             hist, bins = np.histogram(window, bins=30, density=True)
-            points = [(bins[i] + bins[i + 1]) / 2 for i in range(len(bins) - 1)]
-            init_guess = [means_hybrid[i - 1], sigmas_hybrid[i - 1], weights_hybrid[i - 1]]
+            points = [(bins[j] + bins[j + 1]) / 2 for j in range(len(bins) - 1)]
+            init_guess = [means_hybrid[i//step - 1], sigmas_hybrid[i//step - 1], weights_hybrid[i//step - 1]]
             bounds = [(None, None) for _ in range(n_components)] + [(1e-6, None) for _ in range(n_components)] + [
                 (1e-6, 1) for _ in range(n_components)]
             results = minimize(l2_to_optimizer, init_guess, args=(points, hist, n_components), tol=1e-3, bounds=bounds)
             parameters = results.x
 
-            means_hybrid[i, :] = parameters[:n_components]
-            sigmas_hybrid[i, :] = parameters[n_components:2 * n_components]
-            weights_hybrid[i, :] = parameters[2 * n_components:]
-            weights_hybrid[i, :] = [w / sum(weights_hybrid[i, :]) for w in weights_hybrid[i, :]]
+            means_hybrid[i//step, :] = parameters[:n_components]
+            sigmas_hybrid[i//step, :] = parameters[n_components:2 * n_components]
+            weights_hybrid[i//step, :] = parameters[2 * n_components:]
+            weights_hybrid[i//step, :] = [w / sum(weights_hybrid[i//step, :]) for w in weights_hybrid[i//step, :]]
 
         # # check if 0
         # for comp in range(n_components):
@@ -93,14 +103,15 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
         # zipped.sort()
         # means_hybrid[i], sigmas_hybrid[i], weights_hybrid[i] = zip(*zipped)
 
-        result_df.loc[i] = [i, window[0]] + list(means_hybrid[i]) + list(sigmas_hybrid[i]) + list(weights_hybrid[i])
+        result_df.loc[i//step] = [i//step, window[0]] + list(means_hybrid[i//step]) + \
+                                 list(sigmas_hybrid[i//step]) + list(weights_hybrid[i//step])
     return result_df
 
 
-def plot_components(df: pd.DataFrame, n_components: int, point: int, files_path_prefix: str, flux_type: str,
+def plot_components(df: pd.DataFrame, n_components: int, point: tuple, files_path_prefix: str, flux_type: str,
                     postfix: str = ''):
     fig, axs = plt.subplots(3, 1, figsize=(15, 15))
-    fig.suptitle(f'Components evolution in point ({point // 181}, {point % 181})')
+    fig.suptitle(f'Components evolution in point ({point[0]}, {point[1]})')
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
     axs[0].set_title('Means')
     axs[1].set_title('Sigmas')
@@ -115,11 +126,11 @@ def plot_components(df: pd.DataFrame, n_components: int, point: int, files_path_
     axs[1].legend()
     axs[2].legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/point_{point}{postfix}.png')
+    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/point_({point[0]}, {point[1]}){postfix}.png')
     return
 
 
-def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_prefix: str, flux_type: str,
+def cluster_components(df: pd.DataFrame, n_components, point: tuple, files_path_prefix: str, flux_type: str,
                        draw: bool = False):
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
     X = np.zeros((len(df) * n_components, 2), dtype=float)
@@ -172,7 +183,7 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
         plt.xlabel('Sigma')
         plt.ylabel('Mean')
         fig_new.tight_layout()
-        fig_new.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_clustered_point_{point}.png')
+        fig_new.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_clustered_point_({point[0]}, {point[1]}).png')
 
     # get back to sigma from sigma**2
     for comp in range(new_n_components):
@@ -181,14 +192,14 @@ def cluster_components(df: pd.DataFrame, n_components, point: int, files_path_pr
     return new_df, new_n_components
 
 
-def plot_a_sigma(df: pd.DataFrame, n_components, point: int, files_path_prefix: str, flux_type: str):
+def plot_a_sigma(df: pd.DataFrame, n_components, point: tuple, files_path_prefix: str, flux_type: str):
     fig, axs = plt.subplots(figsize=(15, 15))
-    fig.suptitle(f'A-sigma in point ({point // 181}, {point % 181})')
+    fig.suptitle(f'A-sigma in point ({point[0]}, {point[1]})')
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
 
     for comp in range(n_components):
         axs.scatter(df[f'sigma_{comp + 1}_hybrid'], df[f'mean_{comp + 1}_hybrid'], color=colors[comp])
 
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_point_{point}.png')
+    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_point_({point[0]}, {point[1]}).png')
     return
