@@ -21,11 +21,12 @@ def mixture_density(x, means, sigmas, weights):
     return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
 
 
-def plot_hist(window):
+def plot_hist(window, step):
     files_path_prefix = 'D://Data/OceanFull/'
     fig, axes = plt.subplots(1,1)
     axes.hist(window, bins=15)
-    fig.savefig(files_path_prefix + 'Components/plots/distribution.png')
+    fig.savefig(files_path_prefix + f'Components/plots/sensible/hist/step_{step}.png')
+    plt.close(fig)
     return
 
 
@@ -34,11 +35,11 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     sigmas_cols_hybrid = [f'sigma_{i}_hybrid' for i in range(1, n_components + 1)]
     weights_cols_hybrid = [f'weight_{i}_hybrid' for i in range(1, n_components + 1)]
 
-    sample_length = len(sample)
+    sample_length = len(sample) - len(sample) % step
 
-    means_hybrid = np.zeros((sample_length, n_components))
-    sigmas_hybrid = np.zeros((sample_length, n_components))
-    weights_hybrid = np.zeros((sample_length, n_components))
+    means_hybrid = np.zeros((sample_length//step, n_components))
+    sigmas_hybrid = np.zeros((sample_length//step, n_components))
+    weights_hybrid = np.zeros((sample_length//step, n_components))
 
     columns = ['time', 'ts'] + means_cols_hybrid + sigmas_cols_hybrid + weights_cols_hybrid
     result_df = pd.DataFrame(columns=columns)
@@ -48,10 +49,10 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     # for i in range(window_width // 2, sample_length - window_width // 2):
     #     window = np.nan_to_num(sample[i - window_width // 2 : i + window_width // 2])
     #         if i == window_width // 2:
-    for i in range(window_width, sample_length - window_width, step):
+    # for i in tqdm.tqdm(range(window_width, sample_length, step)):
+    for i in range(window_width, sample_length, step):
         window = np.nan_to_num(sample[i - window_width: i])
-        if i == window_width:
-            plot_hist(window)
+        # plot_hist(window, i)
         if i == window_width:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
@@ -70,7 +71,7 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
                                  covariance_type='spherical',
                                  max_iter=10000,
                                  means_init=means_hybrid[i//step - 1, :].reshape(-1, 1),
-                                 weights_init=weights_hybrid[i//step - 1, :],
+                                 # weights_init=weights_hybrid[i//step - 1, :],
                                  init_params='random',
                                  n_init=15).fit(window.reshape(-1, 1))
 
