@@ -1,3 +1,5 @@
+import math
+
 import pandas as pd
 import numpy as np
 import os
@@ -45,38 +47,57 @@ def count_abf_Kor_from_points(files_path_prefix: str, time_start: int, time_end:
     return
 
 
-def count_Bel_Kor_difference(files_path_prefix, time_start: int, time_end: int, point: tuple, radius: int,
-                             n_components:int, window_width:int):
-    point_bigger = [(point[0] + i, point[1] + j) for i in range(-radius, radius + 1) for j in
-                    range(-radius, radius + 1)]
+def count_Bel_Kor_difference(files_path_prefix: str,
+                             time_start: int,
+                             time_end: int,
+                             point_bigger: list,
+                             point_size: int,
+                             point: tuple,
+                             n_components: int,
+                             window_width: int,
+                             ticks_by_day: int = 1,
+                             step_ticks: int = 1,
+                             timedelta: int = 0,
+                             flux_type: str = 'sensible'):
 
-    a_sens_Bel = np.zeros(time_end-time_start)
-    point_size = (radius * 2 + 1) ** 2
+    if not os.path.exists(files_path_prefix + f'Components/{flux_type}/Bel'):
+        os.mkdir(files_path_prefix + f'Components/{flux_type}/Bel')
 
-    if not os.path.exists(files_path_prefix + f'Components/sensible/Bel/point_({point[0]}, {point[1]}).npy'):
-        for t in tqdm.tqdm(range(time_start, time_end)):
-            a_arr = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
-            a_sens_Bel[t-time_start] = sum([a_arr[p[0], p[1]] for p in point_bigger]) / point_size
+    if not os.path.exists(files_path_prefix + f'Components/{flux_type}/Bel/point_({point[0]}, {point[1]}).npy'):
+        a_Bel = np.zeros(time_end - time_start)
+        for t in range(timedelta + time_start, timedelta + time_end-window_width):
+            if flux_type == 'sensible':
+                a_arr = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
+            else:
+                a_arr = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
+            a_Bel[t-time_start-timedelta] = sum([a_arr[p[0], p[1]] for p in point_bigger]) / point_size
             del a_arr
-
-        a_sens_Bel = np.diff(a_sens_Bel)
-        np.save(files_path_prefix + f'Components/sensible/Bel/point_({point[0]}, {point[1]}).npy', a_sens_Bel)
+        a_Bel = np.diff(a_Bel)
+        np.save(files_path_prefix + f'Components/{flux_type}/Bel/point_({point[0]}, {point[1]}).npy', a_Bel)
     else:
-        a_sens_Bel = np.load(files_path_prefix + f'Components/sensible/Bel/point_({point[0]}, {point[1]}).npy')
+        a_Bel = np.load(files_path_prefix + f'Components/{flux_type}/Bel/point_({point[0]}, {point[1]}).npy')
 
-    if not os.path.exists(files_path_prefix + f'Components/sensible/Sum/point_({point[0]}, {point[1]}).npy'):
-        a_sens_Kor = pd.read_excel(files_path_prefix + f'Components/sensible/point_({point[0]}, {point[1]}).xlsx')
-        a_sens_Kor.fillna(0, inplace=True)
-        a_sum = np.zeros(len(a_sens_Kor))
+    if not os.path.exists(files_path_prefix + f'Components/{flux_type}/Sum'):
+        os.mkdir(files_path_prefix + f'Components/{flux_type}/Sum')
+
+    if True or not os.path.exists(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]}).npy'):
+        a_Kor = pd.read_excel(files_path_prefix + f'Components/{flux_type}/components-xlsx/point_({point[0]}, {point[1]}).xlsx')
+        a_Kor.fillna(0, inplace=True)
+        a_sum = np.zeros(len(a_Kor))
         for i in range(1, n_components+1):
-            a_sum += a_sens_Kor[f'mean_{i}'] * a_sens_Kor[f'weight_{i}']
-
-        np.save(files_path_prefix + f'Components/sensible/Sum/point_({point[0]}, {point[1]}).npy', a_sum)
+            a_sum += a_Kor[f'mean_{i}'] * a_Kor[f'weight_{i}']
     else:
-        a_sum = np.load(files_path_prefix + f'Components/sensible/Sum/point_({point[0]}, {point[1]}).npy')
+        a_sum = np.load(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]}).npy')
 
-    a_diff = a_sens_Bel[:len(a_sum)] - a_sum
-    np.save(files_path_prefix + f'Components/sensible/difference/point_({point[0]}, {point[1]}).npy', a_diff)
+    a_sum = np.array(a_sum[:len(a_sum)-len(a_sum)%(ticks_by_day // step_ticks)])
+    a_sum = np.mean(a_sum.reshape(-1, (ticks_by_day // step_ticks)), axis=1)
+    a_sum /= window_width/ticks_by_day
+    a_sum = -a_sum
+    np.save(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]}).npy', a_sum)
+    a_diff = a_Bel[:len(a_sum)] - a_sum
+    if not os.path.exists(files_path_prefix + f'Components/{flux_type}/difference'):
+        os.mkdir(files_path_prefix + f'Components/{flux_type}/difference')
+    np.save(files_path_prefix + f'Components/{flux_type}/difference/point_({point[0]}, {point[1]}).npy', a_diff)
     return
 
 
@@ -181,26 +202,36 @@ def plot_a_diff(files_path_prefix, time_start, time_end, start_pic_num):
     return
 
 
-def plot_difference_1d(files_path_prefix, time_start: int, time_end: int, point: tuple, window_width:int, radius:int):
-    a_diff = np.load(files_path_prefix + f'Components/sensible/difference/point_({point[0]}, {point[1]}).npy')
-    a_sens_Bel = np.load(files_path_prefix + f'Components/sensible/Bel/point_({point[0]}, {point[1]}).npy')
-    a_sum = np.load(files_path_prefix + f'Components/sensible/Sum/point_({point[0]}, {point[1]}).npy')
-    a_sum /= window_width
+def plot_difference_1d(files_path_prefix:str,
+                       time_start: int,
+                       time_end: int,
+                       point: tuple,
+                       window_width: int,
+                       radius: int,
+                       ticks_by_day: int = 1,
+                       step_ticks: int = 1,
+                       flux_type: str = 'sensible'):
+    a_diff = np.load(files_path_prefix + f'Components/{flux_type}/difference/point_({point[0]}, {point[1]}).npy')
+    a_Bel = np.load(files_path_prefix + f'Components/{flux_type}/Bel/point_({point[0]}, {point[1]}).npy')
+    a_sum = np.load(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]}).npy')
+    rmse = math.sqrt(sum(a_diff**2))
+    # print(rmse)
 
-    date_start = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
-    date_end = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
+    date_start = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
+    date_end = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
     fig, axs = plt.subplots(1, 1, figsize=(20, 10))
-    fig.suptitle(f'A coeff sensible at point ({point[0]}, {point[1]}) \n radius = {radius}, window = {window_width} days'
-                 f'\n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=20, fontweight='bold')
+    fig.suptitle(f'A coeff {flux_type} at point ({point[0]}, {point[1]}) \n radius = {radius}, '
+                 f'window = {window_width//ticks_by_day} days, step={step_ticks} tick/day'
+                 f'\n {date_start.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}'
+                 f'\n RMSE = {rmse}', fontsize=20, fontweight='bold')
     axs.xaxis.set_minor_locator(mdates.MonthLocator())
     axs.xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs.xaxis.get_major_locator()))
-    x = range(0, time_end - time_start)
-    days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in range(time_start, time_end)]
-    # dates = None
-    axs.plot(days, a_sens_Bel[:len(x)], c='b', label='Bel')
+    x = range(0, time_end - time_start-10)
+    days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in range(time_start, time_end-10)]
+    axs.plot(days, a_Bel[:len(x)], c='b', label='Bel')
     axs.plot(days, a_sum[:len(x)], c='r', label='Kor')
     # axs.plot(x, a_diff[:len(x)], c='y', label='difference')
     axs.legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'Components/plots/sensible/difference_point_({point[0]}, {point[1]}).png')
+    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/difference_point_({point[0]}, {point[1]}).png')
     return
