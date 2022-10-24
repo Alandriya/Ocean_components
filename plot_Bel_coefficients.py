@@ -52,7 +52,8 @@ def plot_ab_coefficients(files_path_prefix: str,
 
     a_min = borders[0]
     a_max = borders[1]
-    b_min = borders[2]
+    # b_min = borders[2]
+    b_min = 0
     b_max = borders[3]
 
     cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
@@ -80,7 +81,8 @@ def plot_ab_coefficients(files_path_prefix: str,
             axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
 
     zero_percent = abs(0 - b_min) / (b_max - b_min)
-    cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
+    # cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
+    cmap_b = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
     cmap_b.set_bad('darkgreen', 1.0)
 
     pic_num = start_pic_num
@@ -120,7 +122,7 @@ def plot_ab_coefficients(files_path_prefix: str,
                 img_b[i] = axsb[i // 2][i % 2].imshow(b_matrix[i],
                                                       interpolation='none',
                                                       cmap=cmap_b,
-                                                      vmin=borders[2],
+                                                      vmin=0,
                                                       vmax=borders[3])
             else:
                 img_b[i].set_data(b_matrix[i])
