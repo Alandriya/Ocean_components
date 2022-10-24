@@ -73,7 +73,8 @@ def plot_typical_points(files_path_prefix: str, mask: np.ndarray):
         mask_map[point] = 2
 
     axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
-    fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/points.png')
+    # fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/points.png')
+    fig.savefig(files_path_prefix + f'Components/points.png')
     return points
 
 
