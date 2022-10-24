@@ -178,7 +178,7 @@ def load_ABCF(files_path_prefix,
 
 
 def scale_to_bins(arr, bins=100):
-    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins - 1, endpoint=False)))
+    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
