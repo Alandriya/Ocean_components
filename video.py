@@ -76,7 +76,7 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     :param speed: coefficient of video speed, the more - the slower
     :param files_path_prefix: path to the working directory
     :param tmp_dir: directory with pictures
-    :param pic_prefix: selects pictures with this prefix, e.g. A for A_00001.png, A_00002.png, ...
+    :param pic_prefix: selects pictures with this prefix, e.g. A_ for A_00001.png, A_00002.png, ...
     :param name: short name of videofile to create
     :param start: start number of pictures
     :return:
@@ -86,9 +86,8 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     # print(files_path_prefix + f'videos/{flux_type}/tmp/%05d.png')
     if os.path.exists(video_name):
         os.remove(video_name)
-
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-i', tmp_dir + f"{pic_prefix}%5d.png", '-start_number', str(start),
+        'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', tmp_dir + f"{pic_prefix}%5d.png",
         '-r', '5', '-pix_fmt', 'yuv420p', video_name,
     ])
     return
