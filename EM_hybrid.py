@@ -24,8 +24,8 @@ def mixture_density(x, means, sigmas, weights):
 def plot_hist(window, step):
     files_path_prefix = 'D://Data/OceanFull/'
     fig, axes = plt.subplots(1,1)
-    axes.hist(window, bins=15)
-    fig.savefig(files_path_prefix + f'Components/plots/sensible/hist/step_{step}.png')
+    axes.hist(window, bins=20)
+    fig.savefig(files_path_prefix + f'Components/tmp/hist_step_{step}.png')
     plt.close(fig)
     return
 
@@ -44,7 +44,7 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     columns = ['time', 'ts'] + means_cols_hybrid + sigmas_cols_hybrid + weights_cols_hybrid
     result_df = pd.DataFrame(columns=columns)
 
-    eps = 0.3
+    # eps = 0.3
 
     # for i in range(window_width // 2, sample_length - window_width // 2):
     #     window = np.nan_to_num(sample[i - window_width // 2 : i + window_width // 2])
@@ -52,8 +52,9 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     # for i in tqdm.tqdm(range(window_width, sample_length, step)):
     for i in range(window_width, sample_length, step):
         window = np.nan_to_num(sample[i - window_width: i])
-        # plot_hist(window, i)
+
         if i == window_width:
+            # plot_hist(sample, i)
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
                                  covariance_type='spherical',
@@ -67,11 +68,11 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
 
         elif i % EM_steps == 0:
             gm = GaussianMixture(n_components=n_components,
-                                 tol=1e-3,
+                                 tol=1e-4,
                                  covariance_type='spherical',
                                  max_iter=10000,
                                  means_init=means_hybrid[i//step - 1, :].reshape(-1, 1),
-                                 # weights_init=weights_hybrid[i//step - 1, :],
+                                 weights_init=weights_hybrid[i//step - 1, :],
                                  init_params='random',
                                  n_init=15).fit(window.reshape(-1, 1))
 
@@ -109,8 +110,8 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     return result_df
 
 
-def plot_components(df: pd.DataFrame, n_components: int, point: tuple, files_path_prefix: str, flux_type: str,
-                    postfix: str = ''):
+def plot_components(df: pd.DataFrame, n_components: int, point: tuple, files_path_prefix: str,
+                    path: str = 'Components/tmp/', postfix: str = ''):
     fig, axs = plt.subplots(3, 1, figsize=(15, 15))
     fig.suptitle(f'Components evolution in point ({point[0]}, {point[1]})')
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
@@ -118,21 +119,26 @@ def plot_components(df: pd.DataFrame, n_components: int, point: tuple, files_pat
     axs[1].set_title('Sigmas')
     axs[2].set_title('Weights')
 
+    method_postfix = ''
     for comp in range(n_components):
-        axs[0].plot(df[f'mean_{comp + 1}{postfix}'], color=colors[comp], label=f'mean_{comp + 1}')
-        axs[1].plot(df[f'sigma_{comp + 1}{postfix}'], color=colors[comp], label=f'sigma_{comp + 1}')
-        axs[2].plot(df[f'weight_{comp + 1}{postfix}'], color=colors[comp], label=f'weight_{comp + 1}')
+        axs[0].plot(df[f'mean_{comp + 1}{method_postfix}'], color=colors[comp], label=f'mean_{comp + 1}')
+        axs[1].plot(df[f'sigma_{comp + 1}{method_postfix}'], color=colors[comp], label=f'sigma_{comp + 1}')
+        axs[2].plot(df[f'weight_{comp + 1}{method_postfix}'], color=colors[comp], label=f'weight_{comp + 1}')
 
     axs[0].legend()
     axs[1].legend()
     axs[2].legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/point_({point[0]}, {point[1]}){postfix}.png')
+    fig.savefig(files_path_prefix + path + postfix + '.png')
+    plt.close(fig)
     return
 
 
-def cluster_components(df: pd.DataFrame, n_components, point: tuple, files_path_prefix: str, flux_type: str,
-                       draw: bool = False):
+def cluster_components(df: pd.DataFrame,
+                       n_components: int,
+                       files_path_prefix: str,
+                       draw: bool = False,
+                       path: str = 'Components/tmp/', postfix: str = ''):
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
     X = np.zeros((len(df) * n_components, 2), dtype=float)
     eps = 0.05
@@ -184,7 +190,8 @@ def cluster_components(df: pd.DataFrame, n_components, point: tuple, files_path_
         plt.xlabel('Sigma')
         plt.ylabel('Mean')
         fig_new.tight_layout()
-        fig_new.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_clustered_point_({point[0]}, {point[1]}).png')
+        fig_new.savefig(files_path_prefix + path + '/a-sigma_clustered' + postfix + '.png')
+        plt.close(fig_new)
 
     # get back to sigma from sigma**2
     for comp in range(new_n_components):
@@ -193,7 +200,8 @@ def cluster_components(df: pd.DataFrame, n_components, point: tuple, files_path_
     return new_df, new_n_components
 
 
-def plot_a_sigma(df: pd.DataFrame, n_components, point: tuple, files_path_prefix: str, flux_type: str):
+def plot_a_sigma(df: pd.DataFrame, n_components, point: tuple, files_path_prefix: str,
+                 path: str = 'Components/tmp/', postfix: str = ''):
     fig, axs = plt.subplots(figsize=(15, 15))
     fig.suptitle(f'A-sigma in point ({point[0]}, {point[1]})')
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']
@@ -202,5 +210,6 @@ def plot_a_sigma(df: pd.DataFrame, n_components, point: tuple, files_path_prefix
         axs.scatter(df[f'sigma_{comp + 1}_hybrid'], df[f'mean_{comp + 1}_hybrid'], color=colors[comp])
 
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'Components/plots/{flux_type}/a-sigma_point_({point[0]}, {point[1]}).png')
+    fig.savefig(files_path_prefix + path + '/a-sigma' + postfix + '.png')
+    plt.close(fig)
     return
