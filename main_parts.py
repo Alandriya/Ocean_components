@@ -19,7 +19,7 @@ from extreme_evolution import *
 import cycler
 from EM_hybrid import *
 from fluxes_distribution import *
-from EM_count_coefficients import *
+from SRS_count_coefficients import *
 from copy import deepcopy
 import shutil
 
@@ -46,7 +46,80 @@ if __name__ == '__main__':
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta6 = (datetime.datetime(2022, 9, 30, 0, 0) - datetime.datetime(2022, 4, 2, 0, 0)).days
     # ---------------------------------------------------------------------------------------
+    # # Plot fluxes
+    # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2022[Oct].npy')
+    # sensible_array[np.logical_not(mask), :] = np.nan
+    # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022[Oct].npy')
+    # latent_array[np.logical_not(mask), :] = np.nan
+    # offset = (datetime.datetime(2022, 9, 15) - datetime.datetime(2019, 1, 1)).days * 4
+    # plot_fluxes(files_path_prefix, sensible_array, latent_array, offset, offset + 10, 4, datetime.datetime(2022, 9, 15))
+    # ---------------------------------------------------------------------------------------
+    # # Grouping fluxes by 1 day
+    # sensible_array, latent_array = load_prepare_fluxes('SENSIBLE_2019-2022[Oct].npy',
+    #                                                    'LATENT_2019-2022[Oct].npy',
+    #                                                    prepare=False)
+    #
+    # np.save(files_path_prefix + 'sensible_grouped_2019-2022_2.npy', sensible_array)
+    # np.save(files_path_prefix + 'latent_grouped_2019-2022_2.npy', latent_array)
+    # ---------------------------------------------------------------------------------------
+    # # Scaling fluxes and getting quantiles
+    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_2019-2022_2.npy')
+    # print(sensible_array.shape)
+    # sens_scaled, quantiles = scale_to_bins(sensible_array, 1000)
+    # np.save(files_path_prefix + 'sensible_grouped_2019-2022(scaled)_2.npy', sens_scaled)
+    # np.save(files_path_prefix + 'Quantiles/sensible_2019-2022(quantiles)_2.npy', np.array(quantiles))
+    #
+    # latent_array = np.load(files_path_prefix + 'latent_grouped_2019-2022_2.npy')
+    # latent_scaled, quantiles = scale_to_bins(latent_array, 1000)
+    # np.save(files_path_prefix + 'latent_grouped_2019-2022(scaled)_2.npy', latent_scaled)
+    # np.save(files_path_prefix + 'Quantiles/latent_2019-2022(quantiles)_2.npy', np.array(quantiles))
+    # ----------------------------------------------------------------------------------------------
+    # # Count A and B
+    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_2019-2022(scaled)_2.npy')
+    # latent_array = np.load(files_path_prefix + 'latent_grouped_2019-2022(scaled)_2.npy')
+    # sensible_array = sensible_array.astype(float)
+    # # sensible_array = np.diff(sensible_array)
+    # latent_array = latent_array.astype(float)
+    # # latent_array = np.diff(latent_array)
+    # count_abf_coefficients(files_path_prefix, mask, sensible_array[:, days_delta5-1:], latent_array[:, days_delta5-1:],
+    #                        time_start=days_delta5-1, time_end=days_delta5 + days_delta6,
+    #                            offset=days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    # ---------------------------------------------------------------------------------------
+    # # Count C and F
+    # time_start = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta6
+    # mean_width = 7
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_a=True, load_b=True)
+    # count_fraction(files_path_prefix, a_timelist, b_timelist, mask, mean_width, start_idx=time_start)
+    # count_c_coeff(files_path_prefix, a_timelist, b_timelist, time_start, 14)
+    # count_f_separate_coeff(files_path_prefix, a_timelist, b_timelist, time_start, mean_width)
+    # ---------------------------------------------------------------------------------------
+    # # Plot coefficients
+    # time_start = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta6
+    # plot_step = 1
+    # delta = 0
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end,
+    #                                                                                  load_f=True, load_c=True)
+    #
+    # # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, delta, time_end-time_start, plot_step, start_pic_num=time_start + delta)
+    # plot_c_coeff(files_path_prefix, c_timelist, delta, len(c_timelist), 1, time_start + delta)
+    # plot_f_coeff(files_path_prefix, f_timelist, borders, 0, time_end - time_start - delta, plot_step,
+    #              start_pic_num=time_start + delta)
+    # ---------------------------------------------------------------------------------------
+    # # Create video
+    # create_video(files_path_prefix, files_path_prefix+'videos/A/', 'A_', 'a_2022', 20, 15706)
+    # create_video(files_path_prefix, files_path_prefix+'videos/B/', 'B_', 'b_2022', 20, 15706)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/C/', 'C_', 'c_2022', 20, 15706)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/FN/', 'FN_', 'f_2022', 20, 15706)
+    # # create_video(files_path_prefix, files_path_prefix + 'videos/Flux-corr/', 'FL_corr_', 'flux_correlation_weekly', 10)
+    # create_video(files_path_prefix, files_path_prefix + 'videos/FS/', 'FS_', 'FS_daily_mean_7', 10)
+    # ---------------------------------------------------------------------------------------
+
 
     # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2021.npy')
     # sensible_array[np.logical_not(mask), :] = np.nan
