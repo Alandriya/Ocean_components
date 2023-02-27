@@ -141,7 +141,8 @@ def process_points(files_path_prefix: str,
                                  ticks_by_day,
                                  step_ticks,
                                  timedelta,
-                                 flux_type)
+                                 flux_type,
+                                 2)
         if True or draw:
             plot_difference_1d(files_path_prefix,
                                time_start,
@@ -253,8 +254,7 @@ def collect_EM(files_path_prefix: str,
         for j in range(width):
             point = (i, j)
             try:
-                point_arr = np.load(
-                    files_path_prefix + f'Components/{flux_type}/{folder}/point_({point[0]}, {point[1]})-{coeff_type}.npy')
+                point_arr = np.load(files_path_prefix + f'Components/{flux_type}/{folder}/point_({point[0]}, {point[1]})-{coeff_type}.npy')
                 map_array[:len(point_arr), i, j] = point_arr
             except FileNotFoundError:
                 map_array[:, i, j] = np.nan

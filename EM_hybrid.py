@@ -6,6 +6,8 @@ from sklearn.mixture import GaussianMixture
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+import pyswarms as ps
+from pyswarms.single.global_best import GlobalBestPSO
 
 
 def l2_to_optimizer(params, x, hist, n_components):
@@ -54,6 +56,7 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
         window = np.nan_to_num(sample[i - window_width: i])
 
         if i == window_width:
+        # if True:
             # plot_hist(sample, i)
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
@@ -67,6 +70,7 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
             weights_hybrid[i//step, :] = gm.weights_.reshape(1, -1)
 
         elif i % EM_steps == 0:
+        # elif False:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-4,
                                  covariance_type='spherical',
@@ -85,8 +89,15 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
             init_guess = [means_hybrid[i//step - 1], sigmas_hybrid[i//step - 1], weights_hybrid[i//step - 1]]
             bounds = [(None, None) for _ in range(n_components)] + [(1e-6, None) for _ in range(n_components)] + [
                 (1e-6, 1) for _ in range(n_components)]
-            results = minimize(l2_to_optimizer, init_guess, args=(points, hist, n_components), tol=1e-3, bounds=bounds)
-            parameters = results.x
+            #TODO add PSO
+            # results = minimize(l2_to_optimizer, init_guess, args=(points, hist, n_components), tol=1e-3, bounds=bounds)
+            # parameters = results.x
+
+            # c1 - cognitive parameter, c2 - social parameter, w - inertia parameter
+            options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+            optimizer = GlobalBestPSO(n_particles=10, dimensions=2, options=options, bounds=bounds)
+            kwargs = {}
+            cost, parameters = optimizer.optimize(l2_to_optimizer, 1000, n_processes=1, **kwargs)
 
             means_hybrid[i//step, :] = parameters[:n_components]
             sigmas_hybrid[i//step, :] = parameters[n_components:2 * n_components]
