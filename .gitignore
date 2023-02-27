@@ -2,6 +2,7 @@
 *.pyc
 *.sock
 *.ini
+*.log
 
 venv/
 data/
