@@ -32,16 +32,25 @@ def plot_hist(window, step):
     return
 
 
-def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: int, step:int = 1):
+def hybrid(sample: np.ndarray,
+           window_width: int,
+           n_components: int,
+           EM_steps: int,
+           step: int = 1,
+           step_list: list = None):
     means_cols_hybrid = [f'mean_{i}_hybrid' for i in range(1, n_components + 1)]
     sigmas_cols_hybrid = [f'sigma_{i}_hybrid' for i in range(1, n_components + 1)]
     weights_cols_hybrid = [f'weight_{i}_hybrid' for i in range(1, n_components + 1)]
 
-    sample_length = len(sample) - len(sample) % step
+    if step_list is None:
+        sample_length = len(sample) - len(sample) % step
+        step_list = [step for _ in range(sample_length)]
+    else:
+        sample_length = len(step_list)
 
-    means_hybrid = np.zeros((sample_length//step, n_components))
-    sigmas_hybrid = np.zeros((sample_length//step, n_components))
-    weights_hybrid = np.zeros((sample_length//step, n_components))
+    means_hybrid = np.zeros((sample_length, n_components))
+    sigmas_hybrid = np.zeros((sample_length, n_components))
+    weights_hybrid = np.zeros((sample_length, n_components))
 
     columns = ['time', 'ts'] + means_cols_hybrid + sigmas_cols_hybrid + weights_cols_hybrid
     result_df = pd.DataFrame(columns=columns)
@@ -52,12 +61,16 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
     #     window = np.nan_to_num(sample[i - window_width // 2 : i + window_width // 2])
     #         if i == window_width // 2:
     # for i in tqdm.tqdm(range(window_width, sample_length, step)):
-    for i in range(window_width, sample_length, step):
-        window = np.nan_to_num(sample[i - window_width: i])
+    # for i in range(window_width, sample_length, step):
+    #     window = np.nan_to_num(sample[i - window_width: i])
 
-        if i == window_width:
-        # if True:
-            # plot_hist(sample, i)
+    for i in range(len(step_list)):
+        first_ind = sum(step_list[:i])
+        last_ind = sum(step_list[:i+1])
+        # print(f'step {i}, window=[{first_ind}, {last_ind}]')
+
+        window = np.nan_to_num(sample[first_ind:last_ind])
+        if (i == 0 or i > 0 and sum(weights_hybrid[i - 1, :]) == 0) and last_ind - first_ind > 10:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
                                  covariance_type='spherical',
@@ -65,44 +78,49 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
                                  init_params='random',
                                  n_init=30
                                  ).fit(window.reshape(-1, 1))
-            means_hybrid[i//step, :] = gm.means_.reshape(1, -1)
-            sigmas_hybrid[i//step, :] = np.sqrt(gm.covariances_.reshape(1, -1))
-            weights_hybrid[i//step, :] = gm.weights_.reshape(1, -1)
+            means_hybrid[i, :] = gm.means_.reshape(1, -1)
+            sigmas_hybrid[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
+            weights_hybrid[i, :] = gm.weights_.reshape(1, -1)
 
-        elif i % EM_steps == 0:
+        # elif i % EM_steps == 0:
         # elif False:
+        elif last_ind - first_ind > 10 and sum(weights_hybrid[i - 1, :]) > 0:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-4,
                                  covariance_type='spherical',
                                  max_iter=10000,
-                                 means_init=means_hybrid[i//step - 1, :].reshape(-1, 1),
-                                 weights_init=weights_hybrid[i//step - 1, :],
+                                 means_init=means_hybrid[i - 1, :].reshape(-1, 1),
+                                 weights_init=weights_hybrid[i - 1, :],
                                  init_params='random',
                                  n_init=15).fit(window.reshape(-1, 1))
 
-            means_hybrid[i//step, :] = gm.means_.reshape(1, -1)
-            sigmas_hybrid[i//step, :] = np.sqrt(gm.covariances_.reshape(1, -1))
-            weights_hybrid[i//step, :] = gm.weights_.reshape(1, -1)
+            means_hybrid[i, :] = gm.means_.reshape(1, -1)
+            sigmas_hybrid[i, :] = np.sqrt(gm.covariances_.reshape(1, -1))
+            weights_hybrid[i, :] = gm.weights_.reshape(1, -1)
         else:
-            hist, bins = np.histogram(window, bins=30, density=True)
-            points = [(bins[j] + bins[j + 1]) / 2 for j in range(len(bins) - 1)]
-            init_guess = [means_hybrid[i//step - 1], sigmas_hybrid[i//step - 1], weights_hybrid[i//step - 1]]
-            bounds = [(None, None) for _ in range(n_components)] + [(1e-6, None) for _ in range(n_components)] + [
-                (1e-6, 1) for _ in range(n_components)]
-            #TODO add PSO
-            # results = minimize(l2_to_optimizer, init_guess, args=(points, hist, n_components), tol=1e-3, bounds=bounds)
-            # parameters = results.x
-
-            # c1 - cognitive parameter, c2 - social parameter, w - inertia parameter
-            options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
-            optimizer = GlobalBestPSO(n_particles=10, dimensions=2, options=options, bounds=bounds)
-            kwargs = {}
-            cost, parameters = optimizer.optimize(l2_to_optimizer, 1000, n_processes=1, **kwargs)
-
-            means_hybrid[i//step, :] = parameters[:n_components]
-            sigmas_hybrid[i//step, :] = parameters[n_components:2 * n_components]
-            weights_hybrid[i//step, :] = parameters[2 * n_components:]
-            weights_hybrid[i//step, :] = [w / sum(weights_hybrid[i//step, :]) for w in weights_hybrid[i//step, :]]
+            means_hybrid[i, :] = [0 for _ in range(n_components)]
+            sigmas_hybrid[i, :] = [0 for _ in range(n_components)]
+            weights_hybrid[i, :] = [0 for _ in range(n_components)]
+        # else:
+        #     hist, bins = np.histogram(window, bins=30, density=True)
+        #     points = [(bins[j] + bins[j + 1]) / 2 for j in range(len(bins) - 1)]
+        #     init_guess = [means_hybrid[i//step - 1], sigmas_hybrid[i//step - 1], weights_hybrid[i//step - 1]]
+        #     bounds = [(None, None) for _ in range(n_components)] + [(1e-6, None) for _ in range(n_components)] + [
+        #         (1e-6, 1) for _ in range(n_components)]
+        #     #TODO add PSO
+        #     # results = minimize(l2_to_optimizer, init_guess, args=(points, hist, n_components), tol=1e-3, bounds=bounds)
+        #     # parameters = results.x
+        #
+        #     # c1 - cognitive parameter, c2 - social parameter, w - inertia parameter
+        #     options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+        #     optimizer = GlobalBestPSO(n_particles=10, dimensions=2, options=options, bounds=bounds)
+        #     kwargs = {}
+        #     cost, parameters = optimizer.optimize(l2_to_optimizer, 1000, n_processes=1, **kwargs)
+        #
+        #     means_hybrid[i//step, :] = parameters[:n_components]
+        #     sigmas_hybrid[i//step, :] = parameters[n_components:2 * n_components]
+        #     weights_hybrid[i//step, :] = parameters[2 * n_components:]
+        #     weights_hybrid[i//step, :] = [w / sum(weights_hybrid[i//step, :]) for w in weights_hybrid[i//step, :]]
 
         # # check if 0
         # for comp in range(n_components):
@@ -116,13 +134,18 @@ def hybrid(sample: np.ndarray, window_width: int, n_components: int, EM_steps: i
         # zipped.sort()
         # means_hybrid[i], sigmas_hybrid[i], weights_hybrid[i] = zip(*zipped)
 
-        result_df.loc[i//step] = [i//step, window[0]] + list(means_hybrid[i//step]) + \
-                                 list(sigmas_hybrid[i//step]) + list(weights_hybrid[i//step])
+        # result_df.loc[i//step] = [i//step, window[0]] + list(means_hybrid[i//step]) + \
+        #                          list(sigmas_hybrid[i//step]) + list(weights_hybrid[i//step])
+        result_df.loc[i] = [i, 0] + list(means_hybrid[i]) + list(sigmas_hybrid[i]) + list(weights_hybrid[i])
     return result_df
 
 
-def plot_components(df: pd.DataFrame, n_components: int, point: tuple, files_path_prefix: str,
-                    path: str = 'Components/tmp/', postfix: str = ''):
+def plot_components(files_path_prefix: str,
+                    df: pd.DataFrame,
+                    n_components: int,
+                    point: tuple,
+                    path: str = 'Components/tmp/',
+                    postfix: str = ''):
     fig, axs = plt.subplots(3, 1, figsize=(15, 15))
     fig.suptitle(f'Components evolution in point ({point[0]}, {point[1]})')
     colors = ['r', 'g', 'b', 'yellow', 'pink', 'black']

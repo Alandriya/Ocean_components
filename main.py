@@ -101,6 +101,8 @@ if __name__ == '__main__':
     # data_array = latent_array
 
     # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022.npy')
+    # print(latent_array.shape)
+
     # latent_array = latent_array[:, :365*ticks_by_day]
     # flux_type = 'latent'
     # data_array = latent_array
@@ -131,17 +133,20 @@ if __name__ == '__main__':
     # plot_typical_points_difference(files_path_prefix, mask, time_start, time_end, flux_type, coeff_type)
 
     # ----------------------------------------------------------------------------------------------
-    # create_synthetic_data(files_path_prefix, time_start=0, time_end=100)
-    # sensible = np.load(f'{files_path_prefix}/Synthetic/sensible_full.npy')
-    # latent = np.load(f'{files_path_prefix}/Synthetic/latent_full.npy')
+    # create_synthetic_data_1d(files_path_prefix, time_start=0, time_end=100)
+    flux = np.load(f'{files_path_prefix}/Synthetic/flux_full.npy')
     a_array = np.load(f'{files_path_prefix}/Synthetic/A_full.npy')
+    b_array = np.load(f'{files_path_prefix}/Synthetic/B_full.npy')
+    # plot_synthetic_flux(files_path_prefix, 1, flux, None, None, 0, 99, a_array, b_array)
 
-    # plot_synthetic_flux(files_path_prefix, sensible, latent, time_start=0, time_end=100)
-    # count_synthetic_Bel(files_path_prefix, sensible, latent, time_start=0, time_end=100)
-    # multiply_synthetic_Korolev(files_path_prefix)
+    # plot_synthetic_flux(files_path_prefix, 2, None, sensible, latent, time_start=0, time_end=100)
+    # count_synthetic_Bel(files_path_prefix, 2, sensible, latent, time_start=0, time_end=100)
 
-    sensible_extended = np.load(f'{files_path_prefix}/Synthetic/sensible_full_extended.npy')
-    # plt.hist(sensible_extended[:100, 0, 0].flatten(), bins=30)
-    # plt.show()
-    # count_synthetic_Korolev(files_path_prefix, 'sensible', sensible_extended, 0, 100, 100)
-    plot_Kor_Bel_compare(files_path_prefix, 0, 99, a_array[:, 0, :, :], 'sensible', 'A')
+    # count_synthetic_Bel(files_path_prefix, 1, flux, None, None, time_start=0, time_end=100)
+    # multiply_synthetic_Korolev(files_path_prefix, 1)
+    # flux_extended = np.load(f'{files_path_prefix}/Synthetic/flux_full_extended.npy')
+
+    count_synthetic_Korolev(files_path_prefix, '', flux, 0, 99, 100, 2)
+
+    # plot_Kor_Bel_compare(files_path_prefix, 0, 99, a_array[:, 0, :, :], 'sensible', 'A')
+    # plot_Kor_Bel_compare(files_path_prefix, 0, 99, a_array, '', 'A')
