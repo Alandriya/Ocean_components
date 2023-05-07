@@ -182,7 +182,8 @@ def scale_to_bins(arr, bins=100):
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
-    for j in tqdm.tqdm(range(bins - 1)):
+    # for j in tqdm.tqdm(range(bins - 1)):
+    for j in range(bins - 1):
         arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
             (quantiles[j] + quantiles[j + 1]) / 2
 
