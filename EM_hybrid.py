@@ -10,6 +10,14 @@ import pyswarms as ps
 from pyswarms.single.global_best import GlobalBestPSO
 
 
+def l2_to_PSO(params, x, hist, n_components):
+    # params = params.T
+    errors = np.zeros(params.shape[0])
+    for p in range(params.shape[0]):
+        means, sigmas, weights = params[p, 0:n_components], params[p, n_components:2 * n_components], params[p, 2 * n_components:]
+        errors[p] = sqrt(sum([(hist[i] - mixture_density(x[i], means, sigmas, weights)) ** 2 for i in range(len(x))]))
+    return errors
+
 def l2_to_optimizer(params, x, hist, n_components):
     means, sigmas, weights = params[0:n_components], params[n_components:2 * n_components], params[2 * n_components:]
     return sqrt(sum([(hist[i] - mixture_density(x[i], means, sigmas, weights)) ** 2 for i in range(len(x))]))
@@ -19,14 +27,35 @@ def phi(x: float):
     return exp(-x ** 2 / 2) / sqrt(2 * pi)
 
 
+# def phi_long(x: float, a:float, sigma:float):
+#     return exp(-(x - a) ** 2 / (2 * sigma**2)) / (sqrt(2 * pi) * sigma)
+
+
 def mixture_density(x, means, sigmas, weights):
     return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
+    # return sum([weights[i] * phi_long(x, means[i], sigmas[i]) for i in range(len(means))])
 
 
-def plot_hist(window, step):
+def plot_hist(window, step=1, detected_params = None, means=None, sigmas=None, weights=None):
     files_path_prefix = 'D://Data/OceanFull/'
-    fig, axes = plt.subplots(1,1)
-    axes.hist(window, bins=20)
+    fig, axes = plt.subplots(1,1, figsize=(10, 8))
+    bins = 15
+    # hist = np.histogram(window, density=True)
+    axes.hist(window, bins, density=True)
+    x = np.linspace(min(window), max(window), 1000)
+    if not detected_params is None:
+        # for triple in detected_params:
+        #     a, sigma, w = triple
+
+            # norm_values = [phi_long(x_, a, sigma) * w for x_ in x]
+            # mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
+            # axes.plot(x, norm_values)
+
+        mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
+        axes.plot(x, mixture_values)
+
+    # print(weights)
+    fig.suptitle(f'n = {len(window)}, bins = {bins}')
     fig.savefig(files_path_prefix + f'Components/tmp/hist_step_{step}.png')
     plt.close(fig)
     return
@@ -64,13 +93,34 @@ def hybrid(sample: np.ndarray,
     # for i in range(window_width, sample_length, step):
     #     window = np.nan_to_num(sample[i - window_width: i])
 
-    for i in range(len(step_list)):
-        first_ind = sum(step_list[:i])
-        last_ind = sum(step_list[:i+1])
-        # print(f'step {i}, window=[{first_ind}, {last_ind}]')
+    # for i in range(len(step_list)):
+    #     first_ind = sum(step_list[:i])
+    #     last_ind = sum(step_list[:i+1])
+    #     # print(f'step {i}, window=[{first_ind}, {last_ind}]')
+    #     if not (last_ind - first_ind) or sum(step_list) < window_width:
+    #         result_df.loc[i] = [i, 0] + [None]*(3*n_components)
+    #         continue
+    #
+    #     shift = 0
+    #     while i+1+shift < len(step_list) and last_ind - first_ind < window_width:
+    #         last_ind += step_list[i+1+shift]
+    #         shift += 1
+    #         result_df.loc[i] = [i, 0] + [None] * (3 * n_components)
+    #         continue
 
+    first_ind = 0
+    for i in range(len(step_list)):
+        last_ind = min(first_ind + window_width, len(sample)-first_ind)
+        if last_ind - first_ind < 10:
+            result_df.loc[i] = [i, 0] + list(means_hybrid[i]) + list(sigmas_hybrid[i]) + list(weights_hybrid[i])
+            continue
         window = np.nan_to_num(sample[first_ind:last_ind])
-        if (i == 0 or i > 0 and sum(weights_hybrid[i - 1, :]) == 0) and last_ind - first_ind > 10:
+
+        # if i < 10:
+        #     plot_hist(window, i)
+        # else:
+        #     raise ValueError
+        if i == 0 or i > 0 and sum(weights_hybrid[i - 1, :]) == 0:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-6,
                                  covariance_type='spherical',
@@ -84,7 +134,7 @@ def hybrid(sample: np.ndarray,
 
         # elif i % EM_steps == 0:
         # elif False:
-        elif last_ind - first_ind > 10 and sum(weights_hybrid[i - 1, :]) > 0:
+        elif sum(weights_hybrid[i - 1, :]) > 0:
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-4,
                                  covariance_type='spherical',
@@ -136,6 +186,14 @@ def hybrid(sample: np.ndarray,
 
         # result_df.loc[i//step] = [i//step, window[0]] + list(means_hybrid[i//step]) + \
         #                          list(sigmas_hybrid[i//step]) + list(weights_hybrid[i//step])
+
+        params_packed = [(means_hybrid[i][j], sigmas_hybrid[i][j], weights_hybrid[i][j]) for j in range(n_components)]
+        if i < 20:
+            plot_hist(window, i, params_packed, list(means_hybrid[i]), list(sigmas_hybrid[i]), list(weights_hybrid[i]))
+        else:
+            raise ValueError
+
+        first_ind += step_list[i]
         result_df.loc[i] = [i, 0] + list(means_hybrid[i]) + list(sigmas_hybrid[i]) + list(weights_hybrid[i])
     return result_df
 
