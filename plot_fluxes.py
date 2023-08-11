@@ -129,6 +129,11 @@ def plot_fluxes(files_path_prefix: str,
     divider = make_axes_locatable(axs[1])
     cax_lat = divider.append_axes('right', size='5%', pad=0.3)
 
+    x_label_list = ['90W', '60W', '30W', '0']
+    y_label_list = ['EQ', '30N', '60N', '80N']
+    xticks = [0, 60, 120, 180]
+    yticks = [160, 100, 40, 0]
+
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(start, end)):
         date = start_date + datetime.timedelta(hours=6 * group * (t - start))
@@ -143,6 +148,10 @@ def plot_fluxes(files_path_prefix: str,
                                      cmap=cmap,
                                      vmin=flux_min,
                                      vmax=flux_max)
+            axs[0].set_xticks(xticks)
+            axs[0].set_yticks(yticks)
+            axs[0].set_xticklabels(x_label_list)
+            axs[0].set_yticklabels(y_label_list)
         else:
             img_sens.set_data(sensible[:, t].reshape(161, 181))
 
@@ -154,6 +163,10 @@ def plot_fluxes(files_path_prefix: str,
                                      cmap=cmap,
                                      vmin=flux_min,
                                      vmax=flux_max)
+            axs[1].set_xticks(xticks)
+            axs[1].set_yticks(yticks)
+            axs[1].set_xticklabels(x_label_list)
+            axs[1].set_yticklabels(y_label_list)
         else:
             img_lat.set_data(latent[:, t].reshape(161, 181))
 
