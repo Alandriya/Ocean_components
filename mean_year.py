@@ -169,7 +169,7 @@ def plot_mean_year_1d(files_path_prefix: str,
     :param files_path_prefix: path to the working directory
     :param start_year:
     :param end_year:
-    :param coeff_type: 
+    :param coeff_type:
     :param postfix:
     :param coeff_min: min of the coefficient for a common for all maps color scale
     :param coeff_max: max of the coefficient for a common for all maps color scale

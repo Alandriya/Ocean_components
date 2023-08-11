@@ -10,6 +10,11 @@ import seaborn as sns
 import scipy
 from VarGamma import fit_ml, pdf, cdf
 
+x_label_list = ['90W', '60W', '30W', '0']
+y_label_list = ['EQ', '30N', '60N', '80N']
+xticks = [0, 60, 120, 180]
+yticks = [160, 100, 40, 0]
+
 
 def plot_ab_coefficients(files_path_prefix: str,
                          a_timelist: list,
@@ -99,6 +104,10 @@ def plot_ab_coefficients(files_path_prefix: str,
                                         cmap=cmap_a,
                                         vmin=a_min,
                                         vmax=a_max)
+            axsa[0].set_xticks(xticks)
+            axsa[0].set_yticks(yticks)
+            axsa[0].set_xticklabels(x_label_list)
+            axsa[0].set_yticklabels(y_label_list)
         else:
             img_a_sens.set_data(a_sens)
 
@@ -110,6 +119,10 @@ def plot_ab_coefficients(files_path_prefix: str,
                                        cmap=cmap_a,
                                        vmin=a_min,
                                        vmax=a_max)
+            axsa[1].set_xticks(xticks)
+            axsa[1].set_yticks(yticks)
+            axsa[1].set_xticklabels(x_label_list)
+            axsa[1].set_yticklabels(y_label_list)
         else:
             img_a_lat.set_data(a_lat)
 
@@ -124,6 +137,10 @@ def plot_ab_coefficients(files_path_prefix: str,
                                                       cmap=cmap_b,
                                                       vmin=0,
                                                       vmax=borders[3])
+                axsb[i // 2][i % 2].set_xticks(xticks)
+                axsb[i // 2][i % 2].set_yticks(yticks)
+                axsb[i // 2][i % 2].set_xticklabels(x_label_list)
+                axsb[i // 2][i % 2].set_yticklabels(y_label_list)
             else:
                 img_b[i].set_data(b_matrix[i])
 
@@ -186,6 +203,10 @@ def plot_c_coeff(files_path_prefix: str,
                                    cmap=cmap,
                                    vmin=-1,
                                    vmax=1)
+            axsc[0].set_xticks(xticks)
+            axsc[0].set_yticks(yticks)
+            axsc[0].set_xticklabels(x_label_list)
+            axsc[0].set_yticklabels(y_label_list)
         else:
             img_1.set_data(c_timelist[t][0])
         figc.colorbar(img_1, cax=cax_1, orientation='vertical')
@@ -196,6 +217,10 @@ def plot_c_coeff(files_path_prefix: str,
                                    cmap=cmap,
                                    vmin=-1,
                                    vmax=1)
+            axsc[1].set_xticks(xticks)
+            axsc[1].set_yticks(yticks)
+            axsc[1].set_xticklabels(x_label_list)
+            axsc[1].set_yticklabels(y_label_list)
         else:
             img_2.set_data(c_timelist[t][1])
 
@@ -253,6 +278,10 @@ def plot_f_coeff(files_path_prefix: str,
                                interpolation='none',
                                cmap=cmap,
                                norm=norm)
+            axs.set_xticks(xticks)
+            axs.set_yticks(yticks)
+            axs.set_xticklabels(x_label_list)
+            axs.set_yticklabels(y_label_list)
         else:
             img_f.set_data(f)
         fig.colorbar(img_f, cax=cax, orientation='vertical')
@@ -331,90 +360,6 @@ def plot_fs_coeff(files_path_prefix: str,
         figf.tight_layout()
         figf.savefig(files_path_prefix + f'videos/FS/FS_{pic_num:05d}.png')
         pic_num += 1
-    return
-
-
-def plot_mean_year(files_path_prefix: str, coeff_name: str):
-    """
-    Plots 2x3 graphics of "mean year" of coefficient coeff_name
-    :param files_path_prefix: path to the working directory
-    :param coeff_name: 'A_sens' or 'A_lat' or 'B11' or 'B22' or 'F'
-    :return:
-    """
-    mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_name}.npy')
-    fig, axs = plt.subplots(2, 3, figsize=(20, 10))
-    # fig.suptitle(f'{coeff_name} mean year', fontsize=30)
-    axs[0][0].title.set_text('February, 15')
-    axs[0][1].title.set_text('April, 15')
-    axs[0][2].title.set_text('June, 15')
-    axs[1][0].title.set_text('August, 15')
-    axs[1][1].title.set_text('October, 15')
-    axs[1][2].title.set_text('December, 15')
-    img = [None for _ in range(6)]
-    cax = [None for _ in range(6)]
-    days = [(datetime.datetime(1979, i*2, 15) - datetime.datetime(1979, 1, 2)).days for i in range(1, 7)]
-    if coeff_name == 'A_sens' or coeff_name == 'A_lat':
-        a_min = np.nanmin(mean_year)
-        a_max = np.nanmax(mean_year)
-        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
-        cmap.set_bad('darkgreen', 1.0)
-        for i in range(6):
-            divider = make_axes_locatable(axs[i // 3][i % 3])
-            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
-            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
-                                               interpolation='none',
-                                               cmap=cmap,
-                                               vmin=a_min,
-                                               vmax=a_max)
-            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
-
-    elif coeff_name == 'B11' or coeff_name == 'B22':
-        b_min = np.nanmin(mean_year)
-        b_max = np.nanmax(mean_year)
-        zero_percent = abs(0 - b_min) / (b_max - b_min)
-        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
-        cmap.set_bad('darkgreen', 1.0)
-        for i in range(6):
-            divider = make_axes_locatable(axs[i // 3][i % 3])
-            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
-            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
-                                               interpolation='none',
-                                               cmap=cmap,
-                                               vmin=b_min,
-                                               vmax=b_max)
-            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
-    elif coeff_name == 'F':
-        f_max = np.nanmax(mean_year)
-        cmap = colors.ListedColormap(['MintCream', 'Aquamarine', 'blue', 'red', 'DarkRed'])
-        boundaries = [0, 0.25, 0.5, 1.0, 1.5, max(f_max, 2.0)]
-        norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-        cmap.set_bad('darkgreen', 1.0)
-        for i in range(6):
-            divider = make_axes_locatable(axs[i // 3][i % 3])
-            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
-            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
-                                               interpolation='none',
-                                               cmap=cmap,
-                                               norm=norm)
-            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
-    # elif coeff_name == 'C_0':
-    #     fig.suptitle(f'A_sens - A_lat correlation mean year', fontsize=30)
-    elif coeff_name == 'C_1':
-        fig.suptitle(f'B11 - B22 correlation mean year', fontsize=30)
-        cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
-        cmap.set_bad('darkgreen', 1.0)
-        for i in range(6):
-            divider = make_axes_locatable(axs[i // 3][i % 3])
-            cax[i] = divider.append_axes('right', size='5%', pad=0.3)
-            img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
-                                               interpolation='none',
-                                               cmap=cmap,
-                                               vmin=-1,
-                                               vmax=1)
-            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
-
-    plt.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Mean_year/{coeff_name}.png')
     return
 
 
