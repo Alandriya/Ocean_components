@@ -6,8 +6,11 @@ import matplotlib
 import pylab
 import os
 import seaborn as sns
+import tqdm
+
 from VarGamma import fit_ml, pdf, cdf
 import scipy
+from scipy.stats import pearsonr
 
 
 def draw_3d_hist(files_path_prefix: str,
@@ -234,4 +237,37 @@ def estimate_flux(files_path_prefix: str,
 
         plot_estimate_fluxes_1d(files_path_prefix, sens_val, lat_val, time_start, time_end, point, start_year)
         # plot_fluxes_2d(files_path_prefix, sens_val, lat_val, time_start, time_end)
+    return
+
+
+def count_correlations(files_path_prefix: str,
+                       sensible_array: np.ndarray,
+                       latent_array: np.ndarray,
+                       offset: int,
+                       window_length: int=14,
+                       observations_per_day: int=4,):
+    """
+    Counts Pearson correlations of the fluxes
+    :param files_path_prefix: path to the working directory
+    :param sensible_array: np.array with sensible flux data
+    :param latent_array: np.array with latent flux data
+    :param offset: offset in days from 01.01.1979, needed for output filename
+    :param window_length: width of the moving window (in days) for correlation
+    :param observations_per_day:
+    :return:
+    """
+    corr = np.zeros((161, 181), dtype=float)
+    for i in range(161):
+        for j in range(181):
+            if np.isnan(sensible_array[0, i, j]).any():
+                corr[i, j] = np.nan
+
+    for t in tqdm.tqdm(range(0, len(sensible_array)-window_length*observations_per_day, observations_per_day)):
+        sensible = sensible_array[t:t+window_length*observations_per_day]
+        latent = latent_array[t:t+window_length*observations_per_day]
+        for i in range(161):
+            for j in range(181):
+                if not np.isnan(sensible[:, i, j]).any():
+                    corr[i, j] = pearsonr(sensible[:, i, j], latent[:, i, j])[0]
+        np.save(files_path_prefix + f'Flux_correlations/C_{t+offset}.npy', corr)
     return
