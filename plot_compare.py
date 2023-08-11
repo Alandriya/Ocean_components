@@ -105,15 +105,19 @@ def plot_difference_1d_synthetic(files_path_prefix: str,
     rmse_Kor = math.sqrt(sum((Kor - real) ** 2))
 
     fig, axs = plt.subplots(1, 1, figsize=(20, 10))
-    fig.suptitle(f'{coeff_type} coeff at point ({point[0]}, {point[1]}), n_components = {n_components}'
-                 f'\n RMSE_pointwise = {rmse_Bel:.2f}'
-                 f'\n RMSE_EM = {rmse_Kor: .2f}',
-                 fontsize=20, fontweight='bold')
+    # fig.suptitle(f'{coeff_type} coeff at point ({point[0]}, {point[1]}), n_components = {n_components}'
+    #              f'\n RMSE Pointwise = {rmse_Bel:.2f}'
+    #              f'\n RMSE ML = {rmse_Kor: .2f}',
+    #              fontsize=20, fontweight='bold')
+    print(f' {coeff_type} point ({point[0]}, {point[1]}) \n RMSE Pointwise = {rmse_Bel:.2f} \n RMSE ML = {rmse_Kor: .2f} \n')
+    fig.suptitle(f'{str.lower(coeff_type)}[{point[0]}, {point[1]}]', fontsize=30, fontweight='bold')
 
-    axs.plot(Bel, c='b', label='Pointwise')
-    axs.plot(Kor, c='g', label='EM')
-    axs.plot(real, c='r', label='Real')
-    axs.legend()
+    plt.xlabel('Time', fontsize=26)
+    plt.ylabel('Value', fontsize=26)
+    axs.plot(Bel, c='b', label='NP')
+    axs.plot(Kor, c='g', label='P')
+    axs.plot(real, linestyle=(0, (5, 5)), c='r', label='Real')
+    axs.legend(fontsize="26")
     fig.tight_layout()
 
     fig.savefig(
@@ -215,11 +219,11 @@ def plot_synthetic_flux(files_path_prefix: str,
             fig.colorbar(img, cax=cax, orientation='vertical')
             fig.savefig(files_path_prefix + f'Synthetic/Plots/Flux/Flux_{t:05d}.png')
     else:
-        fig, axs = plt.subplots(1, 3, figsize=(30, 10))
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
         img_flux, img_a, img_b = None, None, None
-        axs[0].set_title(f'Flux', fontsize=20)
-        axs[1].set_title(f'A', fontsize=20)
-        axs[2].set_title(f'B', fontsize=20)
+        axs[0].set_title(f'X', fontsize=20)
+        axs[1].set_title(f'a', fontsize=20)
+        axs[2].set_title(f'b', fontsize=20)
 
         flux_max = np.nanmax(flux)
         flux_min = np.nanmin(flux)
@@ -229,38 +233,33 @@ def plot_synthetic_flux(files_path_prefix: str,
         divider = make_axes_locatable(axs[0])
         cax_flux = divider.append_axes('right', size='5%', pad=0.3)
 
-        # a_max = np.nanmax(a_array)
-        # a_min = np.nanmin(a_array)
-        # # cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
-        # # cmap_a.set_bad('darkgreen', 1.0)
+        a_max = np.nanmax(a_array)
+        a_min = np.nanmin(a_array)
+        cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
+        cmap_a.set_bad('darkgreen', 1.0)
         divider = make_axes_locatable(axs[1])
         cax_a = divider.append_axes('right', size='5%', pad=0.3)
 
-        # b_max = np.nanmax(b_array)
-        # b_min = np.nanmin(b_array)
-        # # cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - b_min) / (b_max - b_min), 1])
-        # # cmap_b.set_bad('darkgreen', 1.0)
+        b_max = np.nanmax(b_array)
+        b_min = np.nanmin(b_array)
+        cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - b_min) / (b_max - b_min), 1])
+        cmap_b.set_bad('darkgreen', 1.0)
         divider = make_axes_locatable(axs[2])
         cax_b = divider.append_axes('right', size='5%', pad=0.3)
 
         for t in tqdm.tqdm(range(time_start, time_end)):
-            fig.suptitle(f'X \n t = {t}', fontsize=30)
+            # fig.suptitle(f'Synthetic data, t = {t}', fontsize=30)
+            fig.suptitle(f't = {t}', fontsize=30)
             if img_flux is None:
                 img_flux = axs[0].imshow(flux[t],
                                          interpolation='none',
-                                         cmap=cmap_flux,
-                                         vmin=flux_min,
-                                         vmax=flux_max)
+                                         cmap=cmap_flux)
                 img_a = axs[1].imshow(a_array[t],
                                       interpolation='none',
-                                      cmap=cmap_flux,
-                                      vmin=flux_min,
-                                      vmax=flux_max)
+                                      cmap=cmap_flux)
                 img_b = axs[2].imshow(b_array[t],
                                       interpolation='none',
-                                      cmap=cmap_flux,
-                                      vmin=flux_min,
-                                      vmax=flux_max)
+                                      cmap=cmap_flux)
             else:
                 img_flux.set_data(flux[t])
                 img_a.set_data(a_array[t])
