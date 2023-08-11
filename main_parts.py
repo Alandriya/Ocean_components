@@ -281,15 +281,6 @@ if __name__ == '__main__':
     # plot_fs_coeff(files_path_prefix, fs_timelist, borders, delta, len(fs_timelist), 1, time_start + delta, mean_width)
 
     # ---------------------------------------------------------------------------------------
-    # # Plot mean year
-    # year = 1979
-    # time_start = (datetime.datetime(year, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days + 1
-    # time_end = (datetime.datetime(year, 12, 31, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-    #
-    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start,
-    #                                                                                  time_end, load_a=True, load_b=True)
-    # plot_mean_year_AB(files_path_prefix, time_start, time_end, a_timelist, b_timelist, borders, year)
-    # ---------------------------------------------------------------------------------------
     # # Create video
     # create_video(files_path_prefix, files_path_prefix+'videos/A/', 'A_', 'a_daily', 10)
     # create_video(files_path_prefix, files_path_prefix+'videos/B/', 'B_', 'b_daily', 10)
@@ -539,3 +530,114 @@ if __name__ == '__main__':
     #                        step_ticks,
     #                        flux_type)
     # ----------------------------------------------------------------------------------------------
+    # # Creating synthetic flux and counting Bel and Kor methods for it and plotting the difference
+    # create_synthetic_data_1d(files_path_prefix, time_start=0, time_end=100)
+    # flux = np.load(f'{files_path_prefix}/Synthetic/flux_full.npy')
+    # a_array = np.load(f'{files_path_prefix}/Synthetic/A_full.npy')
+    # b_array = np.load(f'{files_path_prefix}/Synthetic/B_full.npy')
+    # plot_synthetic_flux(files_path_prefix, flux, 0, 5, a_array, b_array)
+    # raise ValueError
+    # count_synthetic_Bel(files_path_prefix, 1, flux, None, None, time_start=0, time_end=100, quantiles=50)
+    # count_synthetic_Korolev(files_path_prefix, flux, 0, 100, 50, 3, synthetic=True)
+    # count_optimization(files_path_prefix, flux, 0, 100, 3, 50)
+
+    # for point in [(0, j) for j in range(30)]:
+    #     # count_Bel_Kor_difference(files_path_prefix, 1, 100, point, '')
+    #     plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'A')
+    #     plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'B')
+    # raise ValueError
+    # ----------------------------------------------------------------------------------------------
+    # sensible_array = np.load(files_path_prefix + 'sensible_grouped_2019-2022.npy')
+    # sensible_array = sensible_array.transpose()
+    # sensible_array = sensible_array.reshape((sensible_array.shape[0], 161, 181))
+    # flux_type = 'sensible'
+
+    # latent_array = np.load(files_path_prefix + 'latent_grouped_2019-2022.npy')
+    # latent_array = latent_array.transpose()
+    # latent_array = latent_array.reshape((latent_array.shape[0], 161, 181))
+    # flux_type = 'latent'
+    #
+    # print('Counting Bel')
+    # start_time = time.time()
+    # count_1d_Bel(files_path_prefix,
+    #              latent_array,
+    #              time_start=0,
+    #              time_end=len(latent_array),
+    #              path=f'Components/{flux_type}/',
+    #              quantiles_amount=1000,
+    #              start_index=days_delta1+days_delta2+days_delta3 + days_delta4)
+    #
+    # print("--- Bel %s seconds ---" % (time.time() - start_time))
+    # print(f'{(time.time() - start_time) / len(latent_array):.5f} seconds per iteration')
+
+    # print('Counting Kor')
+    # start_time = time.time()
+    # count_1d_Korolev(files_path_prefix,
+    #                  latent_array,
+    #                  time_start=0,
+    #                  time_end=len(latent_array),
+    #                  path=f'Components/{flux_type}/',
+    #                  quantiles_amount=50,
+    #                  n_components=3,
+    #                  start_index=days_delta1+days_delta2+days_delta3+days_delta4)
+    # print("--- Kor %s seconds ---" % (time.time() - start_time))
+    # print(f'{(time.time() - start_time) / len(latent_array):.5f} seconds per iteration')
+
+    # plot_methods_compare(files_path_prefix, 0, 100, sensible_array, 'sensible', 'A', 161, 181)
+    # plot_methods_compare(files_path_prefix, 0, 100, sensible_array, 'sensible', 'B', 161, 181)
+    # points = plot_typical_points(files_path_prefix, mask)
+    # for point in points:
+    #     count_Bel_Kor_difference(files_path_prefix, 1, 100, point, 'sensible')
+    #     plot_difference_1d(files_path_prefix, point, 3, 1, 99, 'A', 'sensible')
+    #     plot_difference_1d(files_path_prefix, point, 3, 1, 99, 'B', 'sensible')
+
+    # coeff_type = 'B'
+    # # method = 'Bel'
+    # # # count_mean_year(files_path_prefix, f'Components/{flux_type}/{method}/daily/', coeff_type=coeff_type,
+    # # #                 postfix=f'{flux_type}_{method}', mask=mask.reshape((161, 181)))
+    # # method = 'Kor'
+    # # count_mean_year(files_path_prefix, f'Components/{flux_type}/{method}/daily/', coeff_type=coeff_type,
+    # #                 postfix=f'{flux_type}_{method}', mask=mask.reshape((161, 181)))
+    # mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_type}_2009-2019_{flux_type}_Bel.npy')
+    # Bel_min = np.nanmin(mean_year)
+    # Bel_max = np.nanmax(mean_year)
+    # method = 'Bel'
+    # plot_mean_year_1d(files_path_prefix, coeff_type=coeff_type, postfix=f'{flux_type}_{method}', coeff_min=Bel_min, coeff_max=Bel_max)
+    # method = 'Kor'
+    # plot_mean_year_1d(files_path_prefix, coeff_type=coeff_type, postfix=f'{flux_type}_{method}', coeff_min=Bel_min, coeff_max=Bel_max)
+    #
+
+    # ---------------------------------------------------------------------------------------
+    # # Plot Bel coefficients
+    # time_start = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # plot_step = 1
+    # delta = 0
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix, time_start, time_end, load_a=True, load_b=True,
+    #                                                                                  load_f=True, load_c=True)
+    #
+    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, delta, time_end-time_start, plot_step, start_pic_num=time_start + delta)
+    # plot_c_coeff(files_path_prefix, c_timelist, delta, len(c_timelist), 1, time_start + delta)
+    # plot_f_coeff(files_path_prefix, f_timelist, borders, 0, time_end - time_start - delta, plot_step,
+    #              start_pic_num=time_start + delta)
+    # ---------------------------------------------------------------------------------------
+    # # Plot fluxes
+    # sensible_array = np.load(files_path_prefix + 'SENSIBLE_2019-2022[Oct].npy')
+    # sensible_array[np.logical_not(mask), :] = np.nan
+    # latent_array = np.load(files_path_prefix + 'LATENT_2019-2022[Oct].npy')
+    # latent_array[np.logical_not(mask), :] = np.nan
+    # offset = (datetime.datetime(2022, 1, 1) - datetime.datetime(2019, 1, 1)).days * 4
+    # plot_fluxes(files_path_prefix, sensible_array, latent_array, offset, offset + 100, 4, datetime.datetime(2022, 1, 1))
+
+    # ---------------------------------------------------------------------------------------
+    # # count and plot fluxes correlations
+    # sensible_array = np.load('E://Nastya/Data/OceanFull/' + 'sensible_grouped_1989-1999.npy')
+    # sensible_array[np.logical_not(mask), :] = np.nan
+    # sensible_array = sensible_array.reshape((sensible_array.shape[1], 161, 181))
+    #
+    # latent_array = np.load('E://Nastya/Data/OceanFull/' + 'latent_grouped_1989-1999.npy')
+    # latent_array[np.logical_not(mask), :] = np.nan
+    # latent_array = latent_array.reshape((latent_array.shape[1], 161, 181))
+    #
+    # count_correlations(files_path_prefix, sensible_array, latent_array, days_delta1, 14, 1)

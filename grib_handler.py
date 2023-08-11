@@ -1,14 +1,16 @@
-# import cfgrib
+import cfgrib
 import tqdm
 import xarray as xr
 import numpy as np
 from struct import unpack
 import datetime
 
-files_path_prefix = 'D://Data/OceanFull/'
-data_postfix = '2022-part'
+# files_path_prefix = 'D://Data/OceanFull/'
+files_path_prefix = 'E://Nastya/Data/GRIB/'
+# data_postfix = '2022-part'
+data_postfix = '2'
 
-maskfile = open(files_path_prefix + "mask", "rb")
+maskfile = open('D://Data/OceanFull/' + "mask", "rb")
 binary_values = maskfile.read(29141)
 maskfile.close()
 mask = unpack('?' * 29141, binary_values)
@@ -17,15 +19,17 @@ mask = np.array(mask, dtype=int)
 # load grib
 # ds = xr.open_dataset(files_path_prefix + f'{data_postfix}.grib', engine='cfgrib', drop_variables='mslhf', chunks=-1,
 #                      inline_array=True)
-ds = xr.load_dataset(files_path_prefix + f'{data_postfix}.grib', engine='cfgrib')
+ds = xr.open_dataset(files_path_prefix + f'{data_postfix}.grib', engine='cfgrib')
 
 print(ds)
 print(ds.coords['valid_time'])
-print(ds.coords['valid_time'].shape)
+# print(ds.coords['time'].shape)
+raise ValueError
 
 # sensible
 shape = ds.variables['msshf'].shape
 print(shape)
+raise ValueError
 # tmp = ds.variables['msshf']
 tmp = ds.variables['mslhf'] #TODO latent
 tmp = tmp[:, :, ::2, ::2]  # part of map with size 161x181

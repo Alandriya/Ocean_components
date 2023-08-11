@@ -1,3 +1,5 @@
+import numpy as np
+
 from data_processing import scale_to_bins
 from EM_hybrid import *
 from plot_compare import *
@@ -137,12 +139,13 @@ def create_synthetic_data_2d(files_path_prefix: str,
 
 
 def count_1d_Bel(files_path_prefix: str,
-                 flux: np.array,
+                 flux: np.ndarray,
                  time_start: int,
                  time_end: int,
                  path: str = 'Synthetic/',
                  start_index: int = 0,
-                 quantiles_amount: int = 100):
+                 quantiles_amount: int = 100,
+                 mask: np.ndarray = None):
     """
     Counts A and B estimates for flux array by Belyaev method
     :param files_path_prefix: path to the working directory
@@ -161,14 +164,16 @@ def count_1d_Bel(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + path + 'Bel'):
         os.mkdir(files_path_prefix + path + 'Bel')
 
-    if not os.path.exists(files_path_prefix + path + 'Bel/maps'):
-        os.mkdir(files_path_prefix + path + 'Bel/maps')
+    if not os.path.exists(files_path_prefix + path + 'Bel/daily'):
+        os.mkdir(files_path_prefix + path + 'Bel/daily')
 
     flux, flux_quantiles = scale_to_bins(flux, quantiles_amount)
     height, width = flux.shape[1], flux.shape[2]
 
     a = np.zeros((height, width), dtype=float)
     b = np.zeros((height, width), dtype=float)
+    a[mask] = np.NaN
+    b[mask] = np.NaN
 
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
         set_0 = np.unique(flux[t - 1])
@@ -190,8 +195,8 @@ def count_1d_Bel(files_path_prefix: str,
                 a[points] = a_part
                 b[points] = np.sqrt(b_squared)
 
-        np.save(files_path_prefix + path + f'Bel/maps/A_{t + start_index}', a)
-        np.save(files_path_prefix + path + f'Bel/maps/B_{t + start_index}', b)
+        np.save(files_path_prefix + path + f'Bel/daily/A_{t + start_index}', a)
+        np.save(files_path_prefix + path + f'Bel/daily/B_{t + start_index}', b)
     return
 
 
@@ -205,7 +210,8 @@ def count_1d_Korolev(files_path_prefix: str,
                      start_index: int = 0,
                      ):
     """
-
+    Counts and saves to files_path_prefix + path + 'Kor/daily' A and B estimates for flux array for each day
+    t+start index for t in (time_start, time_end)
     :param files_path_prefix: path to the working directory
     :param flux: np.array with shape [time_steps, height, width]
     :param time_start: int counter of start day
@@ -223,15 +229,15 @@ def count_1d_Korolev(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + path + 'Kor'):
         os.mkdir(files_path_prefix + path + 'Kor')
 
-    if not os.path.exists(files_path_prefix + path + 'Kor/maps'):
-        os.mkdir(files_path_prefix + path + 'Kor/maps')
+    if not os.path.exists(files_path_prefix + path + 'Kor/daily'):
+        os.mkdir(files_path_prefix + path + 'Kor/daily')
 
-    a_map = np.zeros_like(flux, dtype=float)
-    b_map = np.zeros_like(flux, dtype=float)
-    a_map[:, np.isnan(flux[0])] = np.nan
-    b_map[:, np.isnan(flux[0])] = np.nan
+    a_map = np.zeros((flux.shape[1], flux.shape[2]), dtype=float)
+    b_map = np.zeros((flux.shape[1], flux.shape[2]), dtype=float)
+    a_map[np.isnan(flux[0])] = np.nan
+    b_map[np.isnan(flux[0])] = np.nan
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
-        print(f't = {t}')
+        # print(f't = {t}')
         flux_array, quantiles = scale_to_bins(flux[t - 1], quantiles_amount)
         flux_set = list(set(flux_array[np.logical_not(np.isnan(flux_array))].flat))
         for group in range(len(flux_set)):
@@ -266,9 +272,9 @@ def count_1d_Korolev(files_path_prefix: str,
             a_sum = sum(means * weights)
             b_sum = math.sqrt(sum(weights * (means ** 2 + sigmas_squared)))
 
-            a_map[t - 1][np.where(flux_array == value_t0)] = a_sum
-            b_map[t - 1][np.where(flux_array == value_t0)] = b_sum
+            a_map[np.where(flux_array == value_t0)] = a_sum
+            b_map[np.where(flux_array == value_t0)] = b_sum
 
-        np.save(files_path_prefix + path + f'Kor/maps/A_map_{start_index}-{start_index + time_end}.npy', a_map)
-        np.save(files_path_prefix + path + f'Kor/maps/B_map_{start_index}-{start_index + time_end}.npy', b_map)
+        np.save(files_path_prefix + path + f'Kor/daily/A_{t+start_index}.npy', a_map)
+        np.save(files_path_prefix + path + f'Kor/daily/B_{t+start_index}.npy', b_map)
     return

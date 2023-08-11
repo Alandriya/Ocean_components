@@ -7,7 +7,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from EM_hybrid import *
 from video import get_continuous_cmap
-from Kor_Bel_compare import plot_difference_1d, count_Bel_Kor_difference
+from Kor_Bel_compare import plot_difference_1d
 
 width = 181
 height = 161
@@ -130,19 +130,6 @@ def process_points(files_path_prefix: str,
                              path=f'Components/{flux_type}/plots/',
                              postfix=f'_point_({point[0]}, {point[1]})-{coeff_type}')
 
-        count_Bel_Kor_difference(files_path_prefix,
-                                 time_start,
-                                 time_end,
-                                 point_bigger,
-                                 point_size,
-                                 point,
-                                 n_components,
-                                 window_width,
-                                 ticks_by_day,
-                                 step_ticks,
-                                 timedelta,
-                                 flux_type,
-                                 2)
         if True or draw:
             plot_difference_1d(files_path_prefix,
                                time_start,
