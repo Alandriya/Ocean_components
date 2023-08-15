@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     # # load data
     training_data = torch.from_numpy(np.load(files_path_prefix + 'Forecast/Train/train_simple.npy'))
-    test_data = torch.from_numpy(np.load(files_path_prefix + 'Forecast/Train/test_simple.npy'))
+    test_data = torch.from_numpy(np.load(files_path_prefix + 'Forecast/Test/test_simple.npy'))
 
     # Download training data from open datasets.
     training_data = datasets.FashionMNIST(
@@ -63,6 +63,7 @@ if __name__ == '__main__':
     for i in range(torch.cuda.device_count()):
         print(torch.cuda.get_device_properties(i).name)
 
+    raise ValueError
     # create model
     model = Model()
     loss_fn = nn.CrossEntropyLoss()
