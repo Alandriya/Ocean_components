@@ -14,9 +14,9 @@ def plot_predictions(files_path_prefix: str,
                      model_name: str):
     fig, axs = plt.subplots(1, 3, figsize=(20, 10))
 
-    axs[0].title.set_text('Real values')
-    axs[1].title.set_text('Predicted values')
-    axs[2].title.set_text('Absolute difference')
+    axs[0].set_title('Real values', fontsize=20)
+    axs[1].set_title('Predicted values', fontsize=20)
+    axs[2].set_title('Absolute difference', fontsize=20)
 
     img = [None for _ in range(3)]
     cax = [None for _ in range(3)]
@@ -29,7 +29,7 @@ def plot_predictions(files_path_prefix: str,
     for t in tqdm.tqdm(range(Y_test.shape[0])):
         difference = np.abs(Y_predict[t] - Y_test[t])
         rmse = np.sqrt(np.sum(np.square(difference)))
-        fig.suptitle(f'{model_name}, day {t}, RMSE = {rmse:.2f}', fontsize=15)
+        fig.suptitle(f'{model_name}, day {t}, RMSE = {rmse:.2f}', fontsize=30)
 
         for i in range(3):
             divider = make_axes_locatable(axs[i])

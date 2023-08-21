@@ -1,3 +1,5 @@
+import os.path
+
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import make_pipeline
@@ -7,6 +9,8 @@ import numpy as np
 from statsmodels.tsa.vector_ar.var_model import VAR
 from plotter import *
 from struct import unpack
+import time
+import pandas as pd
 
 # Parameters
 files_path_prefix = 'D://Data/OceanFull/'
@@ -14,25 +18,32 @@ files_path_prefix = 'D://Data/OceanFull/'
 days_prediction = 7
 # width = 181
 # height = 161
-width = 10
-height = 10
+# width = 20
+# height = 20
 
 if __name__ == '__main__':
-    # get mask
-    maskfile = open(files_path_prefix + "mask", "rb")
-    binary_values = maskfile.read(29141)
-    maskfile.close()
-    mask = unpack('?' * 29141, binary_values)
-    mask = np.array(mask, dtype=int)
+    # load or create stats DataFrame
+    if not os.path.exists(files_path_prefix + f'Forecast/stat_df.xlsx'):
+        stat_df = pd.DataFrame(columns=['days prediction', 'width', 'height', 'model name', 'training time', 'RMSE'])
+    else:
+        stat_df = pd.read_excel(files_path_prefix + f'Forecast/stat_df.xlsx')
 
-    mask = np.ones(100)
     model_name = 'RandomForest'
     # load data
     # training_data = np.load(files_path_prefix + 'Forecast/Train/train_simple.npy')
     # test_data = np.load(files_path_prefix + 'Forecast/Test/test_simple.npy')
+    # maskfile = open(files_path_prefix + "mask", "rb")
+    # binary_values = maskfile.read(29141)
+    # maskfile.close()
+    # mask = unpack('?' * 29141, binary_values)
+    # mask = np.array(mask, dtype=int)
 
     training_data = np.load(files_path_prefix + 'Forecast/Train/train_sensible_cut.npy')
     test_data = np.load(files_path_prefix + 'Forecast/Test/test_sensible_cut.npy')
+
+    width = training_data.shape[2]
+    height = training_data.shape[1]
+    mask = np.ones(height * width)
 
     X_train = training_data[:len(training_data) - days_prediction]
     Y_train = training_data[days_prediction:]
@@ -52,12 +63,20 @@ if __name__ == '__main__':
 
     # ---------------------------------------------------------------------------------------------
     # set up and fit model
+    time_start = time.time()
     model = RandomForestRegressor()
     model_fit = model.fit(X_train, Y_train)
     Y_predict = model.predict(X_test)
+    time_fitting = time.time() - time_start
+    print(f'Model {model_name} was trained in {time_fitting: .1f} s')
+    rmse = np.sqrt(np.sum(np.square(Y_test - Y_predict)))
 
     # save predictions
     np.save(files_path_prefix + f'Forecast/Predictions/{model_name}.npy', Y_predict)
+
+    # save training info
+    stat_df.loc[len(stat_df)] = [days_prediction, width, height, model_name, time_fitting, rmse]
+    stat_df.to_excel(files_path_prefix + f'Forecast/stat_df.xlsx', index=False)
     # ---------------------------------------------------------------------------------------------
 
     # load predictions

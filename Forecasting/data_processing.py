@@ -39,8 +39,8 @@ if __name__ == '__main__':
     sensible_array = sensible_array.transpose()
     sensible_array = sensible_array.reshape((sensible_array.shape[0], 161, 181))
 
-    train = sensible_array[:1000, 100:110, 100:110]
+    train = sensible_array[:1000, 100:120, 100:120]
     np.save(files_path_prefix + 'Forecast/Train/train_sensible_cut.npy', train)
 
-    test = sensible_array[1000:1000 + 30, 100:110, 100:110]
+    test = sensible_array[1000:1000 + 30, 100:120, 100:120]
     np.save(files_path_prefix + 'Forecast/Test/test_sensible_cut.npy', test)
