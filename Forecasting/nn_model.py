@@ -1,30 +1,39 @@
 import torch
 from torch import nn
+import torchvision
+from torch.utils.data import Dataset
 import time
 import os
+
+
+class SimpleDataset(Dataset):
+    # defining values in the constructor
+    def __init__(self, x, y, transform=None):
+        self.x = x
+        self.y = y
+        self.transform = transform
+        self.len = x.shape[0]
+
+    # Getting the data samples
+    def __getitem__(self, idx):
+        sample = self.x[idx], self.y[idx]
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
+
+    # Getting data size/length
+    def __len__(self):
+        return self.len
 
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-        # # Defining the layers
-        # # RNN Layer
-        # self.rnn = nn.RNN(input_size, hidden_dim, n_layers, batch_first=True)
-        # # Fully connected layer
-        # self.fc = nn.Linear(hidden_dim, output_size)
 
-        self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(28*28, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 10)
-        )
 
     def forward(self, x):
-        x = self.flatten(x)
+        # transform 2d input to 3d tensor
         logits = self.linear_relu_stack(x)
         return logits
 
