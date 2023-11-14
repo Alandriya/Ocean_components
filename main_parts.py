@@ -641,3 +641,273 @@ if __name__ == '__main__':
     # latent_array = latent_array.reshape((latent_array.shape[1], 161, 181))
     #
     # count_correlations(files_path_prefix, sensible_array, latent_array, days_delta1, 14, 1)
+    # ---------------------------------------------------------------------------------------
+    # # Plot differences of mean years
+    # coeff_type = 'B'
+    # flux_type = 'sensible'
+    # start_year = 2009
+    # end_year = 2019
+    # postfix = 'absolute_difference'
+    # mean_year_Bel = np.load(files_path_prefix + f'Mean_year/{coeff_type}_2009-2019_{flux_type}_Bel.npy')
+    # mean_year_Kor = np.load(files_path_prefix + f'Mean_year/{coeff_type}_2009-2019_{flux_type}_Kor.npy')
+    # mean_year = np.abs(mean_year_Kor - mean_year_Bel)
+    # coeff_min = np.nanmin(mean_year)
+    # coeff_max = np.nanmax(mean_year)
+    #
+    # fig, axs = plt.subplots(2, 3, figsize=(20, 10))
+    # # fig.suptitle(f'{coeff_type} absolute differences {flux_type} mean year', fontsize=30)
+    # axs[0][0].title.set_text('February, 15')
+    # axs[0][1].title.set_text('April, 15')
+    # axs[0][2].title.set_text('June, 15')
+    # axs[1][0].title.set_text('August, 15')
+    # axs[1][1].title.set_text('October, 15')
+    # axs[1][2].title.set_text('December, 15')
+    # img = [None for _ in range(6)]
+    # cax = [None for _ in range(6)]
+    # days = [(datetime.datetime(start_year, i * 2, 15) - datetime.datetime(start_year, 1, 2)).days for i in range(1, 7)]
+    #
+    # # cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - coeff_min) / (coeff_max - coeff_min), 1])
+    # cmap = plt.get_cmap('Reds')
+    # cmap.set_bad('darkgreen', 1.0)
+    # for i in range(6):
+    #     divider = make_axes_locatable(axs[i // 3][i % 3])
+    #     cax[i] = divider.append_axes('right', size='5%', pad=0.3)
+    #     img[i] = axs[i // 3][i % 3].imshow(mean_year[days[i]],
+    #                                        interpolation='none',
+    #                                        cmap=cmap,
+    #                                        vmin=coeff_min,
+    #                                        vmax=coeff_max)
+    #
+    #     x_label_list = ['90W', '60W', '30W', '0']
+    #     y_label_list = ['EQ', '30N', '60N', '80N']
+    #     xticks = [0, 60, 120, 180]
+    #     yticks = [160, 100, 40, 0]
+    #
+    #     axs[i // 3][i % 3].set_xticks(xticks)
+    #     axs[i // 3][i % 3].set_yticks(yticks)
+    #     axs[i // 3][i % 3].set_xticklabels(x_label_list)
+    #     axs[i // 3][i % 3].set_yticklabels(y_label_list)
+    #     fig.colorbar(img[i], cax=cax[i], orientation='vertical')
+    #
+    # plt.tight_layout()
+    # fig.savefig(files_path_prefix + f'videos/Mean_year/{coeff_type}_{flux_type}_{start_year}-{end_year}_{postfix}.png')
+    # ----------------------------------------------------------------------------------------------
+    # # collect SST and PRESS to 10 years arrays 3d
+    # start_year = 1989
+    # bins_amount = 1000
+    # days_delta = days_delta2
+    # current_shift = 0
+    # sst_array = np.zeros((height * width, days_delta * 4))
+    # press_array = np.zeros_like(sst_array)
+    # for year in range(start_year, start_year + 10):
+    #     print(year)
+    #     sst_year = np.load(files_path_prefix + f'SST/SST_{year}.npy')
+    #     print(sst_year.shape)
+    #     sst_array[:, current_shift:current_shift + sst_year.shape[1]] = sst_year
+    #
+    #     press_year = np.load(files_path_prefix + f'Pressure/PRESS_{year}.npy')
+    #     press_array[:, current_shift:current_shift + sst_year.shape[1]] = press_year
+    #
+    #     current_shift += sst_year.shape[1]
+    #     print()
+    #
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{start_year + 10}.npy', sst_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{start_year + 10}.npy', press_array)
+
+    # get sum fluxes
+    # sensible_array = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{start_year+10}.npy')
+    # latent_array = np.load(files_path_prefix + f'Fluxes/LATENT_{start_year}-{start_year+10}.npy')
+    #
+    # flux_array = sensible_array + latent_array
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{start_year+10}.npy', flux_array)
+
+    # # Grouping by 1 day
+    # sst_array, press_array = load_prepare_fluxes(f'SST/SST_{start_year}-{start_year+10}.npy',
+    #                                              f'Pressure/PRESS_{start_year}-{start_year+10}.npy',
+    #                                              files_path_prefix,
+    #                                             prepare=False)
+    # print(sst_array.shape)
+    # np.save('D://Data/OceanFull/Data/' + f'SST/SST_{start_year}-{start_year+10}_grouped.npy', sst_array)
+    # np.save('D://Data/OceanFull/Data/' + f'Pressure/PRESS_{start_year}-{start_year + 10}_grouped.npy', press_array)
+    # del sst_array, press_array
+    #
+    # flux_array, _ = load_prepare_fluxes(f'Fluxes/FLUX_{start_year}-{start_year+10}.npy',
+    #                                     f'Fluxes/FLUX_{start_year}-{start_year+10}.npy',
+    #                                     files_path_prefix,
+    #                                     prepare=False)
+    # print(flux_array.shape)
+    # np.save('D://Data/OceanFull/Data/' + f'Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy', flux_array)
+
+    # # normalizing and collecting to bins
+    # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
+    #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
+    # else:
+    #     df = pd.read_excel(files_path_prefix + 'Scaling_df.xlsx')
+
+    # sst_grouped = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_grouped.npy')
+    # sst_min = np.nanmin(sst_grouped)
+    # sst_max = np.nanmax(sst_grouped)
+    # print(f'SST min = {sst_min}, max = {sst_max}')
+    # # df.loc[len(df)] = ['sst', start_year, sst_min, sst_max]
+    # sst = (sst_grouped - sst_min)/(sst_max - sst_min)
+    # del sst_grouped
+    # sst, _ = scale_to_bins(sst, bins_amount)
+    # np.save(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_norm_scaled.npy', sst)
+    # del sst
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx')
+    #
+    # press_grouped = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_grouped.npy')
+    # press_min = np.nanmin(press_grouped)
+    # press_max = np.nanmax(press_grouped)
+    # print(f'PRESS min = {press_min}, max = {press_max}')
+    # # df.loc[len(df)] = ['press', start_year, press_min, press_max]
+    # press = (press_grouped - press_min)/(press_max - press_min)
+    # del press_grouped
+    # press, _ = scale_to_bins(press, bins_amount)
+    # np.save(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_norm_scaled.npy', press)
+    # del press
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+    #
+    # flux_grouped = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy')
+    # flux_min = np.nanmin(flux_grouped)
+    # flux_max = np.nanmax(flux_grouped)
+    # print(f'FLUX min = {flux_min}, max = {flux_max}')
+    # # df.loc[len(df)] = ['flux', start_year, flux_min, flux_max]
+    # flux = (flux_grouped - flux_min)/(flux_max - flux_min)
+    # del flux_grouped
+    # flux, _ = scale_to_bins(flux, bins_amount)
+    # np.save(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_norm_scaled.npy', flux)
+    # del flux
+    # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+
+    # ----------------------------------------------------------------------------------------------
+    # # plot 3d
+    # flux = np.load(files_path_prefix + f'flux_{year_str}_grouped.npy')
+    # sst = np.load(files_path_prefix + f'sst_{year_str}_grouped.npy')
+    # press = np.load(files_path_prefix + f'press_{year_str}_grouped.npy')
+    # plot_flux_sst_press(files_path_prefix, flux, sst, press, 0, flux.shape[1] - 1,
+    #                     start_date=datetime.datetime(int(year_str), 1, 1, 0, 0), start_pic_num=days_delta7)
+
+    # ----------------------------------------------------------------------------------------------
+    # count ABF coefficients 3d
+    # start_year = 1989
+    # offset = days_delta1
+
+    # flux = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_norm_scaled.npy')
+    # sst = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_norm_scaled.npy')
+    # press = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_norm_scaled.npy')
+    # count_abf_coefficients(files_path_prefix,
+    #                        mask,
+    #                        sst,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='sst-press')
+    #
+    # count_abf_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        sst,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-sst')
+    #
+    # count_abf_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-press')
+    # ----------------------------------------------------------------------------------------------
+    # # count C and FS 3d
+    # time_start = days_delta1 + 1
+    # time_end = days_delta1 + days_delta2
+    # offset = 0
+    # # pair_name = 'flux-sst'
+    # # pair_name = 'flux-press'
+    # pair_name = 'sst-press'
+    # if pair_name == 'flux-sst':
+    #     names = ('Flux', 'SST')
+    # elif pair_name == 'flux-press':
+    #     names = ('Flux', 'Pressure')
+    # else:
+    #     names = ('SST', 'Pressure')
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+    #                                                                                  time_start,
+    #                                                                                  time_end,
+    #                                                                                  load_a=True,
+    #                                                                                  load_b=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
+    #                                                                                  )
+    # count_c_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=time_start+offset, pair_name=pair_name)
+    # count_f_separate_coeff(files_path_prefix, a_timelist, b_timelist, start_idx=time_start+offset, mean_width=7,
+    #                        pair_name=pair_name)
+    # ----------------------------------------------------------------------------------------------
+    # # plot coefficients 3d
+    # # pair_name = 'flux-sst'
+    # # pair_name = 'flux-press'
+    # pair_name = 'sst-press'
+    # if pair_name == 'flux-sst':
+    #     names = ('Flux', 'SST')
+    # elif pair_name == 'flux-press':
+    #     names = ('Flux', 'Pressure')
+    # else:
+    #     names = ('SST', 'Pressure')
+    # time_start = days_delta1 + 2
+    # time_end = days_delta1 + days_delta2
+    # offset = 1992
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+    #                                                                                  time_start + offset,
+    #                                                                                  time_end,
+    #                                                                                  load_a=True,
+    #                                                                                  load_b=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
+    #                                                                                  )
+    # plot_ab_coefficients(files_path_prefix,
+    #                      a_timelist,
+    #                      b_timelist,
+    #                      borders,
+    #                      0,
+    #                      len(a_timelist),
+    #                      start_pic_num=time_start + offset,
+    #                      names=names,
+    #                      path_local=f'3D/{pair_name}/',
+    #                      start_date=datetime.datetime(1979, 1, 1, 0, 0))
+
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+    #                                                                                  offset + 1,
+    #                                                                                  time_end-14,
+    #                                                                                  load_c=True,
+    #                                                                                  load_fs=False,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
+    #                                                                                  )
+    # plot_c_coeff(files_path_prefix, c_timelist, 0, len(c_timelist), start_pic_num=offset + 1,
+    #              pair_name=pair_name, path_local=f'3D/{pair_name}/')
+    # del c_timelist
+
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+    #                                                                                  offset + 1,
+    #                                                                                  time_end-14,
+    #                                                                                  load_c=False,
+    #                                                                                  load_fs=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
+    #                                                                                  )
+    # plot_fs_coeff(files_path_prefix, fs_timelist, borders, 0, len(fs_timelist), start_pic_num=offset+1,
+    #               pair_name=pair_name, names=names, path_local=f'3D/{pair_name}/')
+    # ----------------------------------------------------------------------------------------------
+    # count correlations 3d
+    # start_year = 1979
+    # offset = 0
+
+    # flux = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy')
+    # sst = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_grouped.npy')
+    # press = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_grouped.npy')
+    #
+    # count_correlations(files_path_prefix, flux, sst, offset, observations_per_day=1, names=('Flux', 'SST'))
+    # count_correlations(files_path_prefix, flux, press, offset, observations_per_day=1, names=('Flux', 'Pressure'))
+    # count_correlations(files_path_prefix, sst, press, offset, observations_per_day=1, names=('SST', 'Pressure'))
+    # ----------------------------------------------------------------------------------------------
