@@ -174,3 +174,98 @@ def plot_fluxes(files_path_prefix: str,
         fig.savefig(files_path_prefix + f'videos/Fluxes/Flux_{pic_num:05d}.png')
         pic_num += 1
     return
+
+
+def plot_flux_sst_press(files_path_prefix: str,
+                        flux: np.ndarray,
+                        sst: np.ndarray,
+                        press: np.ndarray,
+                        start: int,
+                        end: int,
+                        start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
+                        start_pic_num: int = 1
+                        ):
+    fig, axs = plt.subplots(1, 3, figsize=(20, 5))
+    img_flux, img_sst, img_press = None, None, None
+
+    flux_max = np.nanmax(flux)
+    flux_min = np.nanmin(flux)
+    sst_max = np.nanmax(sst)
+    sst_min = np.nanmin(sst)
+    press_max = np.nanmax(press)
+    press_min = np.nanmin(press)
+
+    cmap_flux = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
+    cmap_flux.set_bad('darkgreen', 1.0)
+    # cmap_sst = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    cmap_sst = plt.get_cmap('autumn')
+    cmap_sst.set_bad('darkgreen', 1.0)
+    # cmap_press = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    cmap_press = plt.get_cmap('YlOrBr')
+    cmap_press.set_bad('darkgreen', 1.0)
+
+    axs[0].set_title(f'Sum flux', fontsize=20)
+    divider = make_axes_locatable(axs[0])
+    cax_flux = divider.append_axes('right', size='5%', pad=0.3)
+
+    axs[1].set_title(f'SST', fontsize=20)
+    divider = make_axes_locatable(axs[1])
+    cax_sst = divider.append_axes('right', size='5%', pad=0.3)
+
+    axs[2].set_title(f'Pressure', fontsize=20)
+    divider = make_axes_locatable(axs[2])
+    cax_press = divider.append_axes('right', size='5%', pad=0.3)
+
+    x_label_list = ['90W', '60W', '30W', '0']
+    y_label_list = ['EQ', '30N', '60N', '80N']
+    xticks = [0, 60, 120, 180]
+    yticks = [160, 100, 40, 0]
+
+    pic_num = start_pic_num
+    for t in tqdm.tqdm(range(start, end)):
+        date = start_date + datetime.timedelta(days=(t - start))
+        fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
+
+        if img_flux is None:
+            img_flux = axs[0].imshow(flux[:, t].reshape(161, 181),
+                                     interpolation='none',
+                                     cmap=cmap_flux,
+                                     vmin=flux_min,
+                                     vmax=flux_max)
+            axs[0].set_xticks(xticks)
+            axs[0].set_yticks(yticks)
+            axs[0].set_xticklabels(x_label_list)
+            axs[0].set_yticklabels(y_label_list)
+
+            img_sst = axs[1].imshow(sst[:, t].reshape(161, 181),
+                                     interpolation='none',
+                                     cmap=cmap_sst,
+                                     vmin=sst_min,
+                                     vmax=sst_max)
+            axs[1].set_xticks(xticks)
+            axs[1].set_yticks(yticks)
+            axs[1].set_xticklabels(x_label_list)
+            axs[1].set_yticklabels(y_label_list)
+
+            img_press = axs[2].imshow(press[:, t].reshape(161, 181),
+                                     interpolation='none',
+                                     cmap=cmap_press,
+                                     vmin=press_min,
+                                     vmax=press_max)
+            axs[2].set_xticks(xticks)
+            axs[2].set_yticks(yticks)
+            axs[2].set_xticklabels(x_label_list)
+            axs[2].set_yticklabels(y_label_list)
+        else:
+            img_flux.set_data(flux[:, t].reshape(161, 181))
+            img_sst.set_data(sst[:, t].reshape(161, 181))
+            img_press.set_data(press[:, t].reshape(161, 181))
+
+        fig.colorbar(img_flux, cax=cax_flux, orientation='vertical')
+        fig.colorbar(img_sst, cax=cax_sst, orientation='vertical')
+        fig.colorbar(img_press, cax=cax_press, orientation='vertical')
+
+        fig.tight_layout()
+        fig.savefig(files_path_prefix + f'videos/3D/flux-sst-press/{pic_num:05d}.png')
+        pic_num += 1
+    return
