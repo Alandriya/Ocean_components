@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import datetime
 import gc
@@ -23,7 +25,10 @@ def plot_ab_coefficients(files_path_prefix: str,
                          time_start: int,
                          time_end: int,
                          step: int = 1,
-                         start_pic_num: int = 0):
+                         start_pic_num: int = 0,
+                         names: tuple = ('Sensible', 'Latent'),
+                         path_local: str = '',
+                         start_date: datetime = datetime.datetime(1979, 1, 1, 0, 0)):
     """
     Plots A, B dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
     directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -52,47 +57,50 @@ def plot_ab_coefficients(files_path_prefix: str,
     img_a_sens, img_a_lat = None, None
     img_b = [None for _ in range(4)]
 
-    # TODO change - it's not a very good way to cut the outliers
-    borders[3] = 1000.0
+    a1_min = borders[0]
+    a1_max = borders[1]
+    a2_min = borders[2]
+    a2_max = borders[3]
 
-    a_min = borders[0]
-    a_max = borders[1]
-    # b_min = borders[2]
-    b_min = 0
-    b_max = borders[3]
+    b_min = borders[4]
+    b_max = borders[5]
 
-    cmap_a = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - a_min) / (a_max - a_min), 1])
-    cmap_a.set_bad('darkgreen', 1.0)
+    cmap_a1 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a1_min / (a1_max - a1_min), 1])
+    cmap_a1.set_bad('darkgreen', 1.0)
 
-    axsa[1].set_title(f'Latent', fontsize=20)
-    divider = make_axes_locatable(axsa[1])
-    cax_a_lat = divider.append_axes('right', size='5%', pad=0.3)
+    cmap_a2 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a2_min / (a2_max - a2_min), 1])
+    cmap_a2.set_bad('darkgreen', 1.0)
 
-    axsa[0].set_title(f'Sensible', fontsize=20)
+    axsa[0].set_title(f'A - {names[0]}', fontsize=20)
     divider = make_axes_locatable(axsa[0])
     cax_a_sens = divider.append_axes('right', size='5%', pad=0.3)
+
+    axsa[1].set_title(f'A - {names[1]}', fontsize=20)
+    divider = make_axes_locatable(axsa[1])
+    cax_a_lat = divider.append_axes('right', size='5%', pad=0.3)
 
     cax_b = list()
     for i in range(4):
         divider = make_axes_locatable(axsb[i // 2][i % 2])
         cax_b.append(divider.append_axes('right', size='5%', pad=0.3))
         if i == 0:
-            axsb[i // 2][i % 2].set_title(f'Sensible - sensible', fontsize=20)
+            axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[0]}', fontsize=20)
         elif i == 3:
-            axsb[i // 2][i % 2].set_title(f'Latent - latent', fontsize=20)
+            axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[1]}', fontsize=20)
         elif i == 1:
-            axsb[i // 2][i % 2].set_title(f'Sensible - latent', fontsize=20)
+            axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[1]}', fontsize=20)
         elif i == 2:
-            axsb[i // 2][i % 2].set_title(f'Latent - sensible', fontsize=20)
+            axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[0]}', fontsize=20)
 
-    zero_percent = abs(0 - b_min) / (b_max - b_min)
-    # cmap_b = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, zero_percent, 1])
+    # zero_percent = abs(0 - b_min) / (b_max - b_min)
+    # cmap_b = get_continuous_cmap(['#00bfff', '#ffffff', '#b22222'], [0, zero_percent, 1])
     cmap_b = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    # cmap_b = plt.get_cmap('autumn').copy()
     cmap_b.set_bad('darkgreen', 1.0)
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
-        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
+        date = start_date + datetime.timedelta(days=start_pic_num + (t - time_start))
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
@@ -101,9 +109,9 @@ def plot_ab_coefficients(files_path_prefix: str,
         if img_a_sens is None:
             img_a_sens = axsa[0].imshow(a_sens,
                                         interpolation='none',
-                                        cmap=cmap_a,
-                                        vmin=a_min,
-                                        vmax=a_max)
+                                        cmap=cmap_a1,
+                                        vmin=a1_min,
+                                        vmax=a1_max)
             axsa[0].set_xticks(xticks)
             axsa[0].set_yticks(yticks)
             axsa[0].set_xticklabels(x_label_list)
@@ -116,9 +124,9 @@ def plot_ab_coefficients(files_path_prefix: str,
         if img_a_lat is None:
             img_a_lat = axsa[1].imshow(a_lat,
                                        interpolation='none',
-                                       cmap=cmap_a,
-                                       vmin=a_min,
-                                       vmax=a_max)
+                                       cmap=cmap_a2,
+                                       vmin=a2_min,
+                                       vmax=a2_max)
             axsa[1].set_xticks(xticks)
             axsa[1].set_yticks(yticks)
             axsa[1].set_xticklabels(x_label_list)
@@ -127,7 +135,10 @@ def plot_ab_coefficients(files_path_prefix: str,
             img_a_lat.set_data(a_lat)
 
         figa.colorbar(img_a_lat, cax=cax_a_lat, orientation='vertical')
-        figa.savefig(files_path_prefix + f'videos/A/A_{pic_num:05d}.png')
+        if not os.path.exists(files_path_prefix + f'videos/{path_local}A'):
+            os.mkdir(files_path_prefix + f'videos/{path_local}A')
+        # figa.tight_layout()
+        figa.savefig(files_path_prefix + f'videos/{path_local}A/A_{pic_num:05d}.png')
 
         figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         for i in range(4):
@@ -136,7 +147,7 @@ def plot_ab_coefficients(files_path_prefix: str,
                                                       interpolation='none',
                                                       cmap=cmap_b,
                                                       vmin=0,
-                                                      vmax=borders[3])
+                                                      vmax=b_max[i])
                 axsb[i // 2][i % 2].set_xticks(xticks)
                 axsb[i // 2][i % 2].set_yticks(yticks)
                 axsb[i // 2][i % 2].set_xticklabels(x_label_list)
@@ -146,7 +157,10 @@ def plot_ab_coefficients(files_path_prefix: str,
 
             figb.colorbar(img_b[i], cax=cax_b[i], orientation='vertical')
 
-        figb.savefig(files_path_prefix + f'videos/B/B_{pic_num:05d}.png')
+        if not os.path.exists(files_path_prefix + f'videos/{path_local}B'):
+            os.mkdir(files_path_prefix + f'videos/{path_local}B')
+        # figb.tight_layout()
+        figb.savefig(files_path_prefix + f'videos/{path_local}B/B_{pic_num:05d}.png')
         pic_num += 1
 
         del a_sens, a_lat, b_matrix
@@ -159,7 +173,9 @@ def plot_c_coeff(files_path_prefix: str,
                  time_start: int,
                  time_end: int,
                  step: int = 1,
-                 start_pic_num: int = 0):
+                 start_pic_num: int = 0,
+                 pair_name: str = '',
+                 path_local: str = ''):
     """
     Plots C - correltion between A and B coefficients dynamics as frames and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -177,10 +193,13 @@ def plot_c_coeff(files_path_prefix: str,
     :return:
     """
     print('Saving C pictures')
+    if not os.path.exists(files_path_prefix + f'videos/{path_local}C'):
+        os.mkdir(files_path_prefix + f'videos/{path_local}C')
 
     # prepare images
     figc, axsc = plt.subplots(1, 2, figsize=(20, 10))
-    axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
+    # axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
+    axsc[0].set_title(f'A1-A2 correlation', fontsize=20)
     divider = make_axes_locatable(axsc[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -196,7 +215,7 @@ def plot_c_coeff(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         date_end = date + datetime.timedelta(days=14)
-        figc.suptitle(f'Correlations\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        figc.suptitle(f'{pair_name} correlations\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
                                    interpolation='none',
@@ -226,7 +245,7 @@ def plot_c_coeff(files_path_prefix: str,
 
         figc.colorbar(img_2, cax=cax_2, orientation='vertical')
 
-        figc.savefig(files_path_prefix + f'videos/C/C_{pic_num:05d}.png')
+        figc.savefig(files_path_prefix + f'videos/{path_local}C/C_{pic_num:05d}.png')
         pic_num += 1
     return
 
@@ -297,7 +316,9 @@ def plot_fs_coeff(files_path_prefix: str,
                   time_end: int,
                   step: int = 1,
                   start_pic_num: int = 0,
-                  mean_width: int = 7):
+                  mean_width: int = 7,
+                  names: tuple = (),
+                  path_local: str = ''):
     """
     Plots FS - fractions mean(abs(a_sens)) / mean(abs(B[0]))  and mean(abs(a_lat) / mean(abs(B[1]))
     coefficients' where mean is taken in [t, t + mean_width] days window and saves them into
@@ -315,21 +336,24 @@ def plot_fs_coeff(files_path_prefix: str,
     :return:
     """
     print('Saving FS pictures')
-    f_max = borders[5]
+    if not os.path.exists(files_path_prefix + f'videos/{path_local}FS'):
+        os.mkdir(files_path_prefix + f'videos/{path_local}FS')
+
+    f_max = borders[7]
 
     # prepare images
     figf, axsf = plt.subplots(1, 2, figsize=(20, 10))
-    axsf[0].set_title(f'Sensible', fontsize=20)
+    axsf[0].set_title(names[0], fontsize=20)
     divider = make_axes_locatable(axsf[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
 
-    axsf[1].set_title(f'Latent', fontsize=20)
+    axsf[1].set_title(names[1], fontsize=20)
     divider = make_axes_locatable(axsf[1])
     cax_2 = divider.append_axes('right', size='5%', pad=0.3)
 
     img_1, img_2 = None, None
     cmap = colors.ListedColormap(['MintCream', 'Aquamarine', 'blue', 'red', 'DarkRed'])
-    boundaries = [0, 0.25, 0.5, 1.0, 1.5, max(f_max, 2.0)]
+    boundaries = [0, 0.25, 0.5, 1.0, 1.5, min(f_max, 2.0)]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
     cmap.set_bad('darkgreen', 1.0)
 
@@ -337,15 +361,25 @@ def plot_fs_coeff(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         date_end = date + datetime.timedelta(days=mean_width)
-        figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - '
+        # figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - '
+        #               f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        figf.suptitle(f'Fraction a/b for pair {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")} - '
                       f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
         if img_1 is None:
             img_1 = axsf[0].imshow(f_timelist[t][0],
                                    interpolation='none',
                                    cmap=cmap,
                                    norm=norm)
+            axsf[0].set_xticks(xticks)
+            axsf[0].set_yticks(yticks)
+            axsf[0].set_xticklabels(x_label_list)
+            axsf[0].set_yticklabels(y_label_list)
         else:
             img_1.set_data(f_timelist[t][0])
+            axsf[0].set_xticks(xticks)
+            axsf[0].set_yticks(yticks)
+            axsf[0].set_xticklabels(x_label_list)
+            axsf[0].set_yticklabels(y_label_list)
         figf.colorbar(img_1, cax=cax_1, orientation='vertical')
 
         if img_2 is None:
@@ -353,12 +387,20 @@ def plot_fs_coeff(files_path_prefix: str,
                                    interpolation='none',
                                    cmap=cmap,
                                    norm=norm)
+            axsf[1].set_xticks(xticks)
+            axsf[1].set_yticks(yticks)
+            axsf[1].set_xticklabels(x_label_list)
+            axsf[1].set_yticklabels(y_label_list)
         else:
             img_2.set_data(f_timelist[t][1])
+            axsf[1].set_xticks(xticks)
+            axsf[1].set_yticks(yticks)
+            axsf[1].set_xticklabels(x_label_list)
+            axsf[1].set_yticklabels(y_label_list)
 
         figf.colorbar(img_2, cax=cax_2, orientation='vertical')
         figf.tight_layout()
-        figf.savefig(files_path_prefix + f'videos/FS/FS_{pic_num:05d}.png')
+        figf.savefig(files_path_prefix + f'videos/{path_local}FS/FS_{pic_num:05d}.png')
         pic_num += 1
     return
 
