@@ -8,7 +8,9 @@ from copy import deepcopy
 from skimage.measure import block_reduce
 import datetime
 
-files_path_prefix = 'D://Data/OceanFull/'
+# files_path_prefix = 'D://Data/OceanFull/'
+width = 181
+height = 161
 
 
 def sort_by_means(files_path_prefix, flux_type):
@@ -114,7 +116,8 @@ def load_ABCF(files_path_prefix,
               load_c=False,
               load_f=False,
               load_fs=False,
-              verbose=False):
+              verbose=False,
+              path_local: str = 'Coeff_data'):
     """
     Loads data from files_path_prefix + coeff_data directory and counts borders
     :param files_path_prefix: path to the working directory
@@ -129,38 +132,56 @@ def load_ABCF(files_path_prefix,
     """
     a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist = list(), list(), list(), list(), list()
 
-    a_max = 0
-    a_min = 0
-    b_max = 0
-    b_min = 0
+    a1_max, a2_max = 0, 0
+    a1_min, a2_min = 0, 0
+
+    b_max = [0, 0, 0, 0]
+    b_min = [0, 0, 0, 0]
     f_min = 10
     f_max = -1
+
+    maskfile = open(files_path_prefix + "mask", "rb")
+    binary_values = maskfile.read(29141)
+    maskfile.close()
+    mask = unpack('?' * 29141, binary_values)
+    mask = np.array(mask, dtype=int)
 
     if verbose:
         print('Loading ABC data')
     for t in range(time_start, time_end):
         if load_a:
-            a_sens = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')
-            a_lat = np.load(files_path_prefix + f'Coeff_data/{t}_A_lat.npy')
+            a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
+            a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
             a_timelist.append([a_sens, a_lat])
 
-            a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
-            a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
+            a1_max = max(a1_max, np.nanmax(a_sens))
+            a1_min = min(a1_min, np.nanmin(a_sens))
+            a2_max = max(a2_max, np.nanmax(a_lat))
+            a2_min = min(a2_min, np.nanmin(a_lat))
+
+            # a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
+            # a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
 
         if load_b:
-            b_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_B.npy')
+            b_matrix = np.load(files_path_prefix + f'{path_local}/{t}_B.npy')
+            for i in range(4):
+                np.nan_to_num(b_matrix[i], False, -10)
+                b_matrix[i][np.logical_not(mask.reshape((height, width)))] = np.nan
+
+                b_max[i] = max(b_max[i], np.nanmax(b_matrix[i]))
+                b_min[i] = min(b_min[i], np.nanmin(b_matrix[i]))
             b_timelist.append(b_matrix)
-            b_max = max(b_max, np.nanmax(b_matrix))
-            b_min = min(b_min, np.nanmin(b_matrix))
+
 
         if load_f:
-            f = np.load(files_path_prefix + f'Coeff_data/{t}_F.npy')
+            f = np.load(files_path_prefix + f'{path_local}/{t}_F.npy')
             f_timelist.append(f)
             if np.isfinite(np.nanmax(f)):
                 f_max = max(f_max, np.nanmax(f))
             f_min = min(f_min, np.nanmin(f))
         if load_fs:
-            fs = np.load(files_path_prefix + f'Coeff_data/{t}_F_new.npy')
+            # fs = np.load(files_path_prefix + f'{path_local}/{t}_FS.npy')
+            fs = np.load(files_path_prefix + f'{path_local}/{t}_F_separate.npy')
             fs_timelist.append(fs)
             if np.isfinite(np.nanmax(fs)):
                 f_max = max(f_max, np.nanmax(fs))
@@ -168,12 +189,12 @@ def load_ABCF(files_path_prefix,
 
         if load_c:
             try:
-                corr_matrix = np.load(files_path_prefix + f'Coeff_data/{t}_C.npy')
+                corr_matrix = np.load(files_path_prefix + f'{path_local}/{t}_C.npy')
                 c_timelist.append(corr_matrix)
             except FileNotFoundError:
                 pass
 
-    borders = [a_min, a_max, b_min, b_max, f_min, f_max]
+    borders = [a1_min, a1_max, a2_min, a2_max, b_min, b_max, f_min, f_max]
     return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders
 
 
@@ -182,8 +203,8 @@ def scale_to_bins(arr, bins=100):
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
-    # for j in tqdm.tqdm(range(bins - 1)):
-    for j in range(bins - 1):
+    for j in tqdm.tqdm(range(bins - 1)):
+    # for j in range(bins - 1):
         arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
             (quantiles[j] + quantiles[j + 1]) / 2
 
@@ -192,7 +213,10 @@ def scale_to_bins(arr, bins=100):
     return arr_scaled, quantiles
 
 
-def load_prepare_fluxes(sensible_filename, latent_filename, prepare=True):
+def load_prepare_fluxes(sensible_filename: np.ndarray,
+                        latent_filename: np.ndarray,
+                        files_path_prefix: str = 'D://Data/OceanFull/',
+                        prepare=True):
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
