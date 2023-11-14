@@ -245,7 +245,8 @@ def count_correlations(files_path_prefix: str,
                        latent_array: np.ndarray,
                        offset: int,
                        window_length: int=14,
-                       observations_per_day: int=4,):
+                       observations_per_day: int=4,
+                       names: tuple = (),):
     """
     Counts Pearson correlations of the fluxes
     :param files_path_prefix: path to the working directory
@@ -259,15 +260,16 @@ def count_correlations(files_path_prefix: str,
     corr = np.zeros((161, 181), dtype=float)
     for i in range(161):
         for j in range(181):
-            if np.isnan(sensible_array[0, i, j]).any():
+            if np.isnan(sensible_array[i * 181 + j, 0]).any():
                 corr[i, j] = np.nan
 
-    for t in tqdm.tqdm(range(0, len(sensible_array)-window_length*observations_per_day, observations_per_day)):
-        sensible = sensible_array[t:t+window_length*observations_per_day]
-        latent = latent_array[t:t+window_length*observations_per_day]
+    for t in tqdm.tqdm(range(0, sensible_array.shape[1] -window_length*observations_per_day, observations_per_day)):
+        sensible = sensible_array[:, t:t+window_length*observations_per_day]
+        latent = latent_array[:, t:t+window_length*observations_per_day]
         for i in range(161):
             for j in range(181):
-                if not np.isnan(sensible[:, i, j]).any():
-                    corr[i, j] = pearsonr(sensible[:, i, j], latent[:, i, j])[0]
-        np.save(files_path_prefix + f'Flux_correlations/C_{t+offset}.npy', corr)
+                if not np.isnan(sensible[i * 181 + j]).any() and not np.isnan(latent[i * 181 + j]).any():
+                    corr[i, j] = pearsonr(sensible[i * 181 + j, :], latent[i * 181 + j, :])[0]
+        # np.save(files_path_prefix + f'Flux_correlations/C_{t+offset}.npy', corr)
+        np.save(files_path_prefix + f'Coeff_data_3d/Correlations/{names[0]}-{names[1]}_{t + offset}.npy', corr)
     return
