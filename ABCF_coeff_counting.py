@@ -21,10 +21,10 @@ def count_abf_coefficients(files_path_prefix: str,
                            latent_array: np.ndarray,
                            time_start: int = 0,
                            time_end: int = 0,
-                           offset: int = 0):
+                           offset: int = 0,
+                           pair_name: str = ''):
     """
     Counts A B and F coefficients, saves them to files_path_prefix + Coeff_data dir.
-
     :param files_path_prefix: path to the working directory
     :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
         of interest
@@ -34,13 +34,14 @@ def count_abf_coefficients(files_path_prefix: str,
     :param time_end: offset in days from the beginning of the flux arrays for the last counted element
         (that day included!)
     :param offset: offset in days from 01.01.1979, indicating the day of corresponding index 0 in flux arrays
+    :param pair_name:
     :return:
     """
     # !!NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
     # but it is absolute in terms of fluxes array from the input indexing
-    # for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
-    for t_absolute in range(time_start + 1, time_end + 1):
-        # if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
+    for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
+    # for t_absolute in range(time_start + 1, time_end + 1):
+    #     if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
         if True:
             t_rel = t_absolute - time_start
             a_sens = np.zeros((161, 181), dtype=float)
@@ -135,11 +136,18 @@ def count_abf_coefficients(files_path_prefix: str,
                     else:
                         f[i, j] = np.nan
 
-            # save data
-            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_sens.npy', a_sens)
-            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
-            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
-            np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
+            # # save data
+            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_sens.npy', a_sens)
+            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
+            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
+            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
+
+            if pair_name:
+                # save data
+                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_sens.npy', a_sens)
+                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_lat.npy', a_lat)
+                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_B.npy', b_matrix)
+                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_F.npy', f)
     return
 
 
@@ -147,7 +155,9 @@ def count_c_coeff(files_path_prefix: str,
                   a_timelist: list,
                   b_timelist: list,
                   start_idx: int = 1,
-                  time_width: int = 14):
+                  time_width: int = 14,
+                  pair_name: str = '',
+                  ):
     """
     Counts Pearson correlation between A and B coefficients on windows with length time_width on the range
     (0, len(a_timelist) - time_width) and saves them in files_path_prefix + Coeff_data dir.
@@ -194,7 +204,7 @@ def count_c_coeff(files_path_prefix: str,
                     c_grid[1, i, j] = pearsonr(b_all[:, 0, i, j], b_all[:, 3, i, j])[0]
                     # c_grid[2, i, j] = pearsonr(a_sens_all[:, i, j], b_all[:, 0, i, j])[0]
                     # c_grid[3, i, j] = pearsonr(a_lat_all[:, i, j], b_all[:, 3, i, j])[0]
-        np.save(files_path_prefix + f'Coeff_data/{start_idx + t_start}_C.npy', c_grid)
+        np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_start + start_idx)}_C.npy', c_grid)
     return
 
 
@@ -262,7 +272,11 @@ def parallel_AB(cpu_count: int, filename_sensible: str, filename_latent: str, of
     return
 
 
-def count_correlation_fluxes(files_path_prefix: str, start: int = 0, end: int = 0, time_width: int = 14 * 4):
+def count_correlation_fluxes(files_path_prefix: str,
+                             start: int = 0,
+                             end: int = 0,
+                             time_width: int = 14 * 4,
+                             ):
     """
     Counts correlation in time_width days interval starting from start day, and until the right border of the window is
     less than end index.
@@ -360,10 +374,10 @@ def count_fraction(files_path_prefix: str,
                     if b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0] >= 0:
                         f[i, j] = (abs(a_vec[0] + a_vec[1]))/math.sqrt(b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0])
                     else:
-                        print(f'point ({i}, {j}) time {t_start} value {b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0]: .10f}')
+                        # print(f'point ({i}, {j}) time {t_start} value {b_part[0,0]**2 + b_part[1,1]**2 + b_part[0,1] + b_part[1,0]: .10f}')
                         f[i, j] = np.nan
         # np.save(files_path_prefix + f'Coeff_data/{t}_F.npy', f)
-        np.save(files_path_prefix + f'Coeff_data/{t_start + start_idx}_F_new.npy', f)
+        # np.save(files_path_prefix + f'Coeff_data/{t_start + start_idx}_F_new.npy', f)
     return
 
 
@@ -371,7 +385,9 @@ def count_f_separate_coeff(files_path_prefix: str,
                            a_timelist: list,
                            b_timelist: list,
                            start_idx: int = 1,
-                           mean_width: int = 7):
+                           mean_width: int = 7,
+                           pair_name: str = '',
+                           ):
     """
     Counts FS - fractions mean(abs(a_sens)) / mean(abs(B[0]))  and mean(abs(a_lat) / mean(abs(B[1]))
     coefficients' where mean is taken in [t, t + mean_width] days window for every point in grid.
@@ -415,5 +431,5 @@ def count_f_separate_coeff(files_path_prefix: str,
                     f_grid[0, i, j] = abs(a_sens[i, j]) / abs(b_sens[i, j])
                     f_grid[1, i, j] = abs(a_lat[i, j]) / abs(b_lat[i, j])
 
-        np.save(files_path_prefix + f'Coeff_data/{start_idx + t_start}_F_separate.npy', f_grid)
+        np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{start_idx + t_start}_FS.npy', f_grid)
     return
