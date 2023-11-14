@@ -35,12 +35,12 @@ if __name__ == '__main__':
     days_delta5 = (datetime.datetime(2022, 4, 2, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta6 = (datetime.datetime(2022, 9, 30, 0, 0) - datetime.datetime(2022, 4, 2, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    sensible_array = np.load(files_path_prefix + 'sensible_grouped_2019-2022.npy')
+    sensible_array = np.load(files_path_prefix + 'sensible_grouped_2009-2019.npy')
     sensible_array = sensible_array.transpose()
     sensible_array = sensible_array.reshape((sensible_array.shape[0], 161, 181))
 
-    train = sensible_array[:1000, 100:120, 100:120]
-    np.save(files_path_prefix + 'Forecast/Train/train_sensible_cut.npy', train)
+    train = sensible_array[:3000, 100:120, 100:120]
+    np.save(files_path_prefix + 'Forecast/Train/train_sensible.npy', train)
 
-    test = sensible_array[1000:1000 + 30, 100:120, 100:120]
-    np.save(files_path_prefix + 'Forecast/Test/test_sensible_cut.npy', test)
+    test = sensible_array[3000:, 100:120, 100:120]
+    np.save(files_path_prefix + 'Forecast/Test/test_sensible.npy', test)

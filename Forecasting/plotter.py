@@ -27,7 +27,7 @@ def plot_predictions(files_path_prefix: str,
     cmap = plt.get_cmap('Blues')
     cmap.set_bad('darkgreen', 1.0)
     for t in tqdm.tqdm(range(Y_test.shape[0])):
-        difference = np.abs(Y_predict[t] - Y_test[t])
+        difference = np.array(np.abs(Y_predict[t] - Y_test[t]))
         rmse = np.sqrt(np.sum(np.square(difference)))
         fig.suptitle(f'{model_name}, day {t}, RMSE = {rmse:.2f}', fontsize=30)
 

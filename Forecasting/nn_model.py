@@ -27,14 +27,20 @@ class SimpleDataset(Dataset):
 
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, days_known, days_prediction, channels):
         super(Model, self).__init__()
-
+        self.days_known = days_known
+        self.days_prediction = days_prediction
+        self.channels = channels
+        # channels = 1 for only lags or 3 for lags, A and B lags
 
 
     def forward(self, x):
-        # transform 2d input to 3d tensor
-        logits = self.linear_relu_stack(x)
+        conv = nn.Conv3d(in_channels=self.channels,
+                         out_channels=1,
+                         kernel_size=(3, 3),
+
+                         )
         return logits
 
 
