@@ -6,7 +6,7 @@ from struct import unpack
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from EM_hybrid import *
-from video import get_continuous_cmap
+from Plotting.video import get_continuous_cmap
 from Kor_Bel_compare import plot_difference_1d
 
 width = 181
@@ -175,7 +175,7 @@ def parallel_Korolev(files_path_prefix: str,
             all_points.append(p)
 
     # TODO delete
-    from plot_fluxes import plot_typical_points
+    from Plotting.plot_fluxes import plot_typical_points
     points = plot_typical_points(files_path_prefix, mask)
     all_points = [p[0] * width + p[1] for p in points]
 
