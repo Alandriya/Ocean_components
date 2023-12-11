@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from video import get_continuous_cmap
+from Plotting.video import get_continuous_cmap
 
 
 def plot_flux_correlations(files_path_prefix: str,

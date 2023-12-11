@@ -7,7 +7,7 @@ import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from video import get_continuous_cmap
+from Plotting.video import get_continuous_cmap
 import seaborn as sns
 import scipy
 from VarGamma import fit_ml, pdf, cdf
@@ -57,13 +57,16 @@ def plot_ab_coefficients(files_path_prefix: str,
     img_a_sens, img_a_lat = None, None
     img_b = [None for _ in range(4)]
 
-    a1_min = borders[0]
-    a1_max = borders[1]
-    a2_min = borders[2]
-    a2_max = borders[3]
+    # TODO remove
+    a1_min = borders[0] / 5
+    a1_max = borders[1] / 5
+    a2_min = borders[2] / 5
+    a2_max = borders[3] / 5
 
     b_min = borders[4]
     b_max = borders[5]
+    b_max[1] /= 10
+    b_max[2] /= 10
 
     cmap_a1 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a1_min / (a1_max - a1_min), 1])
     cmap_a1.set_bad('darkgreen', 1.0)
@@ -101,6 +104,9 @@ def plot_ab_coefficients(files_path_prefix: str,
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = start_date + datetime.timedelta(days=start_pic_num + (t - time_start))
+        # if os.path.exists(files_path_prefix + f'videos/{path_local}A/A_{pic_num:05d}.png'):
+        #     pic_num += 1
+        #     continue
         a_sens = a_timelist[t][0]
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]

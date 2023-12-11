@@ -87,7 +87,7 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     if os.path.exists(video_name):
         os.remove(video_name)
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', tmp_dir + f"{pic_prefix}%5d.png",
+        'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
         '-r', '5', '-pix_fmt', 'yuv420p', video_name,
     ])
     return

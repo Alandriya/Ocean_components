@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import datetime
 import numpy as np
-from video import get_continuous_cmap
+from Plotting.video import get_continuous_cmap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import math
 import matplotlib.dates as mdates
