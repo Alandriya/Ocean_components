@@ -1,28 +1,4 @@
-import datetime
-import os.path
-import time
-
-import numpy as np
-import pandas as pd
-import scipy.stats
-import tqdm
-
-from video import *
-from plot_fluxes import *
-from plot_Bel_coefficients import *
-from data_processing import *
-from ABCF_coeff_counting import *
-from func_estimation import *
-from data_processing import load_prepare_fluxes
-from func_estimation import estimate_a_flux_by_months
-from extreme_evolution import *
-import cycler
-from EM_hybrid import *
-from fluxes_distribution import *
 from SRS_count_coefficients import *
-from copy import deepcopy
-import shutil
-
 
 # Parameters
 files_path_prefix = 'D://Data/OceanFull/'
@@ -790,12 +766,13 @@ if __name__ == '__main__':
 
     # ----------------------------------------------------------------------------------------------
     # count ABF coefficients 3d
-    # start_year = 1989
-    # offset = days_delta1
-
-    # flux = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_norm_scaled.npy')
-    # sst = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_norm_scaled.npy')
-    # press = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_norm_scaled.npy')
+    # start_year = 2019
+    # end_year = 2023
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #
+    # flux = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{end_year}_norm_scaled.npy')
+    # sst = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{end_year}_norm_scaled.npy')
+    # press = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{end_year}_norm_scaled.npy')
     # count_abf_coefficients(files_path_prefix,
     #                        mask,
     #                        sst,
@@ -819,13 +796,13 @@ if __name__ == '__main__':
     #                        flux,
     #                        press,
     #                        time_start=0,
-    #                        time_end=sst.shape[1] - 1,
+    #                        time_end=flux.shape[1] - 1,
     #                        offset=offset,
     #                        pair_name='flux-press')
     # ----------------------------------------------------------------------------------------------
     # # count C and FS 3d
-    # time_start = days_delta1 + 1
-    # time_end = days_delta1 + days_delta2
+    # time_start = days_delta1 + days_delta2 + days_delta3 + days_delta4 + 1
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
     # offset = 0
     # # pair_name = 'flux-sst'
     # # pair_name = 'flux-press'
@@ -849,24 +826,27 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------
     # # plot coefficients 3d
     # # pair_name = 'flux-sst'
-    # # pair_name = 'flux-press'
-    # pair_name = 'sst-press'
+    # pair_name = 'flux-press'
+    # # pair_name = 'sst-press'
+    #
+    # time_start = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # offset = 0
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+    #                                                                                  time_start + offset + 1,
+    #                                                                                  time_end,
+    #                                                                                  load_a=True,
+    #                                                                                  load_b=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
+    #                                                                                  )
+    #
     # if pair_name == 'flux-sst':
     #     names = ('Flux', 'SST')
     # elif pair_name == 'flux-press':
     #     names = ('Flux', 'Pressure')
     # else:
     #     names = ('SST', 'Pressure')
-    # time_start = days_delta1 + 2
-    # time_end = days_delta1 + days_delta2
-    # offset = 1992
-    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
-    #                                                                                  time_start + offset,
-    #                                                                                  time_end,
-    #                                                                                  load_a=True,
-    #                                                                                  load_b=True,
-    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
-    #                                                                                  )
+    #
     # plot_ab_coefficients(files_path_prefix,
     #                      a_timelist,
     #                      b_timelist,
@@ -879,25 +859,23 @@ if __name__ == '__main__':
     #                      start_date=datetime.datetime(1979, 1, 1, 0, 0))
 
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
-    #                                                                                  offset + 1,
-    #                                                                                  time_end-14,
+    #                                                                                  time_start + offset + 1,
+    #                                                                                  time_end,
     #                                                                                  load_c=True,
-    #                                                                                  load_fs=False,
     #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
     #                                                                                  )
-    # plot_c_coeff(files_path_prefix, c_timelist, 0, len(c_timelist), start_pic_num=offset + 1,
+    # plot_c_coeff(files_path_prefix, c_timelist, 0, len(c_timelist), start_pic_num=time_start + offset,
     #              pair_name=pair_name, path_local=f'3D/{pair_name}/')
     # del c_timelist
-
+    #
     # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
-    #                                                                                  offset + 1,
-    #                                                                                  time_end-14,
-    #                                                                                  load_c=False,
+    #                                                                                  time_start + offset + 1,
+    #                                                                                  time_end - 14,
     #                                                                                  load_fs=True,
     #                                                                                  path_local=f'Coeff_data_3d/{pair_name}'
     #                                                                                  )
-    # plot_fs_coeff(files_path_prefix, fs_timelist, borders, 0, len(fs_timelist), start_pic_num=offset+1,
-    #               pair_name=pair_name, names=names, path_local=f'3D/{pair_name}/')
+    # plot_fs_coeff(files_path_prefix, fs_timelist, borders, 0, len(fs_timelist), start_pic_num=time_start + offset,
+    #               names=names, path_local=f'3D/{pair_name}/')
     # ----------------------------------------------------------------------------------------------
     # count correlations 3d
     # start_year = 1979
@@ -911,3 +889,87 @@ if __name__ == '__main__':
     # count_correlations(files_path_prefix, flux, press, offset, observations_per_day=1, names=('Flux', 'Pressure'))
     # count_correlations(files_path_prefix, sst, press, offset, observations_per_day=1, names=('SST', 'Pressure'))
     # ----------------------------------------------------------------------------------------------
+    # # Count Korolev AB coefficients
+    # start_year = 2009
+    # offset = days_delta1 + days_delta2 + days_delta3
+    # flux_type = 'sensible'
+    #
+    # # Count Korolev
+    # array = np.load(files_path_prefix + f'Data/{flux_type}/{flux_type}_grouped_{start_year}-{start_year+10}.npy')
+    # array = array.transpose()
+    # array = array.reshape((array.shape[0], 161, 181))
+    #
+    # count_1d_Korolev(files_path_prefix,
+    #                  array,
+    #                  time_start=0,
+    #                  time_end=len(array),
+    #                  path=f'Components/{flux_type}/',
+    #                  quantiles_amount=50,
+    #                  n_components=3,
+    #                  start_index=offset)
+    #
+    # del array
+    # ----------------------------------------------------------------------------------------------
+    # count and plot mean year for 10-years interval
+    # method = 'Kor'
+    # for start_year in [1979, 1989, 1999, 2009, 2019]:
+    #     if start_year == 2019:
+    #         end_year = 2022
+    #     else:
+    #         end_year = start_year + 10
+    #     for flux_type in ['sensible', 'latent']:
+    #         for coeff_type in ['A', 'B']:
+                # count_mean_year(files_path_prefix, coeff_type=coeff_type,
+                #                 method=method, mask=mask.reshape((161, 181)), start_year=start_year,
+                #                 end_year=end_year, flux_type=flux_type)
+                # plot_mean_year_1d(files_path_prefix, coeff_type=coeff_type, flux_type=flux_type, method=method,
+                #                   start_year=start_year, end_year=end_year)
+
+                # mean_year_Bel = np.load(files_path_prefix + f'Mean_year/{coeff_type}_{start_year}-{end_year}_{flux_type}_Bel.npy')
+                # mean_year_Kor = np.load(files_path_prefix + f'Mean_year/{coeff_type}_{start_year}-{end_year}_{flux_type}_Kor.npy')
+                # mean_year = np.abs(mean_year_Kor - mean_year_Bel)
+                # plot_mean_year_1d_difference(files_path_prefix, mean_year, start_year, end_year, coeff_type, flux_type)
+    # ----------------------------------------------------------------------------------------------
+    # # count and plot mean year for 43-years interval
+    # method = 'Bel'
+    # start_year = 1979
+    # end_year = 2022
+    # for flux_type in ['sensible', 'latent']:
+    #     for coeff_type in ['A', 'B']:
+    #         # count_mean_year(files_path_prefix, coeff_type=coeff_type,
+    #         #                 method=method, mask=mask.reshape((161, 181)), start_year=start_year,
+    #         #                 end_year=end_year, flux_type=flux_type)
+    #         # plot_mean_year_1d(files_path_prefix, coeff_type=coeff_type, flux_type=flux_type, method=method,
+    #         #                   start_year=start_year, end_year=end_year)
+    #
+    #         mean_year_Bel = np.load(files_path_prefix + f'Mean_year/{coeff_type}_{start_year}-{end_year}_{flux_type}_Bel.npy')
+    #         mean_year_Kor = np.load(files_path_prefix + f'Mean_year/{coeff_type}_{start_year}-{end_year}_{flux_type}_Kor.npy')
+    #         mean_year = np.abs(mean_year_Kor - mean_year_Bel)
+    #         plot_mean_year_1d_difference(files_path_prefix, mean_year, start_year, end_year, coeff_type, flux_type)
+    # ----------------------------------------------------------------------------------------------
+    # # get sum fluxes
+    # days_delta6 = (datetime.datetime(2022, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    # sensible1 = np.load(files_path_prefix + f'Fluxes/SENSIBLE_2019-2022.npy')
+    # latent1 = np.load(files_path_prefix + f'Fluxes/LATENT_2019-2022.npy')
+    #
+    # sensible2 = np.load(files_path_prefix + f'Fluxes/SENSIBLE_2022.npy')
+    # latent2 = np.load(files_path_prefix + f'Fluxes/LATENT_2022.npy')
+    # print(sensible2.shape) # =4*365
+    #
+    # sensible_all = np.zeros((sensible1.shape[0], 4* days_delta5))
+    # print(sensible_all.shape) #= 4*1461
+    #
+    # print(sensible_all.shape[1] - days_delta6*4)
+    # latent_all = np.zeros_like(sensible_all)
+    # sensible_all[:, :sensible1.shape[1]] = sensible1
+    # latent_all[:, :sensible1.shape[1]] = latent1
+    #
+    # sensible_all[:, -sensible2.shape[1]:] = sensible2
+    # latent_all[:, -sensible2.shape[1]:] = latent2
+    #
+    # np.save(files_path_prefix + f'Fluxes/SENSIBLE_2019-2023.npy', sensible_all)
+    # np.save(files_path_prefix + f'Fluxes/LATENT_2019-2023.npy', latent_all)
+    #
+    # flux_array = sensible_all + latent_all
+    # np.save(files_path_prefix + f'Fluxes/FLUX_2019-2023.npy', flux_array)
+    # raise ValueError
