@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 
-from video import get_continuous_cmap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 files_path_prefix = 'D://Data/OceanFull/'
