@@ -1,8 +1,6 @@
-import numpy as np
-
 from data_processing import scale_to_bins
 from EM_hybrid import *
-from plot_compare import *
+from Plotting.plot_compare import *
 
 
 def collect_Bel_point(files_path_prefix: str,
@@ -236,6 +234,7 @@ def count_1d_Korolev(files_path_prefix: str,
     b_map = np.zeros((flux.shape[1], flux.shape[2]), dtype=float)
     a_map[np.isnan(flux[0])] = np.nan
     b_map[np.isnan(flux[0])] = np.nan
+    # start_time = time.time()
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
         # print(f't = {t}')
         flux_array, quantiles = scale_to_bins(flux[t - 1], quantiles_amount)
@@ -277,4 +276,6 @@ def count_1d_Korolev(files_path_prefix: str,
 
         np.save(files_path_prefix + path + f'Kor/daily/A_{t+start_index}.npy', a_map)
         np.save(files_path_prefix + path + f'Kor/daily/B_{t+start_index}.npy', b_map)
+        # print(f'Iteration {t}: {(time.time() - start_time):.1f} seconds')
+        # start_time = time.time()
     return
