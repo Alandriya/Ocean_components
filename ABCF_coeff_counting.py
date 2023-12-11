@@ -41,8 +41,8 @@ def count_abf_coefficients(files_path_prefix: str,
     # but it is absolute in terms of fluxes array from the input indexing
     for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
     # for t_absolute in range(time_start + 1, time_end + 1):
-    #     if not os.path.exists(files_path_prefix + f'Coeff_data/{t_absolute + offset}_A_sens.npy'):
-        if True:
+        if not os.path.exists(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_sens.npy'):
+        # if True:
             t_rel = t_absolute - time_start
             a_sens = np.zeros((161, 181), dtype=float)
             a_lat = np.zeros((161, 181), dtype=float)
