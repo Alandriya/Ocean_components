@@ -1,3 +1,4 @@
+import math
 import os
 import pandas as pd
 import tqdm
@@ -146,6 +147,13 @@ def load_ABCF(files_path_prefix,
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
 
+    sst_coeff = 37.95727539 / (0.8980015822683038 + 0.8980015822683038)
+    flux_coeff = 2558.356628 / (0.8544676970659135 + 0.8544676970659135)
+    press_coeff = 17950.53906 / (0.8447768941044158 + 0.8447768941044158)
+
+    coeff_1 = 1
+    coeff_2 = 1
+
     if verbose:
         print('Loading ABC data')
     for t in range(time_start, time_end):
@@ -153,6 +161,9 @@ def load_ABCF(files_path_prefix,
             a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
             a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
             a_timelist.append([a_sens, a_lat])
+
+            a_sens *= coeff_1
+            a_lat *= coeff_2
 
             a1_max = max(a1_max, np.nanmax(a_sens))
             a1_min = min(a1_min, np.nanmin(a_sens))
@@ -164,6 +175,10 @@ def load_ABCF(files_path_prefix,
 
         if load_b:
             b_matrix = np.load(files_path_prefix + f'{path_local}/{t}_B.npy')
+            b_matrix[0] *= coeff_1
+            b_matrix[3] *= coeff_2
+            b_matrix[1] *= math.sqrt(coeff_1 * coeff_2)
+            b_matrix[2] *= math.sqrt(coeff_1 * coeff_2)
             for i in range(4):
                 np.nan_to_num(b_matrix[i], False, -10)
                 b_matrix[i][np.logical_not(mask.reshape((height, width)))] = np.nan
@@ -180,8 +195,8 @@ def load_ABCF(files_path_prefix,
                 f_max = max(f_max, np.nanmax(f))
             f_min = min(f_min, np.nanmin(f))
         if load_fs:
-            # fs = np.load(files_path_prefix + f'{path_local}/{t}_FS.npy')
-            fs = np.load(files_path_prefix + f'{path_local}/{t}_F_separate.npy')
+            fs = np.load(files_path_prefix + f'{path_local}/{t}_FS.npy')
+            # fs = np.load(files_path_prefix + f'{path_local}/{t}_F_separate.npy')
             fs_timelist.append(fs)
             if np.isfinite(np.nanmax(fs)):
                 f_max = max(f_max, np.nanmax(fs))
@@ -213,8 +228,8 @@ def scale_to_bins(arr, bins=100):
     return arr_scaled, quantiles
 
 
-def load_prepare_fluxes(sensible_filename: np.ndarray,
-                        latent_filename: np.ndarray,
+def load_prepare_fluxes(sensible_filename: str,
+                        latent_filename: str,
                         files_path_prefix: str = 'D://Data/OceanFull/',
                         prepare=True):
     maskfile = open(files_path_prefix + "mask", "rb")
