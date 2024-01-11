@@ -109,18 +109,19 @@ def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount
     return dataframes, indexes
 
 
-def load_ABCF(files_path_prefix,
-              time_start,
-              time_end,
-              load_a=False,
-              load_b=False,
-              load_c=False,
-              load_f=False,
-              load_fs=False,
-              verbose=False,
+def load_ABCFE(files_path_prefix: str,
+              time_start: int,
+              time_end: int,
+              load_a: bool = False,
+              load_b: bool = False,
+              load_c: bool = False,
+              load_f: bool = False,
+              load_fs: bool = False,
+              load_e: bool = False,
+              verbose: bool = False,
               path_local: str = 'Coeff_data'):
     """
-    Loads data from files_path_prefix + coeff_data directory and counts borders
+    Loads data from files_path_prefix + path_local directory and counts borders
     :param files_path_prefix: path to the working directory
     :param time_start: first time step
     :param time_end: last time step
@@ -128,10 +129,12 @@ def load_ABCF(files_path_prefix,
     :param load_b:
     :param load_c:
     :param load_f:
+    :param load_fs:
     :param verbose: if to print logs
+    :param path_local: relative path from files_path_prefix to directory with coefficient's dirs: A, B, C, etc.
     :return:
     """
-    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist = list(), list(), list(), list(), list()
+    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist = list(), list(), list(), list(), list(), list()
 
     a1_max, a2_max = 0, 0
     a1_min, a2_min = 0, 0
@@ -140,6 +143,8 @@ def load_ABCF(files_path_prefix,
     b_min = [0, 0, 0, 0]
     f_min = 10
     f_max = -1
+    e_max = [0, 0, 0, 0]
+    e_min = [0, 0, 0, 0]
 
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
@@ -196,7 +201,6 @@ def load_ABCF(files_path_prefix,
             f_min = min(f_min, np.nanmin(f))
         if load_fs:
             fs = np.load(files_path_prefix + f'{path_local}/{t}_FS.npy')
-            # fs = np.load(files_path_prefix + f'{path_local}/{t}_F_separate.npy')
             fs_timelist.append(fs)
             if np.isfinite(np.nanmax(fs)):
                 f_max = max(f_max, np.nanmax(fs))
@@ -208,9 +212,15 @@ def load_ABCF(files_path_prefix,
                 c_timelist.append(corr_matrix)
             except FileNotFoundError:
                 pass
+        if load_e:
+            e_matrix = np.load(files_path_prefix + f'{path_local}/{t}_E.npy')
+            for i in range(4):
+                e_max[i] = max(e_max[i], np.nanmax(e_matrix[i]))
+                e_min[i] = min(e_min[i], np.nanmin(e_matrix[i]))
+            e_timelist.append(e_matrix)
 
-    borders = [a1_min, a1_max, a2_min, a2_max, b_min, b_max, f_min, f_max]
-    return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders
+    borders = [a1_min, a1_max, a2_min, a2_max, b_min, b_max, f_min, f_max, e_min, e_max]
+    return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders
 
 
 def scale_to_bins(arr, bins=100):
@@ -218,8 +228,8 @@ def scale_to_bins(arr, bins=100):
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
-    for j in tqdm.tqdm(range(bins - 1)):
-    # for j in range(bins - 1):
+    # for j in tqdm.tqdm(range(bins - 1)):
+    for j in range(bins - 1):
         arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
             (quantiles[j] + quantiles[j + 1]) / 2
 
