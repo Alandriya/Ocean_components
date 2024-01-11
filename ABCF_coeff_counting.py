@@ -1,3 +1,4 @@
+import copy
 import math
 
 from skimage.measure import block_reduce
@@ -15,7 +16,7 @@ from data_processing import scale_to_bins
 files_path_prefix = 'D://Data/OceanFull/'
 
 
-def count_abf_coefficients(files_path_prefix: str,
+def count_abfe_coefficients(files_path_prefix: str,
                            mask: np.ndarray,
                            sensible_array: np.ndarray,
                            latent_array: np.ndarray,
@@ -48,6 +49,7 @@ def count_abf_coefficients(files_path_prefix: str,
             a_lat = np.zeros((161, 181), dtype=float)
             b_matrix = np.zeros((4, 161, 181), dtype=float)
             f = np.zeros((161, 181), dtype=float)
+            e_matrix = np.zeros((4, 161, 181), dtype=float)
 
             # set nan where is not ocean in arrays
             for i in range(0, len(mask)):
@@ -125,6 +127,7 @@ def count_abf_coefficients(files_path_prefix: str,
                     for idx in points_latent:
                         b_matrix[2][idx // 181][idx % 181] = b_squared
 
+            e_matrix = copy.deepcopy(b_matrix)
             # get matrix root from B and count F
             for i in range(161):
                 for j in range(181):
@@ -136,18 +139,19 @@ def count_abf_coefficients(files_path_prefix: str,
                     else:
                         f[i, j] = np.nan
 
-            # # save data
-            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_sens.npy', a_sens)
-            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
-            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
-            # np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
-
-            if pair_name:
-                # save data
+            # save data
+            if pair_name == 'sensible-latent':
+                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_sens.npy', a_sens)
+                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
+                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
+                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
+                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_E.npy', e_matrix)
+            else:
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_sens.npy', a_sens)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_lat.npy', a_lat)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_B.npy', b_matrix)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_F.npy', f)
+                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_E.npy', e_matrix)
     return
 
 
@@ -215,7 +219,7 @@ def _parallel_AB_func(arg):
     print('My process id:', os.getpid())
     start, end = borders
     for t in range(start, end):
-        count_abf_coefficients(files_path_prefix, mask, sensible_array, latent_array, start, end, offset)
+        count_abfe_coefficients(files_path_prefix, mask, sensible_array, latent_array, start, end, offset)
     print(f'Process {os.getpid()} finished')
     return
 
