@@ -8,8 +8,9 @@ import matplotlib.dates as mdates
 import matplotlib
 import seaborn as sns
 from scipy.optimize import curve_fit
+from scipy.stats import linregress
 import numpy, scipy.optimize
-from data_processing import load_ABCF
+from data_processing import load_ABCFE
 
 
 def fit_linear(x, a, b):
@@ -38,7 +39,13 @@ def fit_sin(tt, yy):
             "maxcov": numpy.max(pcov), "rawres": (guess, popt, pcov)}
 
 
-def extract_extreme(files_path_prefix, timelist, coeff_type, time_start, time_end, mean_days=1):
+def extract_extreme(files_path_prefix: str,
+                    timelist: list,
+                    coeff_type: str,
+                    time_start: int,
+                    time_end: int,
+                    mean_days: int = 1,
+                    local_path_prefix:str = ''):
     """
     Gets extreme characteristics from list with coefficient evolution and counts mean of this parameter, dividing the
     timeline in windows with length mean_days
@@ -54,6 +61,14 @@ def extract_extreme(files_path_prefix, timelist, coeff_type, time_start, time_en
     max_sens_points, min_sens_points = list(), list()
     max_lat, min_lat, mean_lat, med_lat = list(), list(), list(), list()
     max_lat_points, min_lat_points = list(), list()
+
+    if not os.path.exists(files_path_prefix + 'Extreme'):
+        os.mkdir(files_path_prefix + 'Extreme')
+    if not os.path.exists(files_path_prefix + 'Extreme/data'):
+        os.mkdir(files_path_prefix + 'Extreme/data')
+    if not os.path.exists(files_path_prefix + f'Extreme/data/{local_path_prefix}'):
+        os.mkdir(files_path_prefix + f'Extreme/data/{local_path_prefix}')
+
     for t in tqdm.tqdm(range(0, time_end - time_start)):
         sens = timelist[t][0]
         max_sens.append(np.nanmax(sens))
@@ -82,31 +97,39 @@ def extract_extreme(files_path_prefix, timelist, coeff_type, time_start, time_en
     mean_lat = [np.mean(mean_lat[i:i + mean_days]) for i in range(0, len(mean_lat) - mean_days, mean_days)]
     med_lat = [np.mean(med_lat[i:i + mean_days]) for i in range(0, len(med_lat) - mean_days, mean_days)]
 
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy',
             np.array(max_sens))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_min_sens({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_sens({time_start}-{time_end})_{mean_days}.npy',
             np.array(min_sens))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_mean_sens({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_mean_sens({time_start}-{time_end})_{mean_days}.npy',
             np.array(mean_sens))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_med_sens({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_med_sens({time_start}-{time_end})_{mean_days}.npy',
             np.array(med_sens))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_max_points_sens.npy', np.array(max_sens_points))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_min_points_sens.npy', np.array(min_sens_points))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_points_sens.npy', np.array(max_sens_points))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_points_sens.npy', np.array(min_sens_points))
 
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy',
             np.array(max_lat))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy',
             np.array(min_lat))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy',
             np.array(mean_lat))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_med_lat({time_start}-{time_end})_{mean_days}.npy',
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_med_lat({time_start}-{time_end})_{mean_days}.npy',
             np.array(med_lat))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_max_points_lat.npy', np.array(max_lat_points))
-    np.save(files_path_prefix + f'Extreme/data/{coeff_type}_min_points_lat.npy', np.array(min_lat_points))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_points_lat.npy', np.array(max_lat_points))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_points_lat.npy', np.array(min_lat_points))
     return
 
 
-def plot_extreme(files_path_prefix: str, coeff_type: str, time_start: int, time_end: int, mean_days: int = 1):
+def plot_extreme(files_path_prefix: str,
+                 coeff_type: str,
+                 time_start: int,
+                 time_end: int,
+                 mean_days: int = 1,
+                 local_path_prefix:str = '',
+                 names: tuple = ('Sensible', 'Latent'),
+                 fit_sinus: bool = False,
+                 fit_regression: bool = False):
     """
     Plots two pictures: first with evolution of max, min and mean of coefficient, second - the same, but adding
     approximation of max and min with sin function
@@ -117,7 +140,7 @@ def plot_extreme(files_path_prefix: str, coeff_type: str, time_start: int, time_
     :param mean_days: width of the window in days, in which mean was taken
     :return:
     """
-    font = {'size': 16}
+    font = {'size': 14}
     font_names = {'weight': 'bold', 'size': 20}
     matplotlib.rc('font', **font)
     sns.set_style("whitegrid")
@@ -125,92 +148,145 @@ def plot_extreme(files_path_prefix: str, coeff_type: str, time_start: int, time_
     days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in
             range(time_start, time_end - mean_days, mean_days)]
     if os.path.exists(
-            files_path_prefix + f'Extreme/data/{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy'):
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy'):
         max_sens = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy')
         min_sens = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_min_sens({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_sens({time_start}-{time_end})_{mean_days}.npy')
         mean_sens = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_mean_sens({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_mean_sens({time_start}-{time_end})_{mean_days}.npy')
         # med_sens = np.load(files_path_prefix + f'Extreme/data/{coeff_type}_med_sens({time_start}-{time_end})_{mean_days}.npy')
 
         max_lat = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy')
         min_lat = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy')
         mean_lat = np.load(
-            files_path_prefix + f'Extreme/data/{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy')
+            files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy')
         # med_lat = np.load(files_path_prefix + f'Extreme/data/{coeff_type}_med_lat({time_start}-{time_end})_{mean_days}.npy')
 
-        fig, axs = plt.subplots(2, 1, figsize=(15, 10))
+        days = days[:len(max_sens)]
+        fig, axs = plt.subplots(2, 1, figsize=(20, 10))
         # Major ticks every half year, minor ticks every month,
-        # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
-        axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
-        # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
-        axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+        if mean_days == 365:
+            axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+            axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+        else:
+            axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+
         axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
         axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
 
-        axs[0].set_title('Sensible', fontdict=font_names)
+        axs[0].set_title(names[0], fontdict=font_names)
         axs[0].plot(days, max_sens, label='max', c='r', alpha=0.75)
         axs[0].plot(days, min_sens, label='min', c='b', alpha=0.75)
         axs[0].plot(days, mean_sens, label='mean', c='g')
         # axs[0].plot(days, med_sens, label='med', c='y')
         axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
-        axs[1].set_title('Latent', fontdict=font_names)
+        axs[1].set_title(names[1], fontdict=font_names)
         axs[1].plot(days, max_lat, label='max', c='r', alpha=0.75)
         axs[1].plot(days, min_lat, label='min', c='b', alpha=0.75)
         axs[1].plot(days, mean_lat, label='mean', c='g')
         # axs[1].plot(days, med_lat, label='med', c='y')
         axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
+        if not os.path.exists(files_path_prefix + f'Extreme/plots'):
+            os.mkdir(files_path_prefix + f'Extreme/plots')
+        if not os.path.exists(files_path_prefix + f'Extreme/plots/{local_path_prefix}'):
+            os.mkdir(files_path_prefix + f'Extreme/plots/{local_path_prefix}')
+        if not os.path.exists(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}'):
+            os.mkdir(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}')
+
         fig.tight_layout()
-        fig.savefig(files_path_prefix + f'Extreme/plots/{coeff_type}_({time_start}-{time_end})_{mean_days}.png')
+        fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_({time_start}-{time_end})_{mean_days}.png')
         plt.close(fig)
 
-        fig, axs = plt.subplots(2, 1, figsize=(15, 10))
-        axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
-        axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
-        axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
-        axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
-        x = np.array(range(time_start, time_end - mean_days, mean_days))
-        approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
-        fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
+        if fit_sinus:
+            fig, axs = plt.subplots(2, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_sens)]
+            approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
+            fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
 
-        axs[0].set_title('Sensible', fontdict=font_names)
-        res = fit_sin(x, max_sens)
-        rss = np.sqrt(np.sum((max_sens - res["fitfunc"](x)) ** 2)) / len(x)
-        # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-        axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
-        axs[0].plot(days, max_sens, c='r', alpha=0.75, label='max')
-        axs[0].plot(days, mean_sens, c='g', alpha=1, label='mean')
+            axs[0].set_title(names[0], fontdict=font_names)
+            res = fit_sin(x, max_sens)
+            rss = np.sqrt(np.sum((max_sens - res["fitfunc"](x)) ** 2)) / len(x)
+            # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
+            axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[0].plot(days, max_sens, c='r', alpha=0.75, label='max')
+            axs[0].plot(days, mean_sens, c='g', alpha=1, label='mean')
 
-        res = fit_sin(x, min_sens)
-        rss = np.sqrt(np.sum((min_sens - res["fitfunc"](x)) ** 2)) / len(x)
-        # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-        axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
-        axs[0].plot(days, min_sens, c='b', alpha=0.75, label='min')
-        axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+            res = fit_sin(x, min_sens)
+            rss = np.sqrt(np.sum((min_sens - res["fitfunc"](x)) ** 2)) / len(x)
+            # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
+            axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[0].plot(days, min_sens, c='b', alpha=0.75, label='min')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
-        axs[1].set_title('Latent', fontdict=font_names)
-        res = fit_sin(x, max_lat)
-        rss = np.sqrt(np.sum((max_lat - res["fitfunc"](x)) ** 2)) / len(x)
-        # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-        axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
-        axs[1].plot(days, max_lat, c='r', alpha=0.75, label='max')
+            axs[1].set_title(names[1], fontdict=font_names)
+            res = fit_sin(x, max_lat)
+            rss = np.sqrt(np.sum((max_lat - res["fitfunc"](x)) ** 2)) / len(x)
+            # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
+            axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[1].plot(days, max_lat, c='r', alpha=0.75, label='max')
+            axs[1].plot(days, mean_lat, c='g', alpha=1, label='mean')
 
-        axs[1].plot(days, mean_lat, c='g', alpha=1, label='mean')
+            res = fit_sin(x, min_lat)
+            rss = np.sqrt(np.sum((min_lat - res["fitfunc"](x)) ** 2)) / len(x)
+            # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
+            axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[1].plot(days, min_lat, c='b', alpha=0.75, label='min')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
-        res = fit_sin(x, min_lat)
-        rss = np.sqrt(np.sum((min_lat - res["fitfunc"](x)) ** 2)) / len(x)
-        # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-        axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
-        axs[1].plot(days, min_lat, c='b', alpha=0.75, label='min')
-        axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_({time_start}-{time_end})_{mean_days}_fit.png')
+        if fit_regression:
+            fig, axs = plt.subplots(2, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_sens)]
+            fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
 
-        fig.tight_layout()
-        fig.savefig(files_path_prefix + f'Extreme/plots/{coeff_type}_({time_start}-{time_end})_{mean_days}_fit.png')
+            axs[0].set_title(names[0], fontdict=font_names)
+            axs[0].plot(days, max_sens, c='r', alpha=0.75, label='max')
+            res = linregress(x, max_sens)
+            axs[0].plot(days, res.intercept + res.slope*x, '--', c='darkviolet', label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+            axs[0].plot(days, mean_sens, c='g', alpha=1, label='mean')
+            res = linregress(x, min_sens)
+            axs[0].plot(days, res.intercept + res.slope*x, '--', c='orange', label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+            axs[0].plot(days, min_sens, c='b', alpha=0.75, label='min')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[1].set_title(names[1], fontdict=font_names)
+            axs[1].plot(days, max_lat, c='r', alpha=0.75, label='max')
+            res = linregress(x, max_lat)
+            axs[1].plot(days, res.intercept + res.slope*x, '--', c='darkviolet', label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+            axs[1].plot(days, mean_lat, c='g', alpha=1, label='mean')
+            res = linregress(x, min_lat)
+            axs[1].plot(days, res.intercept + res.slope*x, '--', c='orange', label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+            axs[1].plot(days, min_lat, c='b', alpha=0.75, label='min')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_'
+                                            f'({time_start}-{time_end})_{mean_days}_fit_regression.png')
     return
 
 
@@ -282,7 +358,7 @@ def extract_extreme_coeff_flux(files_path_prefix: str,
                                window: int = 1):
     max_sens, min_sens, med_sens, max_lat, min_lat, med_lat = list(), list(), list(), list(), list(), list()
     for t in tqdm.tqdm(range(0, time_end - time_start - window, window)):
-        a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCF(files_path_prefix,
+        a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCFE(files_path_prefix,
                                                                                          time_start + t,
                                                                                          time_start + t + window,
                                                                                          load_a=True, load_b=True)
@@ -406,3 +482,54 @@ def plot_extreme_coeff_flux(files_path_prefix: str,
 
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'Extreme/plots/Flux/{coeff_type}_({time_start}-{time_end})_{window}_fit.png')
+
+def collect_extreme(files_path_prefix: str,
+                    coeff_type: str,
+                    local_path_prefix: str = '',
+                    mean_days: int = 365,
+                    ):
+    max_sens_list, min_sens_list, mean_sens_list = list(), list(), list()
+    max_lat_list, min_lat_list, mean_lat_list = list(), list(), list()
+    for time_start, time_end in [(1, 3653), (3654, 7305), (7306, 10958), (10959, 14610), (14611, 16071)]:
+        if os.path.exists(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+                                              f'_max_sens({time_start}-{time_end})_{mean_days}.npy'):
+            max_sens = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                   f'max_sens({time_start}-{time_end})_{mean_days}.npy')
+            min_sens = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                   f'min_sens({time_start}-{time_end})_{mean_days}.npy')
+            mean_sens = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                    f'mean_sens({time_start}-{time_end})_{mean_days}.npy')
+
+            max_sens_list += list(max_sens)
+            min_sens_list += list(min_sens)
+            mean_sens_list += list(mean_sens)
+
+            max_lat = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                  f'max_lat({time_start}-{time_end})_{mean_days}.npy')
+            min_lat = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                  f'min_lat({time_start}-{time_end})_{mean_days}.npy')
+            mean_lat = np.load(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}_'
+                                                   f'mean_lat({time_start}-{time_end})_{mean_days}.npy')
+
+            max_lat_list += list(max_lat)
+            min_lat_list += list(min_lat)
+            mean_lat_list += list(mean_lat)
+        else:
+            print(f'Array {time_start}-{time_end} is not found!')
+
+    time_start = 1
+    time_end = 16071
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_max_sens({time_start}-{time_end})_{mean_days}.npy', np.array(max_sens_list))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_min_sens({time_start}-{time_end})_{mean_days}.npy', np.array(min_sens_list))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_mean_sens({time_start}-{time_end})_{mean_days}.npy', np.array(mean_sens_list))
+
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_max_lat({time_start}-{time_end})_{mean_days}.npy', np.array(max_lat_list))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_min_lat({time_start}-{time_end})_{mean_days}.npy', np.array(min_lat_list))
+    np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
+            f'_mean_lat({time_start}-{time_end})_{mean_days}.npy', np.array(mean_lat_list))
+    return
