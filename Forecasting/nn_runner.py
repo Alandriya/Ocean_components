@@ -1,38 +1,26 @@
-import torch
+from nn_model import Transformer
+import numpy as np
 
 
-def train(dataloader, model, loss_fn, optimizer, device):
-    size = len(dataloader.dataset)
-    model.train()
-    for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(device), y.to(device)
 
-        # Compute prediction error
-        pred = model(X)
-        loss = loss_fn(pred, y)
+if __name__ == '__main__':
+    # parameters
+    # ----------------------------------------------------------------
+    files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+    batch_size = 4
+    n_days_lags = 7
+    days_prediction = 3
+    epochs = 10
+    height = 161
+    width = 181
+    # ----------------------------------------------------------------
+    model = Transformer(batch_size=batch_size, n_days_lags=n_days_lags, height=height, width=width)
+    checkpoint_path = files_path_prefix + f'Forecast/Models/Transfromer/Checkpoints'
 
-        # Backpropagation
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+    # model.load(checkpoint_path)
+    X_train = np.load(files_path_prefix + 'Forecast/Train/X_train.npy')
+    Y_train = np.load(files_path_prefix + 'Forecast/Train/Y_train.npy')
+    X_test = np.load(files_path_prefix + 'Forecast/Test/X_test.npy')
+    Y_test = np.load(files_path_prefix + 'Forecast/Test/Y_test.npy')
 
-        if batch % 100 == 0:
-            loss, current = loss.item(), (batch + 1) * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-    return model
-
-
-def test(dataloader, model, loss_fn, device):
-    size = len(dataloader.dataset)
-    num_batches = len(dataloader)
-    model.eval()
-    test_loss, correct = 0, 0
-    with torch.no_grad():
-        for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
-    test_loss /= num_batches
-    correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    # model.train(checkpoint_path, X_train, Y_train, batch_size, epochs, 'first')
