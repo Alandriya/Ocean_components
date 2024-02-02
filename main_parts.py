@@ -972,4 +972,104 @@ if __name__ == '__main__':
     #
     # flux_array = sensible_all + latent_all
     # np.save(files_path_prefix + f'Fluxes/FLUX_2019-2023.npy', flux_array)
-    # raise ValueError
+    # ----------------------------------------------------------------------------------------------
+    # start_year = 1979
+    # end_year = 2023
+    # mask = mask.reshape((height, width))
+    # for flux_type in ['sst']:
+    #     for coeff_type in ['A']:
+    #         # count_mean_year(files_path_prefix, start_year, end_year, coeff_type, flux_type, 'Bel', mask)
+    #         mean_year = np.load(files_path_prefix + f'Mean_year/Bel/{flux_type}_{coeff_type}_{start_year}-{end_year}.npy')
+    #         plot_mean_year_1d(files_path_prefix, mean_year, start_year, end_year, coeff_type, flux_type, 'Bel')
+    # ----------------------------------------------------------------------------------------------
+    # create videos
+    # coeff_name = 'B'
+    # create_video(files_path_prefix, f'videos/3D/{pair_name}/{coeff_name}/', f'{coeff_name}_',
+    #              f'{pair_name}_{coeff_name}_2019-2023',
+    #              start=days_delta1 + days_delta2 + days_delta3 + days_delta4 + 2)
+    # ----------------------------------------------------------------------------------------------
+    # count and plot extreme of coefficients 3d
+    # pair_name = 'flux-sst'
+    # pair_name = 'flux-press'
+    # pair_name = 'sst-press'
+
+    # mean_days = 365
+    # time_start = 1
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    #
+    # if pair_name == 'flux-sst':
+    #     names = ('Flux', 'SST')
+    # elif pair_name == 'flux-press':
+    #     names = ('Flux', 'Pressure')
+    # else:
+    #     names = ('SST', 'Pressure')
+
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders = load_ABCFE(files_path_prefix,
+    #                                                                                  time_start,
+    #                                                                                  time_end,
+    #                                                                                  load_a=True,
+    #                                                                                  load_b=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}')
+    # local_path_prefix = f'{pair_name}/'
+    # extract_extreme(files_path_prefix, a_timelist, 'a', time_start, time_end, mean_days, local_path_prefix)
+    # extract_extreme(files_path_prefix, b_timelist, 'b', time_start, time_end, mean_days,local_path_prefix)
+    # plot_extreme(files_path_prefix, 'a', time_start, time_end, mean_days, local_path_prefix, names)
+    # plot_extreme(files_path_prefix, 'b', time_start, time_end, mean_days, local_path_prefix, names)
+
+    # for coeff_type in ['a', 'b']:
+    #     collect_extreme(files_path_prefix, coeff_type, local_path_prefix, mean_days)
+    # for coeff_type in ['a', 'b']:
+    #     plot_extreme_3d(files_path_prefix, coeff_type, 1, 16071, mean_days, fit_regression=True,
+    #                  fit_sinus=True, fit_fourier_flag=True)
+    # ----------------------------------------------------------------------------------------------
+
+    # # eigenvalues
+    #
+    # pair_name = 'flux-sst'
+    # # pair_name = 'flux-press'
+    # # pair_name = 'sst-press'
+    # # pair_name = 'sensible_latent'
+    # if pair_name == 'flux-sst':
+    #     names = ('Flux', 'SST')
+    # elif pair_name == 'flux-press':
+    #     names = ('Flux', 'Pressure')
+    # elif pair_name == 'sst-press':
+    #     names = ('SST', 'Pressure')
+    # else:
+    #     names = ('Sensible', 'Latent')
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #
+    # days_delta6 = (datetime.datetime(2019, 2, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
+    # flux_array = flux_array[:, :days_delta6]
+    # SST_array = SST_array[:, :days_delta6]
+    # press_array = press_array[:, :days_delta6]
+    # n_bins = 10
+    #
+    # flux_array, quantiles_flux = scale_to_bins(flux_array, n_bins)
+    # SST_array, quantiles_sst = scale_to_bins(SST_array, n_bins)
+    # press_array, quantiles_press = scale_to_bins(press_array, n_bins)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy', flux_array)
+    # np.save(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy', SST_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy', SST_array)
+    #
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy')
+    #
+    # values_flux = np.unique(flux_array)
+    # values_flux = values_flux[~numpy.isnan(values_flux)]
+    # values_sst = np.unique(SST_array)
+    # values_sst = values_sst[~numpy.isnan(values_sst)]
+    # values_press = np.unique(press_array)
+    # values_press = values_press[~numpy.isnan(values_press)]
+    # print(len(values_flux))
+    # print(len(values_sst))
+    # print(len(values_press))
+    # # raise ValueError
+    #
+    # count_eigenvalues_triplets(files_path_prefix, mask, flux_array, values_flux, SST_array, values_sst,
+    #                            press_array, values_press, offset, n_bins)
+    # ----------------------------------------------------------------------------------------------
