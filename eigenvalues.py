@@ -1,47 +1,161 @@
 import numpy as np
 import tqdm
 import os
+from scipy.linalg import sqrtm
 from data_processing import scale_to_bins
+from Plotting.plot_eigenvalues import plot_eigenvalues
 
 
-def count_eigenvalues(files_path_prefix: str,
-                      e_timelist: list,
-                      start_idx: int = 0,
-                      pair_name: str = '',
-                      ):
-    """
-    :param files_path_prefix: path to the working directory
-    :param e_timelist: list with e_matrix as elements, where e_matrix is np.array with shape (4, 161, 181)
-        containing 4 matrices with elements of 2x2 matrix of coefficient E for every point of grid.
-        0 is for E11 = sensible at t0 - sensible at t1,
-        1 is for E12 = sensible at t0 - latent at t1,
-        2 is for E21 = latent at t0 - sensible at t1,
-        3 is for E22 = latent at t0 - latent at t1.
-    :param start_idx: from which number to save arrays
-    :param pair_name:
-    :return:
-    """
+def get_save_eig(files_path_prefix,
+                 t: int,
+                 pair_name: str,
+                 B: np.ndarray, ):
+    A1 = np.dot(B, B.conjugate())
+    A1 = sqrtm(A1)
+    eigenvalues, eigenvectors = np.linalg.eig(A1)
+    # sort by absolute value of the eigenvalues
+    positions = [x for x in range(len(eigenvalues))]
+    positions = [x for _, x in reversed(sorted(zip(np.abs(eigenvalues), positions)))]
+    np.save(files_path_prefix + f'Eigenvalues/tmp/{t}_{pair_name}_eval1.npy', eigenvalues)
+    np.save(files_path_prefix + f'Eigenvalues/tmp/{t}_{pair_name}_positions1.npy', positions)
+
+    # A2 = np.dot(B.conjugate(), B)
+    # A2 = sqrtm(A2)
+    # eigenvalues, eigenvectors = np.linalg.eig(A2)
+    # # sort by absolute value of the eigenvalues
+    # positions = [x for x in range(len(eigenvalues))]
+    # positions = [x for _, x in sorted(zip(np.abs(eigenvalues), positions))]
+    # np.save(files_path_prefix + f'Eigenvalues/{t}_{pair_name}_eval2.npy', eigenvalues)
+    # np.save(files_path_prefix + f'Eigenvalues/{t}_{pair_name}_positions2.npy', positions)
+    return eigenvalues, positions
+
+
+def count_eigenvalues_triplets(files_path_prefix: str,
+                               mask: np.ndarray,
+                               flux_array: np.ndarray,
+                               values_flux: np.ndarray,
+                               SST_array: np.ndarray,
+                               values_sst: np.ndarray,
+                               press_array: np.ndarray,
+                               values_press: np.ndarray,
+                               offset: int,
+                               n_bins: int = 100,
+                               n_lambdas: int = 3,
+                               ):
     if not os.path.exists(files_path_prefix + f'Eigenvalues'):
         os.mkdir(files_path_prefix + f'Eigenvalues')
+    if not os.path.exists(files_path_prefix + f'Eigenvalues/tmp'):
+        os.mkdir(files_path_prefix + f'Eigenvalues/tmp')
 
-    if not os.path.exists(files_path_prefix + f'Eigenvalues/{pair_name}'):
-        os.mkdir(files_path_prefix + f'Eigenvalues/{pair_name}')
+    for t in tqdm.tqdm(range(flux_array.shape[1]-1)):
+        # flux-sst
+        probs = np.zeros((n_bins, n_bins), dtype=float)
+        b_matrix_vals = np.zeros((n_bins, n_bins), dtype=float)
+        for i in range(len(values_flux)):
+            x1 = values_flux[i]
+            for j in range(len(values_sst)):
+                x2 = values_sst[j]
+                points_x1 = np.where(flux_array[:, t] == x1)[0]
+                points_x2 = np.where(SST_array[:, t+1] == x2)[0]
+                intersection = np.intersect1d(points_x1, points_x2)
+                probs[i, j] = len(intersection) / len(points_x1)
 
-    print('Counting eigenvalues')
-    for t in tqdm.tqdm(range(0, len(e_timelist))):
-        e_matrix = e_timelist[t]
-        shape = e_matrix.shape
-        ev_matrix = np.zeros((2, shape[1], shape[2]))
-        ev_matrix[:, np.isnan(e_matrix[0])] = np.nan
+                b_matrix_vals[i, j] = (x1 - x2)**2 * probs[i, j]
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_probs_flux-sst.npy', probs)
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_b_vals_flux-sst.npy', b_matrix_vals)
+        eigenvalues, positions = get_save_eig(files_path_prefix, t + offset, 'flux-sst', b_matrix_vals)
 
-        for i in range(e_matrix.shape[1]):
-            for j in range(e_matrix.shape[2]):
-                if not np.isnan(e_matrix[:, i, j]).any():
-                    eigenvalues, eigenvectors = np.linalg.eig(e_matrix[:, i, j].reshape((2,2)))
-                    ev_matrix[:, i, j] = eigenvalues
-                else:
-                    ev_matrix[:, i, j] = np.nan
+        matrix_list = list()
+        lambdas_list = list()
+        for i in range(n_bins):
+            matrix = np.zeros(flux_array.shape[0])
+            matrix[np.logical_not(mask)] = np.nan
+            x1 = values_flux[positions[i]]
+            x2 = values_sst[positions[i]]
+            lambda_value = eigenvalues[positions[i]]
+            points_x1 = np.where(flux_array[:, t] == x1)[0]
+            points_x2 = np.where(SST_array[:, t+1] == x2)[0]
+            intersection = np.intersect1d(points_x1, points_x2)
+            # print(len(intersection))
+            if len(intersection):
+                matrix[intersection] = lambda_value
+                matrix_list.append(matrix)
+                lambdas_list.append(lambda_value)
+            if len(matrix_list) >= n_lambdas:
+                break
+        plot_eigenvalues(files_path_prefix, matrix_list, t + offset, lambdas_list, ('Flux', 'SST'), n_lambdas)
 
-        np.save(files_path_prefix + f'Eigenvalues/{pair_name}/{start_idx + t}_lambda.npy', ev_matrix)
+        # flux-press
+        probs = np.zeros((n_bins, n_bins), dtype=float)
+        b_matrix_vals = np.zeros((n_bins, n_bins), dtype=float)
+        for i in range(len(values_flux)):
+            x1 = values_flux[i]
+            for j in range(len(values_press)):
+                x2 = values_press[j]
+                points_x1 = np.where(flux_array[:, t] == x1)[0]
+                points_x2 = np.where(press_array[:, t + 1] == x2)[0]
+                intersection = np.intersect1d(points_x1, points_x2)
+                probs[i, j] = len(intersection) / len(points_x1)
+
+                b_matrix_vals[i, j] = (x1 - x2) ** 2 * probs[i, j]
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_probs_flux-press.npy', probs)
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_b_vals_flux-press.npy', b_matrix_vals)
+        eigenvalues, positions = get_save_eig(files_path_prefix, t + offset, 'flux-press', b_matrix_vals)
+
+        matrix_list = list()
+        lambdas_list = list()
+        for i in range(n_bins):
+            matrix = np.zeros(flux_array.shape[0])
+            matrix[np.logical_not(mask)] = np.nan
+            x1 = values_flux[positions[i]]
+            x2 = values_press[positions[i]]
+            lambda_value = eigenvalues[positions[i]]
+            points_x1 = np.where(flux_array[:, t] == x1)[0]
+            points_x2 = np.where(press_array[:, t + 1] == x2)[0]
+            intersection = np.intersect1d(points_x1, points_x2)
+            # print(len(intersection))
+            if len(intersection):
+                matrix[intersection] = lambda_value
+                matrix_list.append(matrix)
+                lambdas_list.append(lambda_value)
+            if len(matrix_list) >= n_lambdas:
+                break
+        plot_eigenvalues(files_path_prefix, matrix_list, t + offset, lambdas_list, ('Flux', 'Pressure'), n_lambdas)
+
+        # sst-press
+        probs = np.zeros((n_bins, n_bins), dtype=float)
+        b_matrix_vals = np.zeros((n_bins, n_bins), dtype=float)
+        for i in range(len(values_sst)):
+            x1 = values_sst[i]
+            for j in range(len(values_press)):
+                x2 = values_press[j]
+                points_x1 = np.where(SST_array[:, t] == x1)[0]
+                points_x2 = np.where(press_array[:, t + 1] == x2)[0]
+                intersection = np.intersect1d(points_x1, points_x2)
+                probs[i, j] = len(intersection) / len(points_x1)
+
+                b_matrix_vals[i, j] = (x1 - x2) ** 2 * probs[i, j]
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_probs_sst-press.npy', probs)
+        np.save(files_path_prefix + f'Eigenvalues/tmp/{t + offset}_b_vals_sst-press.npy', b_matrix_vals)
+        eigenvalues, positions = get_save_eig(files_path_prefix, t + offset, 'sst-press', b_matrix_vals)
+
+        matrix_list = list()
+        lambdas_list = list()
+        for i in range(n_bins):
+            matrix = np.zeros(SST_array.shape[0])
+            matrix[np.logical_not(mask)] = np.nan
+            x1 = values_sst[positions[i]]
+            x2 = values_press[positions[i]]
+            lambda_value = eigenvalues[positions[i]]
+            points_x1 = np.where(SST_array[:, t] == x1)[0]
+            points_x2 = np.where(press_array[:, t + 1] == x2)[0]
+            intersection = np.intersect1d(points_x1, points_x2)
+            # print(len(intersection))
+            if len(intersection):
+                matrix[intersection] = lambda_value
+                matrix_list.append(matrix)
+                lambdas_list.append(lambda_value)
+            if len(matrix_list) >= n_lambdas:
+                break
+        plot_eigenvalues(files_path_prefix, matrix_list, t + offset, lambdas_list, ('SST', 'Pressure'), n_lambdas)
     return
-
