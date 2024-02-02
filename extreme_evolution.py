@@ -11,10 +11,47 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import numpy, scipy.optimize
 from data_processing import load_ABCFE
+from symfit import parameters, variables, sin, cos, Fit
+from sklearn.metrics import r2_score
 
 
 def fit_linear(x, a, b):
     return a*x + b
+
+def rmse(x, y):
+    return np.sqrt(np.sum((x-y)**2))
+
+def fourier_series(x, f, n=10):
+    """
+    Returns a symbolic fourier series of order `n`.
+
+    :param n: Order of the fourier series.
+    :param x: Independent variable
+    :param f: Frequency of the fourier series
+    """
+    # Make the parameter objects for all the terms
+    a0, *cos_a = parameters(','.join(['a{}'.format(i) for i in range(0, n + 1)]))
+    sin_b = parameters(','.join(['b{}'.format(i) for i in range(1, n + 1)]))
+    # Construct the series
+    series = a0 + sum(ai * cos(i * f * x) + bi * sin(i * f * x)
+                     for i, (ai, bi) in enumerate(zip(cos_a, sin_b), start=1))
+    return series
+
+
+def fit_fourier(sens_x, lat_x, sens_res, lat_res):
+    x, y = variables('x, y')
+    w, = parameters('w')
+    model_dict = {y: fourier_series(x, f=w, n=10)}
+
+    fit = Fit(model_dict, x=sens_x, y=sens_res)
+    fit_sens = fit.execute()
+    fit_sens_array = np.array(fit.model(sens_x, **fit_sens.params)).flat
+
+    fit = Fit(model_dict, x=lat_x, y=lat_res)
+    fit_lat = fit.execute()
+    fit_lat_array = np.array(fit.model(lat_x, **fit_lat.params)).flat
+
+    return fit_sens_array, fit_lat_array
 
 
 def fit_sin(tt, yy):
@@ -129,7 +166,8 @@ def plot_extreme(files_path_prefix: str,
                  local_path_prefix:str = '',
                  names: tuple = ('Sensible', 'Latent'),
                  fit_sinus: bool = False,
-                 fit_regression: bool = False):
+                 fit_regression: bool = False,
+                 fit_fourier_flag: bool = False):
     """
     Plots two pictures: first with evolution of max, min and mean of coefficient, second - the same, but adding
     approximation of max and min with sin function
@@ -138,6 +176,11 @@ def plot_extreme(files_path_prefix: str,
     :param time_start: start day index, counting from 01.01.1979
     :param time_end: end day index
     :param mean_days: width of the window in days, in which mean was taken
+    :param local_path_prefix: local path from the files_path_prefix to data with extreme values
+    :param names: a tuple with names for variables: e.g. ('Sensible', 'Latent'), ('Flux', 'SST')
+    :param fit_sinus: if to fit sinus function
+    :param fit_regression: if to fit linear regression like a*x + b
+    :param fit_fourier_flag: it to approximate residuals without trend by fft
     :return:
     """
     font = {'size': 14}
@@ -172,8 +215,9 @@ def plot_extreme(files_path_prefix: str,
             axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
             axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
         else:
-            axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
-            axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            pass
+            # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
 
         axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
         axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
@@ -215,21 +259,37 @@ def plot_extreme(files_path_prefix: str,
             axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
             x = np.array(range(time_start, time_end - mean_days, mean_days))
             x = x[:len(max_sens)]
-            approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
-            fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
 
+
+            # deleting trends
+            res = linregress(x, max_sens)  # res.intercept + res.slope * x
+            max_sens -= res.slope * x
+            res = linregress(x, min_sens)
+            min_sens -= res.slope * x
+            res = linregress(x, mean_sens)
+            mean_sens -= res.slope * x
+
+            res = linregress(x, max_lat)
+            max_lat -= res.slope * x
+            res = linregress(x, min_lat)
+            min_lat -= res.slope * x
+            res = linregress(x, mean_lat)
+            mean_lat -= res.slope * x
+
+            fig.suptitle(f'{coeff_type} coefficient extreme residuals', fontsize=20, fontweight='bold')
+            approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
             axs[0].set_title(names[0], fontdict=font_names)
             res = fit_sin(x, max_sens)
             rss = np.sqrt(np.sum((max_sens - res["fitfunc"](x)) ** 2)) / len(x)
             # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-            axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n RMSE={rss:.1e}')
             axs[0].plot(days, max_sens, c='r', alpha=0.75, label='max')
             axs[0].plot(days, mean_sens, c='g', alpha=1, label='mean')
 
             res = fit_sin(x, min_sens)
             rss = np.sqrt(np.sum((min_sens - res["fitfunc"](x)) ** 2)) / len(x)
             # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-            axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n RMSE = {rss:.1e}')
             axs[0].plot(days, min_sens, c='b', alpha=0.75, label='min')
             axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
@@ -237,19 +297,19 @@ def plot_extreme(files_path_prefix: str,
             res = fit_sin(x, max_lat)
             rss = np.sqrt(np.sum((max_lat - res["fitfunc"](x)) ** 2)) / len(x)
             # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-            axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n RMSE = {rss:.1e}')
             axs[1].plot(days, max_lat, c='r', alpha=0.75, label='max')
             axs[1].plot(days, mean_lat, c='g', alpha=1, label='mean')
 
             res = fit_sin(x, min_lat)
             rss = np.sqrt(np.sum((min_lat - res["fitfunc"](x)) ** 2)) / len(x)
             # string_fit = f"{res['amp']:.1f}*sin({res['omega']:.5f}*x + {res['phase']:.1f}) + {res['offset']:.1f}"
-            axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n MSE={rss:.2f}')
+            axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n RMSE={rss:.1e}')
             axs[1].plot(days, min_lat, c='b', alpha=0.75, label='min')
             axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
             fig.tight_layout()
-            fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_({time_start}-{time_end})_{mean_days}_fit.png')
+            fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_({time_start}-{time_end})_{mean_days}_fit_sinus.png')
         if fit_regression:
             fig, axs = plt.subplots(2, 1, figsize=(20, 10))
             if mean_days == 365:
@@ -287,6 +347,389 @@ def plot_extreme(files_path_prefix: str,
             fig.tight_layout()
             fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_'
                                             f'({time_start}-{time_end})_{mean_days}_fit_regression.png')
+
+        if fit_fourier_flag:
+            fig, axs = plt.subplots(2, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_sens)]
+
+            # deleting trends
+            res = linregress(x, max_sens)  # res.intercept + res.slope * x
+            max_sens -= res.slope * x
+            res = linregress(x, min_sens)
+            min_sens -= res.slope * x
+            res = linregress(x, mean_sens)
+            mean_sens -= res.slope * x
+
+            res = linregress(x, max_lat)
+            max_lat -= res.slope * x
+            res = linregress(x, min_lat)
+            min_lat -= res.slope * x
+            res = linregress(x, mean_lat)
+            mean_lat -= res.slope * x
+
+            max_sens_fourier, max_lat_fourier = fit_fourier(x, x, max_sens, max_lat)
+            min_sens_fourier, min_lat_fourier = fit_fourier(x, x, min_sens, min_lat)
+            mean_sens_fourier, mean_lat_fourier = fit_fourier(x, x, mean_sens, mean_lat)
+
+            fig.suptitle(f'{coeff_type} coefficient extreme residuals', fontsize=20, fontweight='bold')
+            axs[0].set_title(names[0], fontdict=font_names)
+            axs[0].plot(days, max_sens, c='r', alpha=0.75, label='max')
+            axs[0].plot(days, max_sens_fourier, '--', c='darkviolet', label=f'Fourier max, RMSE = {rmse(max_sens, max_sens_fourier):.1e}')
+            axs[0].plot(days, mean_sens, c='g', alpha=1, label='mean')
+            # axs[0].plot(days, mean_sens_fourier, '--', c='orange', label='Fourier mean')
+            axs[0].plot(days, min_sens, c='b', alpha=0.75, label='min')
+            axs[0].plot(days, min_sens_fourier, '--', c='orange', label=f'Fourier min, RMSE = {rmse(min_sens, min_sens_fourier):.1e}')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[1].set_title(names[1], fontdict=font_names)
+            axs[1].plot(days, max_lat, c='r', alpha=0.75, label='max')
+            axs[1].plot(days, max_lat_fourier, '--', c='darkviolet', label=f'Fourier max, RMSE = {rmse(max_lat, max_lat_fourier):.1e}')
+            axs[1].plot(days, mean_lat, c='g', alpha=1, label='mean')
+            axs[1].plot(days, min_lat_fourier, '--', c='orange', label=f'Fourier min, RMSE = {rmse(min_lat, min_lat_fourier):.1e}')
+            axs[1].plot(days, min_lat, c='b', alpha=0.75, label='min')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/{local_path_prefix}/{mean_days}/{coeff_type}_'
+                                            f'({time_start}-{time_end})_{mean_days}_fit_residuals_fourier.png')
+
+    return
+
+
+def plot_extreme_3d(files_path_prefix: str,
+                 coeff_type: str,
+                 time_start: int,
+                 time_end: int,
+                 mean_days: int = 1,
+                 fit_sinus: bool = False,
+                 fit_regression: bool = False,
+                 fit_fourier_flag: bool = False):
+    """
+    Plots two pictures: first with evolution of max, min and mean of coefficient, second - the same, but adding
+    approximation of max and min with sin function
+    :param files_path_prefix: path to the working directory
+    :param coeff_type: 'a' or 'b'
+    :param time_start: start day index, counting from 01.01.1979
+    :param time_end: end day index
+    :param mean_days: width of the window in days, in which mean was taken
+    :param local_path_prefix: local path from the files_path_prefix to data with extreme values
+    :param names: a tuple with names for variables: e.g. ('Sensible', 'Latent'), ('Flux', 'SST')
+    :param fit_sinus: if to fit sinus function
+    :param fit_regression: if to fit linear regression like a*x + b
+    :param fit_fourier_flag: it to approximate residuals without trend by fft
+    :return:
+    """
+    font = {'size': 14}
+    font_names = {'weight': 'bold', 'size': 20}
+    matplotlib.rc('font', **font)
+    sns.set_style("whitegrid")
+
+    days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in
+            range(time_start, time_end - mean_days, mean_days)]
+    if os.path.exists(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy'):
+        max_flux = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_max_sens({time_start}-{time_end})_{mean_days}.npy')
+        min_flux = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_min_sens({time_start}-{time_end})_{mean_days}.npy')
+        mean_flux = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_mean_sens({time_start}-{time_end})_{mean_days}.npy')
+
+        max_sst = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy')
+        min_sst = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy')
+        mean_sst = np.load(
+            files_path_prefix + f'Extreme/data/flux-sst/{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy')
+
+        max_press = np.load(
+            files_path_prefix + f'Extreme/data/sst-press/{coeff_type}_max_lat({time_start}-{time_end})_{mean_days}.npy')
+        min_press = np.load(
+            files_path_prefix + f'Extreme/data/sst-press/{coeff_type}_min_lat({time_start}-{time_end})_{mean_days}.npy')
+        mean_press = np.load(
+            files_path_prefix + f'Extreme/data/sst-press/{coeff_type}_mean_lat({time_start}-{time_end})_{mean_days}.npy')
+
+        days = days[:len(max_flux)]
+        fig, axs = plt.subplots(3, 1, figsize=(20, 10))
+        # Major ticks every half year, minor ticks every month,
+        if mean_days == 365:
+            axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+            axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+            axs[2].xaxis.set_minor_locator(mdates.MonthLocator())
+        else:
+            pass
+            # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+
+        axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+        axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+        axs[2].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[2].xaxis.get_major_locator()))
+        fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
+
+        axs[0].set_title('Flux', fontdict=font_names)
+        axs[0].plot(days, max_flux, label='max', c='r', alpha=0.75)
+        axs[0].plot(days, min_flux, label='min', c='b', alpha=0.75)
+        axs[0].plot(days, mean_flux, label='mean', c='g')
+        axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+        axs[1].set_title('SST', fontdict=font_names)
+        axs[1].plot(days, max_sst, label='max', c='r', alpha=0.75)
+        axs[1].plot(days, min_sst, label='min', c='b', alpha=0.75)
+        axs[1].plot(days, mean_sst, label='mean', c='g')
+        axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+        axs[2].set_title('Pressure', fontdict=font_names)
+        axs[2].plot(days, max_press, label='max', c='r', alpha=0.75)
+        axs[2].plot(days, min_press, label='min', c='b', alpha=0.75)
+        axs[2].plot(days, mean_press, label='mean', c='g')
+        axs[2].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+        if not os.path.exists(files_path_prefix + f'Extreme/plots'):
+            os.mkdir(files_path_prefix + f'Extreme/plots')
+        if not os.path.exists(files_path_prefix + f'Extreme/plots/3D'):
+            os.mkdir(files_path_prefix + f'Extreme/plots/3D')
+        if not os.path.exists(files_path_prefix + f'Extreme/plots/3D/{mean_days}'):
+            os.mkdir(files_path_prefix + f'Extreme/plots/3D/{mean_days}')
+
+        fig.tight_layout()
+        fig.savefig(files_path_prefix + f'Extreme/plots/3D/{mean_days}/{coeff_type}_({time_start}-{time_end})_{mean_days}.png')
+        plt.close(fig)
+
+        if fit_sinus:
+            fig, axs = plt.subplots(3, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[2].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                pass
+                # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            axs[2].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_flux)]
+
+            # deleting trends
+            res = linregress(x, max_flux)  # res.intercept + res.slope * x
+            max_flux -= res.slope * x
+            res = linregress(x, min_flux)
+            min_flux -= res.slope * x
+            res = linregress(x, mean_flux)
+            mean_flux -= res.slope * x
+
+            res = linregress(x, max_sst)
+            max_sst -= res.slope * x
+            res = linregress(x, min_sst)
+            min_sst -= res.slope * x
+            res = linregress(x, mean_sst)
+            mean_sst -= res.slope * x
+
+            res = linregress(x, max_press)
+            max_press -= res.slope * x
+            res = linregress(x, min_press)
+            min_press -= res.slope * x
+            res = linregress(x, mean_press)
+            mean_press -= res.slope * x
+
+            fig.suptitle(f'{coeff_type} coefficient extreme residuals', fontsize=20, fontweight='bold')
+            approx_string = f'A*sin({chr(969)}x + {chr(966)}) + c'
+            # -------------------------------------------------------
+            axs[0].set_title('Flux', fontdict=font_names)
+
+            res = fit_sin(x, max_flux)
+            rss = np.sqrt(np.sum((max_flux - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[0].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n RMSE={rss:.1e}')
+            axs[0].plot(days, max_flux, c='r', alpha=0.75, label='max')
+            axs[0].plot(days, mean_flux, c='g', alpha=1, label='mean')
+
+            res = fit_sin(x, min_flux)
+            rss = np.sqrt(np.sum((min_flux - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[0].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n RMSE = {rss:.1e}')
+            axs[0].plot(days, min_flux, c='b', alpha=0.75, label='min')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+            # -------------------------------------------------------
+            axs[1].set_title('SST', fontdict=font_names)
+            res = fit_sin(x, max_sst)
+            rss = np.sqrt(np.sum((max_sst - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[1].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n RMSE = {rss:.1e}')
+            axs[1].plot(days, max_sst, c='r', alpha=0.75, label='max')
+            axs[1].plot(days, mean_sst, c='g', alpha=1, label='mean')
+
+            res = fit_sin(x, min_sst)
+            rss = np.sqrt(np.sum((min_sst - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[1].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n RMSE={rss:.1e}')
+            axs[1].plot(days, min_sst, c='b', alpha=0.75, label='min')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+            # -------------------------------------------------------
+            axs[2].set_title('Pressure', fontdict=font_names)
+            res = fit_sin(x, max_press)
+            rss = np.sqrt(np.sum((max_press - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[2].plot(days, res["fitfunc"](x), '--', c='darkviolet', label=f'{approx_string}\n RMSE = {rss:.1e}')
+            axs[2].plot(days, max_press, c='r', alpha=0.75, label='max')
+            axs[2].plot(days, mean_press, c='g', alpha=1, label='mean')
+
+            res = fit_sin(x, min_press)
+            rss = np.sqrt(np.sum((min_press - res["fitfunc"](x)) ** 2)) / len(x)
+            axs[2].plot(days, res["fitfunc"](x), '--', c='orange', label=f'{approx_string}\n RMSE={rss:.1e}')
+            axs[2].plot(days, min_press, c='b', alpha=0.75, label='min')
+            axs[2].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+            # -------------------------------------------------------
+
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/3D/{mean_days}/{coeff_type}_({time_start}-{time_end})_'
+                                            f'{mean_days}_fit_sinus_residuals.png')
+        if fit_regression:
+            fig, axs = plt.subplots(3, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[2].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                pass
+                # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            axs[2].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[2].xaxis.get_major_locator()))
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_flux)]
+            fig.suptitle(f'{coeff_type} coefficient extreme', fontsize=20, fontweight='bold')
+
+            axs[0].set_title('Flux', fontdict=font_names)
+            axs[0].plot(days, max_flux, c='r')
+            res = linregress(x, max_flux)  # res.intercept + res.slope * x
+            r2 = r2_score(max_flux, res.intercept + res.slope*x)
+            axs[0].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[0].plot(days, mean_flux, c='g', alpha=1, label='mean')
+            res = linregress(x, min_flux)
+            r2 = r2_score(min_flux, res.intercept + res.slope * x)
+            axs[0].plot(days, res.intercept + res.slope*x, '--', c='orange',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[0].plot(days, min_flux, c='b', alpha=0.75, label='min')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[1].set_title('SST', fontdict=font_names)
+            axs[1].plot(days, max_sst, c='r')
+            res = linregress(x, max_sst)  # res.intercept + res.slope * x
+            r2 = r2_score(max_sst, res.intercept + res.slope*x)
+            axs[1].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[1].plot(days, mean_sst, c='g', alpha=1, label='mean')
+            res = linregress(x, min_sst)
+            r2 = r2_score(min_sst, res.intercept + res.slope * x)
+            axs[1].plot(days, res.intercept + res.slope*x, '--', c='orange',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[1].plot(days, min_sst, c='b', alpha=0.75, label='min')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[2].set_title('Pressure', fontdict=font_names)
+            axs[2].plot(days, max_press, c='r')
+            res = linregress(x, max_press)  # res.intercept + res.slope * x
+            r2 = r2_score(max_press, res.intercept + res.slope*x)
+            axs[2].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[2].plot(days, mean_press, c='g', alpha=1, label='mean')
+            res = linregress(x, min_press)
+            r2 = r2_score(min_press, res.intercept + res.slope * x)
+            axs[2].plot(days, res.intercept + res.slope*x, '--', c='orange',
+                        label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            axs[2].plot(days, min_press, c='b', alpha=0.75, label='min')
+            axs[2].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/3D/{mean_days}/{coeff_type}_'
+                                            f'({time_start}-{time_end})_{mean_days}_fit_regression.png')
+        if fit_fourier_flag:
+            fig, axs = plt.subplots(3, 1, figsize=(20, 10))
+            if mean_days == 365:
+                axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[1].xaxis.set_minor_locator(mdates.MonthLocator())
+                axs[2].xaxis.set_minor_locator(mdates.MonthLocator())
+            else:
+                pass
+                # axs[0].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+                # axs[1].xaxis.set_major_locator(mdates.MonthLocator(bymonth=(1, 3, 5, 7, 9, 11)))
+            axs[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[0].xaxis.get_major_locator()))
+            axs[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[1].xaxis.get_major_locator()))
+            axs[2].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs[2].xaxis.get_major_locator()))
+
+            x = np.array(range(time_start, time_end - mean_days, mean_days))
+            x = x[:len(max_flux)]
+
+            # deleting trends
+            res = linregress(x, max_flux)  # res.intercept + res.slope * x
+            max_flux -= res.slope * x
+            res = linregress(x, min_flux)
+            min_flux -= res.slope * x
+            res = linregress(x, mean_flux)
+            mean_flux -= res.slope * x
+
+            res = linregress(x, max_sst)
+            max_sst -= res.slope * x
+            res = linregress(x, min_sst)
+            min_sst -= res.slope * x
+            res = linregress(x, mean_sst)
+            mean_sst -= res.slope * x
+
+            res = linregress(x, max_press)
+            max_press -= res.slope * x
+            res = linregress(x, min_press)
+            min_press -= res.slope * x
+            res = linregress(x, mean_press)
+            mean_press -= res.slope * x
+
+            max_flux_fourier, min_flux_fourier = fit_fourier(x, x, max_flux, min_flux)
+            max_sst_fourier, min_sst_fourier = fit_fourier(x, x, max_sst, min_sst)
+            max_press_fourier, min_press_fourier = fit_fourier(x, x, max_press, min_press)
+
+            fig.suptitle(f'{coeff_type} coefficient extreme residuals', fontsize=20, fontweight='bold')
+            axs[0].set_title('Flux', fontdict=font_names)
+            axs[0].plot(days, max_flux, c='r', alpha=0.75, label='max')
+            axs[0].plot(days, max_flux_fourier, '--', c='darkviolet',
+                        label=f'Fourier max, RMSE = {rmse(max_flux, max_flux_fourier):.1e}')
+            axs[0].plot(days, mean_flux, c='g', alpha=1, label='mean')
+            # axs[0].plot(days, mean_sens_fourier, '--', c='orange', label='Fourier mean')
+            axs[0].plot(days, min_flux, c='b', alpha=0.75, label='min')
+            axs[0].plot(days, min_flux_fourier, '--', c='orange',
+                        label=f'Fourier min, RMSE = {rmse(min_flux, min_flux_fourier):.1e}')
+            axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[1].set_title('SST', fontdict=font_names)
+            axs[1].plot(days, max_sst, c='r', alpha=0.75, label='max')
+            axs[1].plot(days, max_sst_fourier, '--', c='darkviolet',
+                        label=f'Fourier max, RMSE = {rmse(max_sst, max_sst_fourier):.1e}')
+            axs[1].plot(days, mean_sst, c='g', alpha=1, label='mean')
+            axs[1].plot(days, min_sst, c='b', alpha=0.75, label='min')
+            axs[1].plot(days, min_sst_fourier, '--', c='orange',
+                        label=f'Fourier min, RMSE = {rmse(min_sst, min_sst_fourier):.1e}')
+            axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            axs[2].set_title('Pressure', fontdict=font_names)
+            axs[2].plot(days, max_press, c='r', alpha=0.75, label='max')
+            axs[2].plot(days, max_press_fourier, '--', c='darkviolet',
+                        label=f'Fourier max, RMSE = {rmse(max_press, max_press_fourier):.1e}')
+            axs[2].plot(days, mean_press, c='g', alpha=1, label='mean')
+            axs[2].plot(days, min_press, c='b', alpha=0.75, label='min')
+            axs[2].plot(days, min_press_fourier, '--', c='orange',
+                        label=f'Fourier min, RMSE = {rmse(min_press, min_press_fourier):.1e}')
+            axs[2].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+            fig.tight_layout()
+            fig.savefig(files_path_prefix + f'Extreme/plots/3D/{mean_days}/{coeff_type}_'
+                                            f'({time_start}-{time_end})_{mean_days}_fit_residuals_fourier.png')
+
     return
 
 
