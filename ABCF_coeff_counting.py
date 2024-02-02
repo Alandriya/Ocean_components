@@ -437,3 +437,87 @@ def count_f_separate_coeff(files_path_prefix: str,
 
         np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{start_idx + t_start}_FS.npy', f_grid)
     return
+
+
+def count_triplet(set_t0, variable1, variable2, a_matrix, e_matrix, var1_idx, pair_idx):
+    for val_t0 in set_t0:
+        if not np.isnan(val_t0):
+            points_var1 = np.where(variable1 == val_t0)[0]
+            amount_t0 = len(points_var1)
+
+            # var1 t0 - var1 t1
+            set_t1 = np.unique(variable1[points_var1])
+            probabilities = list()
+            for val_t1 in set_t1:
+                prob = len(np.where(variable1[points_var1] == val_t1)[0]) * 1.0 / amount_t0
+                probabilities.append(prob)
+
+            a = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+            b_squared = sum(
+                [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+
+            for idx in points_var1:
+                a_matrix[var1_idx][idx // 181][idx % 181] = a
+                e_matrix[var1_idx][idx // 181][idx % 181] = b_squared
+
+            # var1 t0 - var2 t1
+            set_t1 = np.unique(variable2[points_var1])
+            probabilities = list()
+            for val_t1 in set_t1:
+                prob = len(np.where(variable2[points_var1 == val_t1])[0]) * 1.0 / amount_t0
+                probabilities.append(prob)
+            b_squared = sum(
+                [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in range(len(probabilities))]) - a ** 2
+
+            for idx in points_var1:
+                e_matrix[pair_idx][idx // 181][idx % 181] = b_squared
+
+    return  a_matrix, e_matrix
+
+
+def count_AE(files_path_prefix: str,
+                      mask: np.ndarray,
+                      flux_array: np.ndarray,
+                      SST_array: np.ndarray,
+                      press_array: np.ndarray,
+                      time_start: int = 0,
+                      time_end: int = 0,
+                      offset: int = 0,
+                      ):
+    a_flux = np.zeros((161, 181), dtype=float)
+    a_sst = np.zeros((161, 181), dtype=float)
+    a_press = np.zeros((161, 181), dtype=float)
+    a_fake = np.zeros((161, 181), dtype=float)
+    b_squared_matrix = np.zeros((9, 161, 181), dtype=complex)
+
+    # set nan where is not ocean in arrays
+    a_flux[np.logical_not(mask)] = np.nan
+    a_sst[np.logical_not(mask)] = np.nan
+    a_press[np.logical_not(mask)] = np.nan
+    b_squared_matrix[:, :][np.logical_not(mask)] = np.nan
+
+    print('Counting triplets A, B squared')
+    for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):
+        t_rel = t_absolute - time_start
+        set_flux = np.unique(flux_array[:, t_rel - 1])
+        set_sst = np.unique(SST_array[:, t_rel - 1])
+        set_press = np.unique(press_array[:, t_rel - 1])
+
+        # E[0] = flux-flux, E[1] = SST-SST, E[2] = press-press,
+        # E[3] = flux-sst, E[4] = flux-press, E[5] = sst-flux, E[6] = sst-press, E[7] = press-flux, E[8] = press-sst
+
+        a_flux, b_squared_matrix = count_triplet(set_flux, flux_array[:, t_rel], SST_array[:, t_rel], a_flux, b_squared_matrix, 0, 3)
+        _, b_squared_matrix = count_triplet(set_flux, flux_array[:, t_rel], press_array[:, t_rel], a_flux, b_squared_matrix, 0, 4)
+
+        a_sst, b_squared_matrix = count_triplet(set_sst, SST_array[:, t_rel], flux_array[:, t_rel], a_sst, b_squared_matrix, 1, 5)
+        _, b_squared_matrix = count_triplet(set_sst, SST_array[:, t_rel], press_array[:, t_rel], a_sst, b_squared_matrix, 1, 6)
+
+        a_press, b_squared_matrix = count_triplet(set_press, press_array[:, t_rel], flux_array[:, t_rel], a_press, b_squared_matrix, 2, 7)
+        _, b_squared_matrix = count_triplet(set_press, press_array[:, t_rel], SST_array[:, t_rel], a_press, b_squared_matrix, 2, 8)
+
+        np.save(files_path_prefix + f'Coeff_data_3d/{int(t_absolute + offset)}_A_flux.npy', a_flux)
+        np.save(files_path_prefix + f'Coeff_data_3d/{int(t_absolute + offset)}_A_sst.npy', a_sst)
+        np.save(files_path_prefix + f'Coeff_data_3d/{int(t_absolute + offset)}_A_press.npy', a_press)
+        np.save(files_path_prefix + f'Coeff_data_3d/{int(t_absolute + offset)}_B_squared.npy', b_squared_matrix)
+    return
+
