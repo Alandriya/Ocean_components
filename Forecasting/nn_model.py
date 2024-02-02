@@ -1,51 +1,68 @@
-import torch
-from torch import nn
-import torchvision
-from torch.utils.data import Dataset
-import time
 import os
+import tensorflow as tf
+import keras
+import math
 
+# print("TensorFlow version:", tf.__version__)
 
-class SimpleDataset(Dataset):
-    # defining values in the constructor
-    def __init__(self, x, y, transform=None):
-        self.x = x
-        self.y = y
-        self.transform = transform
-        self.len = x.shape[0]
+class Transformer:
+    def __init__(self, batch_size, n_days_lags, height, width):
+        # input is a batch of batch_size videos of 2D frames 161х181, with n_days_lags frames per video and 3 channels:
+        # X, A, B
+        input_shape = (batch_size, 3, n_days_lags, height, width, 1)  # (4, 3, 7, 161, 181, 1)
+        print(input_shape)
+        x = tf.random.normal(input_shape)
 
-    # Getting the data samples
-    def __getitem__(self, idx):
-        sample = self.x[idx], self.y[idx]
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
+        conv1 = keras.layers.Conv2D(filters=2, kernel_size=3, activation='relu', input_shape=input_shape[3:])
+        pool1 = keras.layers.MaxPooling2D(2, input_shape=input_shape[3:])
+        # conv2 = keras.layers.Conv3D(filters=16, kernel_size=3, activation='relu', input_shape=input_shape[2:])
+        # pool2 = keras.layers.MaxPooling3D(2)
+        # flat1 = keras.layers.Flatten()
 
-    # Getting data size/length
-    def __len__(self):
-        return self.len
+        self.model = keras.models.Sequential([conv1, pool1])
 
+        print(self.model.summary())
+        print(self.model(x).shape)
+        # model.compile(optimizer='adam',
+        #               loss= keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        #               metrics=[keras.metrics.SparseCategoricalAccuracy()])
 
-class Model(nn.Module):
-    def __init__(self, days_known, days_prediction, channels):
-        super(Model, self).__init__()
-        self.days_known = days_known
-        self.days_prediction = days_prediction
-        self.channels = channels
-        # channels = 1 for only lags or 3 for lags, A and B lags
+    def save(self, checkpoint_path, epoch):
+        self.model.save_weights(checkpoint_path + f"cp-{epoch:04d}.ckpt")
 
+    def load(self, checkpoint_path, epoch=0):
+        if epoch:
+            self.model.load_weights(checkpoint_path + f"cp-{epoch:04d}.ckpt")
+        else:
+            latest = tf.train.latest_checkpoint(checkpoint_path)
+            self.model.load_weights(latest)
 
-    def forward(self, x):
-        conv = nn.Conv3d(in_channels=self.channels,
-                         out_channels=1,
-                         kernel_size=(3, 3),
+    def train(self, checkpoint_path, X_train, Y_train, batch_size, epochs, mode='first'):
+        n_batches = X_train.shape[0] / batch_size
+        n_batches = math.ceil(n_batches)  # round up the number of batches to the nearest whole integer
 
-                         )
-        return logits
+        if mode != 'first':
+            latest = tf.train.latest_checkpoint(checkpoint_path)
+            self.model.load_weights(latest)
+        else:
+            if not os.path.exists(checkpoint_path):
+                os.mkdir(checkpoint_path)
 
+        # Create a callback that saves the model's weights every 5 epochs
+        cp_callback = keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            verbose=1,
+            save_weights_only=True,
+            save_freq=5 * n_batches)
 
-    # def init_hidden(self, batch_size):
-    #     # This method generates the first hidden state of zeros which we'll use in the forward pass
-    #     # We'll send the tensor holding the hidden state to the device we specified earlier as well
-    #     hidden = torch.zeros(self.n_layers, batch_size, self.hidden_dim)
-    #     return hidden
+        self.model.fit(X_train,
+                  Y_train,
+                  epochs=epochs,
+                  batch_size=batch_size,
+                  callbacks=[cp_callback],
+                  # validation_data=(test_images, test_labels),
+                  verbose=0)
+
+    def evaluate(self, X_test, Y_test):
+        loss, acc = self.model.evaluate(X_test, Y_test, verbose=2)
+        return loss, acc
