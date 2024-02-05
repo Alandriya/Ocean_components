@@ -36,4 +36,21 @@ if __name__ == '__main__':
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
+    # pair_name = 'sst-press'
+    # coeff_name = 'A'
+    # start = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # create_video(files_path_prefix, f'videos/3D/{pair_name}/{coeff_name}/', f'{coeff_name}_', f'{pair_name}_{coeff_name}_2019-2023', 20, start)
 
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    n_bins = 25
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy')
+    values_flux = np.unique(flux_array)
+    values_flux = values_flux[~numpy.isnan(values_flux)]
+    values_sst = np.unique(SST_array)
+    values_sst = values_sst[~numpy.isnan(values_sst)]
+    values_press = np.unique(press_array)
+    values_press = values_press[~numpy.isnan(values_press)]
+    count_eigenvalues_triplets(files_path_prefix, mask, flux_array, values_flux, SST_array, values_sst,
+                               press_array, values_press, offset, n_bins)

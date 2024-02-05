@@ -21,8 +21,10 @@ def plot_eigenvalues(files_path_prefix: str,
     fig, axs = plt.subplots(1, lambda_amount, figsize=(15, 5))
     img = [None for _ in range(lambda_amount)]
 
-    if not os.path.exists(files_path_prefix + f'videos/{names[0]}-{names[1]}'):
-        os.mkdir(files_path_prefix + f'videos/{names[0]}-{names[1]}')
+    if not os.path.exists(files_path_prefix + f'videos/Eigenvalues'):
+        os.mkdir(files_path_prefix + f'videos/Eigenvalues')
+    if not os.path.exists(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}'):
+        os.mkdir(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}')
 
     cmap_l = plt.get_cmap('Blues').copy()
     cmap_l.set_bad('lightgreen', 1.0)
@@ -44,6 +46,6 @@ def plot_eigenvalues(files_path_prefix: str,
         axs[i].set_yticklabels(y_label_list)
         fig.colorbar(img[i], cax=cax, orientation='vertical')
 
-    fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/{names[0]}-{names[1]}/Lambdas_{t}.png')
+    # fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t}.png')
     return
