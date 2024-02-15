@@ -41,16 +41,47 @@ if __name__ == '__main__':
     # start = days_delta1 + days_delta2 + days_delta3 + days_delta4
     # create_video(files_path_prefix, f'videos/3D/{pair_name}/{coeff_name}/', f'{coeff_name}_', f'{pair_name}_{coeff_name}_2019-2023', 20, start)
 
+    # days_delta6 = (datetime.datetime(2019, 2, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
+    # flux_array = flux_array[:, :days_delta6]
+    # SST_array = SST_array[:, :days_delta6]
+    # press_array = press_array[:, :days_delta6]
+    # np.save(files_path_prefix + f'Fluxes/FLUX_2019_grouped.npy', flux_array)
+    # np.save(files_path_prefix + f'SST/SST_2019_grouped.npy', SST_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_2019_grouped.npy', press_array)
+
+    # days_delta6 = (datetime.datetime(2019, 2, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
+    # flux_array = flux_array[:, :days_delta6]
+    # SST_array = SST_array[:, :days_delta6]
+    # press_array = press_array[:, :days_delta6]
+    # n_bins = 10
+    #
+    # flux_array, quantiles_flux = scale_to_bins(flux_array, n_bins)
+    # SST_array, quantiles_sst = scale_to_bins(SST_array, n_bins)
+    # press_array, quantiles_press = scale_to_bins(press_array, n_bins)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy', flux_array)
+    # np.save(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy', SST_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy', SST_array)
+    # raise ValueError
+
     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    n_bins = 25
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy')
-    values_flux = np.unique(flux_array)
-    values_flux = values_flux[~numpy.isnan(values_flux)]
-    values_sst = np.unique(SST_array)
-    values_sst = values_sst[~numpy.isnan(values_sst)]
-    values_press = np.unique(press_array)
-    values_press = values_press[~numpy.isnan(values_press)]
-    count_eigenvalues_triplets(files_path_prefix, mask, flux_array, values_flux, SST_array, values_sst,
-                               press_array, values_press, offset, n_bins)
+    n_bins = 100
+    # flux_array_grouped = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy')
+    # SST_array_grouped = np.load(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy')
+    # press_array_grouped = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy')
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped.npy')
+
+    # values_flux = np.unique(flux_array_grouped)
+    # values_flux = values_flux[~numpy.isnan(values_flux)]
+    # values_sst = np.unique(SST_array_grouped)
+    # values_sst = values_sst[~numpy.isnan(values_sst)]
+    # values_press = np.unique(press_array_grouped)
+    # values_press = values_press[~numpy.isnan(values_press)]
+    count_eigenvalues_triplets(files_path_prefix, mask, flux_array, SST_array, press_array, offset, n_bins)
