@@ -3,13 +3,14 @@ from Plotting.plot_Bel_coefficients import *
 from SRS_count_coefficients import *
 from Plotting.mean_year import *
 from Plotting.video import *
+from Plotting.plot_eigenvalues import plot_eigenvalues
 from extreme_evolution import *
 from ABCF_coeff_counting import *
 from eigenvalues import *
 from data_processing import load_ABCFE
 
-files_path_prefix = 'home/aosipova/EM_ocean'
-# files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+# files_path_prefix = 'home/aosipova/EM_ocean'
+files_path_prefix = 'E:/Nastya/Data/OceanFull/'
 # files_path_prefix = 'D://Data/OceanFull/'
 
 # timesteps = 7320
@@ -40,7 +41,7 @@ if __name__ == '__main__':
 
     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
     n_bins = 50
-    
+
     # count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, 0, offset, n_bins, 16)
     t = 0
     for names in [('Flux', 'SST'), ('Flux', 'Pressure'), ('SST', 'Pressure'), ('Flux', 'Flux'), ('SST', 'SST'),

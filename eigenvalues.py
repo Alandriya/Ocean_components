@@ -2,9 +2,22 @@ import numpy as np
 import tqdm
 import os
 from scipy.linalg import sqrtm
-from data_processing import scale_to_bins
-from Plotting.plot_eigenvalues import plot_eigenvalues
 from multiprocessing import Pool
+
+
+def scale_to_bins(arr, bins=100):
+    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
+
+    arr_scaled = np.zeros_like(arr)
+    arr_scaled[np.isnan(arr)] = np.nan
+    # for j in tqdm.tqdm(range(bins - 1)):
+    for j in range(bins - 1):
+        arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
+            (quantiles[j] + quantiles[j + 1]) / 2
+
+    quantiles += [np.nanmax(arr)]
+
+    return arr_scaled, quantiles
 
 
 def get_eig(B: np.ndarray,
@@ -23,26 +36,29 @@ def get_eig(B: np.ndarray,
 
 def count_B(arg: list,
             ):
-    print('My process id:', os.getpid())
     files_path_prefix, t, i_idxes, j_idxes, array1_first, array1_second, array1_quantiles, array2_first, array2_second, \
     array2_quantiles, names, shape = arg
+    print(f'My process id: {os.getpid()}, len(i) = {len(i_idxes)}, len(j)={len(j_idxes)}', flush=True)
 
-    b_matrix = np.zeros(shape, dtype=float)
-    # count b_matrix
-    for i1 in i_idxes:
-        for j1 in j_idxes:
-            points_x1 = np.where((array1_quantiles[i1] <= array1_first) & (array1_first < array1_quantiles[i1 + 1]))[0]
-            points_y1 = np.where((array2_quantiles[j1] <= array2_first) & (array2_first < array2_quantiles[j1 + 1]))[0]
+    for k in range(len(i_idxes)):
+        i1 = i_idxes[k]
+        j1 = j_idxes[k]
+        b_matrix = np.zeros(shape, dtype=float)
+        points_x1 = np.where((array1_quantiles[i1] <= array1_first) & (array1_first < array1_quantiles[i1 + 1]))[0]
+        points_y1 = np.where((array2_quantiles[j1] <= array2_first) & (array2_first < array2_quantiles[j1 + 1]))[0]
 
+        if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t}/B_{i1}_{j1}.npy'):
             for i2 in range(len(array1_quantiles) - 1):
-                points_x2 = np.where((array1_quantiles[i2] <= array1_second) & (array1_second < array1_quantiles[i2 + 1]))[0]
-                for j2 in tqdm.tqdm(range(len(array2_quantiles) - 1)):
+                points_x2 = \
+                np.where((array1_quantiles[i2] <= array1_second) & (array1_second < array1_quantiles[i2 + 1]))[0]
+                for j2 in range(len(array2_quantiles) - 1):
                     points_y2 = \
                     np.where((array2_quantiles[j2] <= array2_second) & (array2_second < array2_quantiles[j2 + 1]))[0]
                     if len(points_x2) and len(points_y2):
                         prob = len(points_x1) * len(points_y1) / (len(points_x2) * len(points_y2))
-                        tmp = sum([(x2 - x1) * (y2 - y1) for x1 in points_x1 for x2 in points_x2 for y1 in points_y1 for y2 in
-                                   points_y2])
+                        tmp = sum(
+                            [(x2 - x1) * (y2 - y1) for x1 in points_x1 for x2 in points_x2 for y1 in points_y1 for y2 in
+                             points_y2])
                         b_matrix[i2, j2] = tmp * prob
 
             # save
@@ -51,7 +67,8 @@ def count_B(arg: list,
             if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t}'):
                 os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t}')
             np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t}/B_{i1}_{j1}.npy', b_matrix)
-    print(f'Process {os.getpid()} finished')
+            del b_matrix
+    print(f'Process {os.getpid()} finished', flush=True)
     return
 
 
@@ -69,30 +86,32 @@ def count_eigenvalues_pair(files_path_prefix,
 
     i_idxes = [list() for _ in range(cpu_amount)]
     j_idxes = [list() for _ in range(cpu_amount)]
-    q_amount = len(array1_quantiles)-1
+    q_amount = len(array1_quantiles) - 1
     delta = (q_amount * q_amount + cpu_amount) // cpu_amount
     for k in range(cpu_amount):
-        for m in range(k*delta, (k+1)*delta):
+        for m in range(k * delta, (k + 1) * delta):
             if m <= q_amount * q_amount:
                 i_idxes[k].append(m // q_amount)
                 j_idxes[k].append(m % q_amount)
 
-    args = [[files_path_prefix, t+offset, i_idxes[k], j_idxes[k], array1[:, t], array1[:, t+1], array1_quantiles,
-             array2[:, t], array2[:, t+1], array2_quantiles, names, (height, width)] for k in range(cpu_amount)]
+    args = [[files_path_prefix, t + offset, i_idxes[k], j_idxes[k], array1[:, t], array1[:, t + 1], array1_quantiles,
+             array2[:, t], array2[:, t + 1], array2_quantiles, names, (height, width)] for k in range(cpu_amount)]
 
     with Pool(cpu_amount) as p:
         p.map(count_B, args)
         p.close()
         p.join()
 
-    print('All finished, counting eigenvalues')
+    print('All finished, counting eigenvalues', flush=True)
 
-    for i in range(len(array1_quantiles)-1):
+    for i in range(len(array1_quantiles) - 1):
         for j in range(len(array2_quantiles) - 1):
-            b_matrix_vals = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t+offset}/B_{i}_{j}.npy')
+            b_matrix_vals = np.load(
+                files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/B_{i}_{j}.npy')
 
-    eigenvalues, eigenvectors, positions = get_eig(b_matrix_vals.reshape((height*width, height*width)), (names[0], names[1]))
-    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t+offset}.npy', eigenvalues)
+    eigenvalues, eigenvectors, positions = get_eig(b_matrix_vals.reshape((height * width, height * width)),
+                                                   (names[0], names[1]))
+    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/positions_{t + offset}.npy', positions)
     return
@@ -107,10 +126,9 @@ def count_eigenvalues_triplets(files_path_prefix: str,
                                n_bins: int = 100,
                                cpu_amount: int = 16,
                                ):
-
-    flux_array = flux_array[:, t:t+2]
-    SST_array = SST_array[:, t:t+2]
-    press_array = press_array[:, t:t+2]
+    flux_array = flux_array[:, t:t + 2]
+    SST_array = SST_array[:, t:t + 2]
+    press_array = press_array[:, t:t + 2]
 
     flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
     SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
@@ -121,7 +139,7 @@ def count_eigenvalues_triplets(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues/tmp'):
         os.mkdir(files_path_prefix + f'Eigenvalues/tmp')
 
-    for t in range(flux_array.shape[1]-1):
+    for t in range(flux_array.shape[1] - 1):
         # flux-sst
         count_eigenvalues_pair(files_path_prefix, cpu_amount, flux_array, quantiles_flux, SST_array, quantiles_sst,
                                0, t + offset, ('Flux', 'SST'))
@@ -142,6 +160,7 @@ def count_eigenvalues_triplets(files_path_prefix: str,
                                0, t + offset, ('SST', 'SST'))
 
         # press-press
-        count_eigenvalues_pair(files_path_prefix, cpu_amount, press_array, quantiles_press, press_array, quantiles_press,
+        count_eigenvalues_pair(files_path_prefix, cpu_amount, press_array, quantiles_press, press_array,
+                               quantiles_press,
                                0, t + offset, ('Pressure', 'Pressure'))
     return
