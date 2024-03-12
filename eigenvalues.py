@@ -120,6 +120,13 @@ def count_eigenvalues_parralel(files_path_prefix,
                 gc.collect()
                 args_list = []
 
+    if len(args_list):
+        with Pool(len(args_list)) as p:
+            p.map(_count_B_ij, args_list)
+            p.close()
+            p.join()
+        gc.collect()
+
     print('All finished', flush=True)
     return
 
