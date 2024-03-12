@@ -96,6 +96,9 @@ def count_eigenvalues_parralel(files_path_prefix,
                 i_idxes[k].append(m // q_amount)
                 j_idxes[k].append(m % q_amount)
 
+    if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}'):
+        os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}')
+
     args_list = []
     for i1 in range(n_bins):
         for j1 in range(n_bins):
@@ -104,7 +107,7 @@ def count_eigenvalues_parralel(files_path_prefix,
                 points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
                 points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
 
-                args = [files_path_prefix, t, i1, j1, points_x1, array1[:, t + 1], array1_quantiles, points_y1, array2[:, t + 1],
+                args = [files_path_prefix, t+offset, i1, j1, points_x1, array1[:, t + 1], array1_quantiles, points_y1, array2[:, t + 1],
                         array2_quantiles, names, (height, width)]
                 # _count_B_ij(args)
                 args_list.append(args)
