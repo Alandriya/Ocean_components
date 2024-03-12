@@ -38,12 +38,22 @@ if __name__ == '__main__':
     flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
     SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
     press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
+    t = 0
+    cpu_amount = 4
+
+    flux_array = flux_array[:, t:t + 2]
+    SST_array = SST_array[:, t:t + 2]
+    press_array = press_array[:, t:t + 2]
+    n_bins = 100
+
+    flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
+    SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
 
     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    n_bins = 50
-
-    # count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, 0, offset, n_bins, 16)
-    t = 0
-    for names in [('Flux', 'SST'), ('Flux', 'Pressure'), ('SST', 'Pressure'), ('Flux', 'Flux'), ('SST', 'SST'),
-                  ('Pressure', 'Pressure')]:
-        plot_eigenvalues(files_path_prefix, 3, mask, t + offset, names)
+    count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, SST_array, quantiles_sst,
+                           0, offset, ('Flux', 'SST'), n_bins)
+    # count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, 0, offset, n_bins, 4)
+    # t = 0
+    # for names in [('Flux', 'SST'), ('Flux', 'Pressure'), ('SST', 'Pressure'), ('Flux', 'Flux'), ('SST', 'SST'),
+    #               ('Pressure', 'Pressure')]:
+    #     plot_eigenvalues(files_path_prefix, 3, mask, t + offset, names)
