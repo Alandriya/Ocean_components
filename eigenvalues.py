@@ -5,6 +5,7 @@ from scipy.linalg import sqrtm
 from multiprocessing import Pool
 import gc
 
+
 def scale_to_bins(arr, bins=100):
     quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
 
@@ -22,6 +23,13 @@ def scale_to_bins(arr, bins=100):
 
 def get_eig(B: np.ndarray,
             names: tuple):
+    """
+    Counts eigenvalues for the big matrix B for two cases: if both the variables in the data arrays are the same, e.g.
+    (Flux, Flux) and for different, e.g. (Flux, SST)
+    :param B: np.array with shape (height * width, height * width), two-dimensional
+    :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
+    :return:
+    """
     if names[0] == names[1]:
         A = B
     else:
@@ -34,7 +42,16 @@ def get_eig(B: np.ndarray,
     return eigenvalues, eigenvectors, positions
 
 
-def _count_B_ij(args:list):
+def _count_B_ij(args: list):
+    """
+    Function for parallel counting B_i_j
+    :param args: list, is supposed to be: [files_path_prefix, t, i1, j1, array1_first, array1_second, array1_quantiles,
+    array2_first, array2_second, array2_quantiles, names, shape]
+    shape is the shape of the map, e.g. (161, 181)
+    array1_first is a slice of the array1 for time moment t, and array1_second is a slice of the array1 for time moment
+    t+1, i1 = i, j1 = j
+    :return:
+    """
     files_path_prefix, t, i1, j1, array1_first, array1_second, array1_quantiles, array2_first, array2_second, \
     array2_quantiles, names, shape = args
     print(f'My process id: {os.getpid()}, i1 = {i1}, j1 = {j1}', flush=True)
@@ -44,7 +61,8 @@ def _count_B_ij(args:list):
     for i2 in range(len(array1_quantiles) - 1):
         points_x2 = np.where((array1_quantiles[i2] <= array1_second) & (array1_second < array1_quantiles[i2 + 1]))[0]
         for j2 in range(len(array2_quantiles) - 1):
-            points_y2 = np.where((array2_quantiles[j2] <= array2_second) & (array2_second < array2_quantiles[j2 + 1]))[0]
+            points_y2 = np.where((array2_quantiles[j2] <= array2_second) & (array2_second < array2_quantiles[j2 + 1]))[
+                0]
             if len(points_x2) and len(points_y2):
                 prob = len(points_x1) * len(points_y1) / (len(points_x2) * len(points_y2))
                 arr1_first_vec = [array1_first[x1] for x1 in points_x1]
@@ -58,7 +76,7 @@ def _count_B_ij(args:list):
                 tmp_sum = 0
                 for v1 in tmp1:
                     for v2 in tmp2:
-                        tmp_sum += v1*v2
+                        tmp_sum += v1 * v2
                 del tmp1, tmp2
                 b_matrix[i2, j2] = tmp_sum * prob
                 gc.collect()
@@ -76,15 +94,31 @@ def _count_B_ij(args:list):
 
 
 def count_eigenvalues_parralel(files_path_prefix,
-                           cpu_amount,
-                           array1,
-                           array1_quantiles,
-                           array2,
-                           array2_quantiles,
-                           t,
-                           offset,
-                           names,
-                           n_bins):
+                               cpu_amount,
+                               array1,
+                               array1_quantiles,
+                               array2,
+                               array2_quantiles,
+                               t,
+                               offset,
+                               names,
+                               n_bins):
+    """
+    Handles the parallel run of _count_B_ij, where each process counts only one B_i_j, this function creates sets of
+    arguments with length = cpu_count and each time runs the parallel counting until all the i and j are counted:
+    0 <= i < n_bins, 0 <= j < n_bins
+    :param files_path_prefix: path to the working directory
+    :param cpu_amount: amount of CPU used for parallel run
+    :param array1: array with shape (height*width, n_days): e.g. (29141, 1410) with values of the first array in pair
+    :param array1_quantiles: n_bins + 1 quantiles - the bounds of the n_bins intervals for first array in pair
+    :param array2: array with shape (height*width, n_days): e.g. (29141, 1410) with values of the second array in pair
+    :param array2_quantiles: n_bins + 1 quantiles - the bounds of the n_bins intervals for second array in pair
+    :param t: time moment from the beginning of the array = time relative
+    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
+    :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
+    :param n_bins: amount of bins to divide the values of each array
+    :return:
+    """
     height, width = 161, 181
     i_idxes = [list() for _ in range(cpu_amount)]
     j_idxes = [list() for _ in range(cpu_amount)]
@@ -102,12 +136,16 @@ def count_eigenvalues_parralel(files_path_prefix,
     args_list = []
     for i1 in range(n_bins):
         for j1 in range(n_bins):
-            if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t+offset}/B_{i1}_{j1}.npy'):
+            if not os.path.exists(
+                    files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/B_{i1}_{j1}.npy'):
                 print(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t}/B_{i1}_{j1}.npy')
-                points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
-                points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
+                points_x1 = \
+                np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
+                points_y1 = \
+                np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
 
-                args = [files_path_prefix, t+offset, i1, j1, points_x1, array1[:, t + 1], array1_quantiles, points_y1, array2[:, t + 1],
+                args = [files_path_prefix, t + offset, i1, j1, points_x1, array1[:, t + 1], array1_quantiles, points_y1,
+                        array2[:, t + 1],
                         array2_quantiles, names, (height, width)]
                 # _count_B_ij(args)
                 args_list.append(args)
@@ -132,11 +170,21 @@ def count_eigenvalues_parralel(files_path_prefix,
 
 
 def collect_eigenvalues_pair(files_path_prefix,
-                           array1_quantiles,
-                           array2_quantiles,
-                           t,
-                           offset,
-                           names):
+                             array1_quantiles,
+                             array2_quantiles,
+                             t,
+                             offset,
+                             names):
+    """
+    Collects the B_i_j to one matrix B (to rule them all) and counts eigenvalues
+    :param files_path_prefix: path to the working directory
+    :param array1_quantiles: n_bins + 1 quantiles - the bounds of the n_bins intervals for first array in pair
+    :param array2_quantiles: n_bins + 1 quantiles - the bounds of the n_bins intervals for second array in pair
+    :param t: time moment from the beginning of the array = time relative
+    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
+    :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
+    :return:
+    """
     height, width = 161, 181
     b_matrix_vals = np.zeros((height, width, height, width), dtype=float)
 
@@ -157,11 +205,23 @@ def count_eigenvalues_triplets(files_path_prefix: str,
                                flux_array: np.ndarray,
                                SST_array: np.ndarray,
                                press_array: np.ndarray,
-                               t: int,
-                               offset: int,
+                               t: int = 0,
+                               offset: int = 14610,
                                n_bins: int = 100,
                                cpu_amount: int = 16,
                                ):
+    """
+    Counts eigenvalues for all possible pairs in triplet (Flux, SST, Pressure)
+    :param files_path_prefix: path to the working directory
+    :param flux_array: array with shape (height*width, n_days): e.g. (29141, 1410) with flux values
+    :param SST_array:
+    :param press_array:
+    :param t: time moment from the beginning of the array = time relative
+    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
+    :param n_bins: amount of bins to divide the values of each array
+    :param cpu_amount: amount of CPU used for parallel run
+    :return:
+    """
     flux_array = flux_array[:, t:t + 2]
     SST_array = SST_array[:, t:t + 2]
     press_array = press_array[:, t:t + 2]
@@ -178,32 +238,36 @@ def count_eigenvalues_triplets(files_path_prefix: str,
     for t in range(flux_array.shape[1] - 1):
         # flux-sst
         count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, SST_array, quantiles_sst,
-                               0, t + offset, ('Flux', 'SST'), n_bins)
+                                   0, t + offset, ('Flux', 'SST'), n_bins)
         collect_eigenvalues_pair(files_path_prefix, quantiles_flux, quantiles_sst, t, offset, ('Flux', 'SST'))
 
         # flux-press
-        count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, press_array, quantiles_press,
-                               0, t + offset, ('Flux', 'Pressure'), n_bins)
+        count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, press_array,
+                                   quantiles_press,
+                                   0, t + offset, ('Flux', 'Pressure'), n_bins)
         collect_eigenvalues_pair(files_path_prefix, quantiles_flux, quantiles_press, t, offset, ('Flux', 'Pressure'))
 
         # sst-press
-        count_eigenvalues_parralel(files_path_prefix, cpu_amount, SST_array, quantiles_sst, press_array, quantiles_press,
-                               0, t + offset, ('SST', 'Pressure'), n_bins)
+        count_eigenvalues_parralel(files_path_prefix, cpu_amount, SST_array, quantiles_sst, press_array,
+                                   quantiles_press,
+                                   0, t + offset, ('SST', 'Pressure'), n_bins)
         collect_eigenvalues_pair(files_path_prefix, quantiles_sst, quantiles_press, t, offset, ('SST', 'Pressure'))
 
         # flux-flux
-        count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, flux_array, quantiles_flux,
-                               0, t + offset, ('Flux', 'Flux'), n_bins)
+        count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, flux_array,
+                                   quantiles_flux,
+                                   0, t + offset, ('Flux', 'Flux'), n_bins)
         collect_eigenvalues_pair(files_path_prefix, quantiles_flux, quantiles_flux, t, offset, ('Flux', 'Flux'))
 
         # SST-SST
         count_eigenvalues_parralel(files_path_prefix, cpu_amount, SST_array, quantiles_sst, SST_array, quantiles_sst,
-                               0, t + offset, ('SST', 'SST'), n_bins)
+                                   0, t + offset, ('SST', 'SST'), n_bins)
         collect_eigenvalues_pair(files_path_prefix, quantiles_sst, quantiles_sst, t, offset, ('SST', 'SST'))
 
         # press-press
         count_eigenvalues_parralel(files_path_prefix, cpu_amount, press_array, quantiles_press, press_array,
-                               quantiles_press,
-                               0, t + offset, ('Pressure', 'Pressure'), n_bins)
-        collect_eigenvalues_pair(files_path_prefix, quantiles_press, quantiles_press, t, offset, ('Pressure', 'Pressure'))
+                                   quantiles_press,
+                                   0, t + offset, ('Pressure', 'Pressure'), n_bins)
+        collect_eigenvalues_pair(files_path_prefix, quantiles_press, quantiles_press, t, offset,
+                                 ('Pressure', 'Pressure'))
     return
