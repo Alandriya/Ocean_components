@@ -25,7 +25,7 @@ if __name__ == '__main__':
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
-
+    mask = np.array(mask, dtype=int)
     # ---------------------------------------------------------------------------------------
     # Days deltas
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
@@ -53,4 +53,4 @@ if __name__ == '__main__':
     # count_eigenvalues_parralel(files_path_prefix, cpu_count, flux_array, quantiles_flux, SST_array, quantiles_sst,
     #                        0, offset, ('Flux', 'SST'), n_bins)
 
-    count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, 0, offset, n_bins, cpu_count)
+    count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, mask, 0, offset, n_bins, cpu_count)
