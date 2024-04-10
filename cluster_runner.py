@@ -17,9 +17,11 @@ files_path_prefix = '/home/aosipova/EM_ocean/'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("n_processes", help="Amount of processes to parallel run", type=int)
+    parser.add_argument("i_start", type=int)
     args_cmd = parser.parse_args()
 
     cpu_count = args_cmd.n_processes
+    i_start = args_cmd.i_start
 
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
@@ -53,4 +55,4 @@ if __name__ == '__main__':
     # count_eigenvalues_parralel(files_path_prefix, cpu_count, flux_array, quantiles_flux, SST_array, quantiles_sst,
     #                        0, offset, ('Flux', 'SST'), n_bins)
 
-    count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, mask, 0, offset, n_bins, cpu_count)
+    count_eigenvalues_triplets(files_path_prefix, i_start, flux_array, SST_array, press_array, mask, 0, offset, n_bins, cpu_count)

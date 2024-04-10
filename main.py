@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # flux_array = flux_array[:, t:t + 2]
     # SST_array = SST_array[:, t:t + 2]
     # press_array = press_array[:, t:t + 2]
-    n_bins = 50
+    n_bins = 100
 
     # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
     # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)

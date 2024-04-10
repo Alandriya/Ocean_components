@@ -38,7 +38,7 @@ def get_eig(B: np.ndarray,
         A = np.dot(B, B.transpose())
         print('Getting sqrt(A)', flush=True)
         A = sqrtm(A)
-        del B
+
     gc.collect()
     print('Counting eigenvalues', flush=True)
     eigenvalues, eigenvectors = np.linalg.eig(A)
@@ -48,7 +48,49 @@ def get_eig(B: np.ndarray,
     return eigenvalues, eigenvectors, positions
 
 
+def _count_B_i(args):
+    points_x1, points_y1, i1, j1, n_bins, array1_quantiles, array2_quantiles, array1, array2, offset, \
+    files_path_prefix, names = args
+    tmp_sum = 0
+    prob = 0
+    t = 0
+    if len(points_x1) and len(points_y1):
+        for pair2_idx in range(n_bins * n_bins):
+            i2 = pair2_idx // n_bins
+            j2 = pair2_idx % n_bins
+            points_x2 = np.where((array1_quantiles[i2] <= array1[:, t + 1]) &
+                                 (array1[:, t + 1] < array1_quantiles[i2 + 1]))[0]
+            points_x2 = np.intersect1d(points_x2, points_x1)
+            points_y2 = np.where((array2_quantiles[j2] <= array2[:, t + 1]) &
+                                 (array2[:, t + 1] < array1_quantiles[j2 + 1]))[0]
+            points_y2 = np.intersect1d(points_y2, points_y1)
+            if len(points_x2) and len(points_y2):
+                prob = len(points_x2) * len(points_y2) * 1.0 / (len(points_x1) * len(points_y1))
+                arr1_first_vec = [array1[x1, t] for x1 in points_x1]
+                arr1_second_vec = [array1[x2, t + 1] for x2 in points_x2]
+                array2_first_vec = [array2[y1, t] for y1 in points_y1]
+                array2_second_vec = [array2[y2, t + 1] for y2 in points_y2]
+                tmp1 = [v2 - v1 for v1 in arr1_first_vec for v2 in arr1_second_vec]
+                del arr1_first_vec, arr1_second_vec
+                tmp2 = [v2 - v1 for v1 in array2_first_vec for v2 in array2_second_vec]
+                del array2_first_vec, array2_second_vec
+                tmp_sum = 0
+                for v1 in tmp1:
+                    for v2 in tmp2:
+                        tmp_sum += v1 * v2
+                del tmp1, tmp2
+        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/{i1}_{j1}_points_x1.npy',
+                points_x1)
+        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/{i1}_{j1}_points_y1.npy',
+                points_y1)
+        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/B_{i1}_{j1}.npy',
+                [tmp_sum * prob])
+        print(f'Ended i={i1}, j= {j1}, process id: {os.getpid()}', flush=True)
+    return
+
+
 def count_eigenvalues_pair(files_path_prefix: str,
+                            i_start: int,
                              array1,
                              array2,
                              array1_quantiles,
@@ -58,53 +100,31 @@ def count_eigenvalues_pair(files_path_prefix: str,
                              offset: int,
                              names: tuple):
     height, width = 161, 181
-    if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/{t + offset}_last_idxes.npy'):
-        last_idxes = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/{t + offset}_last_idxes.npy')
-    else:
-        last_idxes = np.array([0, 0])
+
+    if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
+        os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
+
+    if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}'):
+        os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}')
 
     # count B
-    for i1 in range(last_idxes[0], n_bins):
-        for j1 in range(last_idxes[1], n_bins):
-            tmp_sum = 0
-            prob = 0
-            points_x1 = \
-                np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
-            points_y1 = \
-                np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
-            if len(points_x1) and len(points_y1):
-                for pair2_idx in range(n_bins * n_bins):
-                    i2 = pair2_idx // n_bins
-                    j2 = pair2_idx % n_bins
-                    points_x2 = np.where((array1_quantiles[i2] <= array1[:, t+1]) &
-                                         (array1[:, t+1] < array1_quantiles[i2 + 1]))[0]
-                    points_y2 = np.where((array2_quantiles[j2] <= array2[:, t+1]) &
-                                         (array2[:, t+1] < array1_quantiles[j2 + 1]))[0]
-                    if len(points_x2) and len(points_y2):
-                        if len(points_x2) and len(points_y2):
-                            prob = len(points_x2) * points_y2 * 1.0 / (len(points_x1) * points_y1)
-                            arr1_first_vec = [array1[x1, t] for x1 in points_x1]
-                            arr1_second_vec = [array1[x2, t+1] for x2 in points_x2]
-                            array2_first_vec = [array2[y1, t] for y1 in points_y1]
-                            array2_second_vec = [array2[y2, t+1] for y2 in points_y2]
-                            tmp1 = [v2 - v1 for v1 in arr1_first_vec for v2 in arr1_second_vec]
-                            del arr1_first_vec, arr1_second_vec
-                            tmp2 = [v2 - v1 for v1 in array2_first_vec for v2 in array2_second_vec]
-                            del array2_first_vec, array2_second_vec
-                            tmp_sum = 0
-                            for v1 in tmp1:
-                                for v2 in tmp2:
-                                    tmp_sum += v1 * v2
-                            del tmp1, tmp2
-            print(f'Ended i={i1}, j= {j1}', flush=True)
-            last_idxes = [i1, j1]
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/{t + offset}_last_idxes.npy', last_idxes)
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/{i1}_{j1}_points_x1.npy', points_x1)
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/{i1}_{j1}_points_y1.npy', points_y1)
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/B_{i1}_{j1}.npy', [tmp_sum * prob])
+    for i1 in range(i_start, i_start + 10):
+        args_list = list()
+        for j1 in range(0, n_bins):
+            points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
+            points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
+            args = [points_x1, points_y1, i1, j1, n_bins, array1_quantiles, array2_quantiles, array1[:, t:t+2],
+                    array2[:, t:t+2], t + offset, files_path_prefix, names]
+            args_list.append(args)
+        with Pool(n_bins) as p:
+            p.map(_count_B_i, args_list)
+            p.close()
+            p.join()
+        gc.collect()
 
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}.npy'):
         # collect b_matrix
+        print('Collecting B matrix', flush=True)
         b_matrix_vals = np.zeros((height * width, height * width), dtype=float)
         for i1 in range(0, n_bins):
             for j1 in range(0, n_bins):
@@ -116,7 +136,6 @@ def count_eigenvalues_pair(files_path_prefix: str,
                         for y1 in points_y1:
                             b_matrix_vals[x1, y1] = \
                         np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}/B_{i1}_{j1}.npy')[0]
-
         np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}.npy', b_matrix_vals)
     else:
         b_matrix_vals = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}.npy')
@@ -132,6 +151,7 @@ def count_eigenvalues_pair(files_path_prefix: str,
 
 
 def count_eigenvalues_triplets(files_path_prefix: str,
+                               i_start: int,
                                flux_array: np.ndarray,
                                SST_array: np.ndarray,
                                press_array: np.ndarray,
@@ -167,14 +187,14 @@ def count_eigenvalues_triplets(files_path_prefix: str,
         os.mkdir(files_path_prefix + f'Eigenvalues/tmp')
 
     # flux-sst
-    if not os.path.exists(files_path_prefix + f'Eigenvalues/Flux-SST/eigenvalues_{t + offset}.npy'):
-        count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, t, n_bins,
-                                 offset, ('Flux', 'SST'))
-    plot_eigenvalues(files_path_prefix, 3, mask, t+offset, ('Flux', 'SST'))
+    # if not os.path.exists(files_path_prefix + f'Eigenvalues/Flux-SST/eigenvalues_{t + offset}.npy'):
+    #     count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, t, n_bins,
+    #                              offset, ('Flux', 'SST'))
+    # plot_eigenvalues(files_path_prefix, 3, mask, t+offset, ('Flux', 'SST'))
 
     # flux-flux
     if not os.path.exists(files_path_prefix + f'Eigenvalues/Flux-Flux/eigenvalues_{t + offset}.npy'):
-        count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
+        count_eigenvalues_pair(files_path_prefix, i_start, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
                              offset, ('Flux', 'Flux'))
     plot_eigenvalues(files_path_prefix, 3, mask, t + offset, ('Flux', 'Flux'))
     return
