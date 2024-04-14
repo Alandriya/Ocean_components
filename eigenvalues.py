@@ -107,20 +107,20 @@ def count_eigenvalues_pair(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}'):
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}')
 
-    # count B
-    for i1 in range(i_start, i_start + 10):
-        args_list = list()
-        for j1 in range(0, n_bins):
-            points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
-            points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
-            args = [points_x1, points_y1, i1, j1, n_bins, array1_quantiles, array2_quantiles, array1[:, t:t+2],
-                    array2[:, t:t+2], t + offset, files_path_prefix, names]
-            args_list.append(args)
-        with Pool(n_bins) as p:
-            p.map(_count_B_i, args_list)
-            p.close()
-            p.join()
-        gc.collect()
+    # # count B
+    # for i1 in range(i_start, i_start + 10):
+    #     args_list = list()
+    #     for j1 in range(0, n_bins):
+    #         points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
+    #         points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
+    #         args = [points_x1, points_y1, i1, j1, n_bins, array1_quantiles, array2_quantiles, array1[:, t:t+2],
+    #                 array2[:, t:t+2], t + offset, files_path_prefix, names]
+    #         args_list.append(args)
+    #     with Pool(n_bins) as p:
+    #         p.map(_count_B_i, args_list)
+    #         p.close()
+    #         p.join()
+    #     gc.collect()
 
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}.npy'):
         # collect b_matrix
