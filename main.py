@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.linalg
+
 from Plotting.plot_Bel_coefficients import *
 from SRS_count_coefficients import *
 from Plotting.mean_year import *
@@ -46,15 +48,17 @@ if __name__ == '__main__':
     # press_array = press_array[:, t:t + 2]
     n_bins = 100
 
+    # b = np.random.random((161*181, 161*181))
+    # eigenvalues, eigenvectors = scipy.linalg.eig((b))
+    # raise ValueError
+
     # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
     # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
 
     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, mask, 0, offset, n_bins, cpu_amount)
-    # count_eigenvalues_parralel(files_path_prefix, cpu_amount, flux_array, quantiles_flux, SST_array, quantiles_sst,
-    #                        0, offset, ('Flux', 'SST'), n_bins)
-    # count_eigenvalues_triplets(files_path_prefix, flux_array, SST_array, press_array, 0, offset, n_bins, 4)
-    # t = 0
-    # for names in [('Flux', 'SST'), ('Flux', 'Pressure'), ('SST', 'Pressure'), ('Flux', 'Flux'), ('SST', 'SST'),
-    #               ('Pressure', 'Pressure')]:
-    #     plot_eigenvalues(files_path_prefix, 3, mask, t + offset, names)
+    count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins, 1)
+
+    # pair_name = 'Flux-Flux'
+    # pair_name = 'Flux-SST'
+    # pair_name = 'Flux-Pressure'
+    # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
