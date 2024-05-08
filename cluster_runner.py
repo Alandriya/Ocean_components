@@ -9,7 +9,7 @@ from numpy.linalg import norm
 from multiprocessing import Pool
 import datetime
 # from eigenvalues import count_eigenvalues_parralel, scale_to_bins
-from eigenvalues import count_eigenvalues_triplets, count_mean_year
+from eigenvalues import count_eigenvalues_triplets, count_mean_year, get_trends
 
 
 files_path_prefix = '/home/aosipova/EM_ocean/'
@@ -35,6 +35,7 @@ if __name__ == '__main__':
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
     print(f'start year {start_year}')
     # end_year = start_year + 10
@@ -58,7 +59,12 @@ if __name__ == '__main__':
 
     n_bins = 100
 
-    count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins, 1)
+    count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
 
+    print('Counting mean years', flush=True)
     for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
         count_mean_year(files_path_prefix, 1979, 2025, names, mask.reshape((161, 181)))
+        
+    print('Getting trends', flush=True)
+    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+        get_trends(files_path_prefix, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, names)

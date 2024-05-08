@@ -2,10 +2,10 @@ import numpy as np
 import tqdm
 import os
 from scipy.linalg import sqrtm
-from multiprocessing import Pool
 import gc
 from Plotting.plot_eigenvalues import plot_eigenvalues
 import datetime
+
 
 def scale_to_bins(arr, bins=100):
     quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
@@ -25,9 +25,9 @@ def scale_to_bins(arr, bins=100):
 def get_eig(B: np.ndarray,
             names: tuple):
     """
-    Counts eigenvalues for the big matrix B for two cases: if both the variables in the data arrays are the same, e.g.
-    (Flux, Flux) and for different, e.g. (Flux, SST)
-    :param B: np.array with shape (height * width, height * width), two-dimensional
+    Counts eigenvalues for the covariances matrix B for two cases: if both the variables in the data arrays are the
+    same, e.g. (Flux, Flux) and for different, e.g. (Flux, SST)
+    :param B: np.array with shape (n_bins, n_bins), two-dimensional
     :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
     :return:
     """
@@ -47,19 +47,31 @@ def get_eig(B: np.ndarray,
     eigenvalues = [0 if np.isnan(e) else e for e in eigenvalues]
     positions = [x for x in range(len(eigenvalues))]
     positions = [x for _, x in reversed(sorted(zip(np.abs(eigenvalues), positions)))]
-
     return np.take(eigenvalues, positions), np.take(eigenvectors, positions, axis=1), positions
 
 
 def count_eigenvalues_pair(files_path_prefix: str,
-                           array1,
-                           array2,
-                           array1_quantiles,
-                           array2_quantiles,
+                           array1: np.ndarray,
+                           array2: np.ndarray,
+                           array1_quantiles: list,
+                           array2_quantiles: list,
                            t: int,
                            n_bins: int,
                            offset: int,
                            names: tuple):
+    """
+
+    :param files_path_prefix: path to the working directory
+    :param array1: array with shape (height*width, n_days): e.g. (29141, 1410)
+    :param array2: array with shape (height*width, n_days): e.g. (29141, 1410)
+    :param array1_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
+    :param array2_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
+    :param t: relative time moment from the beginning of the array
+    :param n_bins: amount of bins to divide the values of each array
+    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
+    :param names: tuple with names of the data arrays, e.g. ('Flux', 'SST')
+    :return:
+    """
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
 
@@ -98,17 +110,18 @@ def count_eigenvalues_triplets(files_path_prefix: str,
                                mask: np.ndarray,
                                offset: int = 14610,
                                n_bins: int = 100,
-                               cpu_amount: int = 16,
                                ):
     """
-    Counts eigenvalues for all possible pairs in triplet (Flux, SST, Pressure) for time moment (t, t+1)
+    Counts and plots eigenvalues and eigenvectors for pairs Flux-Flux, SST-SST, Flux-SST, Flux-Pressure for time range
+    offset + t_start, offset + len(flux_array)
     :param files_path_prefix: path to the working directory
+    :param t_start: relative offset from the beginning of the array for time cycle
     :param flux_array: array with shape (height*width, n_days): e.g. (29141, 1410) with flux values
-    :param SST_array:
-    :param press_array:
+    :param SST_array: array with shape (height*width, n_days): e.g. (29141, 1410) with SST values
+    :param press_array: array with shape (height*width, n_days): e.g. (29141, 1410) with pressure values
+    :param mask:
     :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
     :param n_bins: amount of bins to divide the values of each array
-    :param cpu_amount: amount of CPU used for parallel run
     :return:
     """
 
@@ -121,8 +134,7 @@ def count_eigenvalues_triplets(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues/tmp'):
         os.mkdir(files_path_prefix + f'Eigenvalues/tmp')
 
-    # for t in tqdm.tqdm(range(t_start, flux_array.shape[1])):
-    for t in range(t_start, flux_array.shape[1]-1):
+    for t in range(t_start, flux_array.shape[1] - 1):
         # print(f'Timestep {t}')
         # flux-flux
         count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
@@ -157,10 +169,23 @@ def count_mean_year(files_path_prefix: str,
                     names: tuple = ('Flux', 'Flux'),
                     mask: np.ndarray = None,
                     ):
+    """
+    Counts mean year for the first (already sorted by absolute values of eigenvalues) eigenvector and the
+    corresponding eigenvalue
+    :param files_path_prefix: path to the working directory
+    :param start_year: start year of the range
+    :param end_year: end year of the range (not included)
+    :param names: tuple with names of the data arrays, e.g. ('Flux', 'SST')
+    :param mask: boolean 1D mask with length 161*181. If true, it's ocean point, if false - land. Only ocean points are
+        of interest
+    :return:
+    """
     height, width = 161, 181
     mean_year = np.zeros((365, height, width))
+    mean_year_values = np.zeros(365)
+    print(f'Pair {names[0]}-{names[1]}')
 
-    for year in tqdm.tqdm(range(start_year, end_year)):
+    for year in range(start_year, end_year):
         time_start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=1979, month=1, day=1)).days
 
         for day in range(364):
@@ -168,6 +193,43 @@ def count_mean_year(files_path_prefix: str,
             mean_year[day, :, :] += matrix
             mean_year[day][np.logical_not(mask)] = None
 
+            eigenvalues = np.load(
+                files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{day + time_start + 1}.npy')
+            mean_year_values[day] += eigenvalues[0]
+
     mean_year /= (end_year - start_year)
-    np.save(files_path_prefix + f'Mean_year/Lambdas_{names[0]}-{names[1]}_{start_year}-{end_year}.npy', mean_year)
+    mean_year_values /= (end_year - start_year)
+    np.save(files_path_prefix + f'Mean_year/eigenvector_{names[0]}-{names[1]}_{start_year}-{end_year}.npy', mean_year)
+    np.save(files_path_prefix + f'Mean_year/eigenvalues_{names[0]}-{names[1]}_{start_year}-{end_year}.npy',
+            mean_year_values)
+    return
+
+
+def get_trends(files_path_prefix: str,
+               t_start: int,
+               t_end: int,
+               names: tuple = ('Flux', 'Flux')):
+    """
+    Counts max, min amd mean for the first eigenvector for pair names[0]-names[1] for time in range (t_start, t_end)
+    :param files_path_prefix: path to the working directory
+    :param t_start: absolute time for start day
+    :param t_end: absolute time for end day (not included)
+    :param names: tuple with names of the data arrays, e.g. ('Flux', 'SST')
+    :return:
+    """
+    max_eigenvector = np.zeros(t_end - t_start)
+    min_eigenvector = np.zeros(t_end - t_start)
+    mean_eigenvector = np.zeros(t_end - t_start)
+    for t in range(t_start, t_end):
+        if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t}.npy'):
+            print(f'Missing eigen0_{t}')
+            continue
+        matrix = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t}.npy')
+        max_eigenvector[t] = np.nanmax(matrix)
+        min_eigenvector[t] = np.nanmin(matrix)
+        mean_eigenvector[t] = np.nanmean(matrix)
+
+    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_max.npy', max_eigenvector)
+    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_min.npy', min_eigenvector)
+    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_mean.npy', mean_eigenvector)
     return
