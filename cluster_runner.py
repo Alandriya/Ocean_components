@@ -9,7 +9,7 @@ from numpy.linalg import norm
 from multiprocessing import Pool
 import datetime
 # from eigenvalues import count_eigenvalues_parralel, scale_to_bins
-from eigenvalues import count_eigenvalues_triplets
+from eigenvalues import count_eigenvalues_triplets, count_mean_year
 
 
 files_path_prefix = '/home/aosipova/EM_ocean/'
@@ -17,11 +17,11 @@ files_path_prefix = '/home/aosipova/EM_ocean/'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("n_processes", help="Amount of processes to parallel run", type=int)
-    parser.add_argument("i_start", type=int)
+    parser.add_argument("t_start", type=int)
     args_cmd = parser.parse_args()
 
     cpu_count = args_cmd.n_processes
-    i_start = args_cmd.i_start
+    t_start = args_cmd.t_start
 
     maskfile = open(files_path_prefix + "mask", "rb")
     binary_values = maskfile.read(29141)
@@ -36,23 +36,28 @@ if __name__ == '__main__':
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    # count eigenvalues
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
-    t = 0
-    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    start_year = cpu_count
+    print(f'start year {start_year}')
 
-    # flux_array = flux_array[:, t:t + 2]
-    # SST_array = SST_array[:, t:t + 2]
-    # press_array = press_array[:, t:t + 2]
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{start_year+10}_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{start_year+10}_grouped.npy')
+    t = t_start
+
+    if start_year == 1979:
+        offset = 0
+    elif start_year == 1989:
+        offset = days_delta1
+    elif start_year == 1999:
+        offset = days_delta1 + days_delta2
+    elif start_year == 2009:
+        offset = days_delta1 + days_delta2 + days_delta3
+    else:
+        offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+
     n_bins = 100
 
-    # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
-    # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
-    #
-    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    # count_eigenvalues_parralel(files_path_prefix, cpu_count, flux_array, quantiles_flux, SST_array, quantiles_sst,
-    #                        0, offset, ('Flux', 'SST'), n_bins)
+    count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins, 1)
 
-    count_eigenvalues_triplets(files_path_prefix, i_start, flux_array, SST_array, press_array, mask, 0, offset, n_bins, cpu_count)
+    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+        count_mean_year(files_path_prefix, 1979, 2022, names, mask.reshape((161, 181)))
