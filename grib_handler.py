@@ -13,7 +13,7 @@ import pandas as pd
 files_path_prefix = 'E://Nastya/Data/OceanFull/'
 # data_postfix = '2022_sst+press'
 # data_postfix = '1979-1989_sst+press'
-data_postfix = '2022_sens+latent fluxes'
+data_postfix = 'flux+sst+press_2023'
 
 maskfile = open('D://Data/OceanFull/' + "mask", "rb")
 binary_values = maskfile.read(29141)
@@ -21,18 +21,20 @@ maskfile.close()
 mask = unpack('?' * 29141, binary_values)
 mask = np.array(mask, dtype=int)
 
+variable_name = 'msshf'
 # load grib
-# ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib', drop_variables='mslhf', chunks=-1,
-#                      inline_array=True)
-ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', cache=True)
-
-print(ds.coords['valid_time'])
+ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib',
+                     backend_kwargs={'filter_by_keys': {'shortName': variable_name}})
+# ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', cache=True)
+# print(ds.variables)
+# raise ValueError
+# print(ds.coords['valid_time'])
 # raise ValueError
 # print(ds.coords['time'].shape)
 
-# variable_name = 'sst'
+
 # variable_name = 'sp'
-variable_name = 'mslhf'
+# variable_name = 'mslhf'
 tmp = ds.variables[variable_name]
 gc.collect()
 
@@ -46,15 +48,15 @@ if variable_name in ['sst', 'sp']:
     tmp_new[np.logical_not(mask), :] = np.nan
     np.save(files_path_prefix + f'{variable_name}_{data_postfix}.npy', tmp_new)
 
-    data_numpy = np.zeros((161, 181, shape[0]))
-
-    for t in tqdm.tqdm(range(0, tmp.shape[0])):
-        data_numpy[:, :, t] = tmp[t, :, :].data
-
-    del tmp
-    data_numpy = data_numpy.reshape((-1, data_numpy.shape[2]))
-    print(data_numpy.shape)
-    data_numpy[np.logical_not(mask), :] = np.nan
+    # data_numpy = np.zeros((161, 181, shape[0]))
+    #
+    # for t in tqdm.tqdm(range(0, tmp.shape[0])):
+    #     data_numpy[:, :, t] = tmp[t, :, :].data
+    #
+    # del tmp
+    # data_numpy = data_numpy.reshape((-1, data_numpy.shape[2]))
+    # print(data_numpy.shape)
+    # data_numpy[np.logical_not(mask), :] = np.nan
 else:
     tmp = tmp[:, :, ::2, ::2]  # part of map with size 161x181
     shape = tmp.shape
