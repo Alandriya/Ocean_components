@@ -9,7 +9,7 @@ from Plotting.plot_eigenvalues import plot_eigenvalues
 from extreme_evolution import *
 from ABCF_coeff_counting import *
 from eigenvalues import *
-from data_processing import load_ABCFE
+from data_processing import load_ABCFE, load_prepare_fluxes
 
 # files_path_prefix = 'home/aosipova/EM_ocean'
 files_path_prefix = 'E:/Nastya/Data/OceanFull/'
@@ -28,28 +28,30 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
+
     # ---------------------------------------------------------------------------------------
     # Days deltas
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
     days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
-    days_delta5 = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
     # count eigenvalues
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
     # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
     # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
 
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_1979-1989_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_1979-1989_grouped.npy')
-
-    t = 0
-    cpu_amount = 4
-
-    n_bins = 100
-    offset = 0
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_1979-1989_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_1979-1989_grouped.npy')
+    #
+    # t = 0
+    # cpu_amount = 4
+    #
+    # n_bins = 100
+    # offset = 0
     # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
 
     # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
@@ -68,3 +70,5 @@ if __name__ == '__main__':
     # pair_name = 'Flux-Pressure'
     # pair_name = 'SST-SST'
     # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
+
+

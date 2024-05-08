@@ -16,11 +16,11 @@ files_path_prefix = '/home/aosipova/EM_ocean/'
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("n_processes", help="Amount of processes to parallel run", type=int)
+    parser.add_argument("start_year", help="Amount of processes to parallel run", type=int)
     parser.add_argument("t_start", type=int)
     args_cmd = parser.parse_args()
 
-    cpu_count = args_cmd.n_processes
+    start_year = args_cmd.start_year
     t_start = args_cmd.t_start
 
     maskfile = open(files_path_prefix + "mask", "rb")
@@ -36,12 +36,13 @@ if __name__ == '__main__':
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    start_year = cpu_count
     print(f'start year {start_year}')
+    # end_year = start_year + 10
+    end_year = 2025
 
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{start_year+10}_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{start_year+10}_grouped.npy')
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
     t = t_start
 
     if start_year == 1979:
@@ -60,4 +61,4 @@ if __name__ == '__main__':
     count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins, 1)
 
     for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
-        count_mean_year(files_path_prefix, 1979, 2022, names, mask.reshape((161, 181)))
+        count_mean_year(files_path_prefix, 1979, 2025, names, mask.reshape((161, 181)))

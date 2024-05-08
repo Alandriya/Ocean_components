@@ -13,7 +13,7 @@ import pandas as pd
 files_path_prefix = 'E://Nastya/Data/OceanFull/'
 # data_postfix = '2022_sst+press'
 # data_postfix = '1979-1989_sst+press'
-data_postfix = 'flux+sst+press_2023'
+data_postfix = 'flux+sst+press_2024-till_april'
 
 maskfile = open('D://Data/OceanFull/' + "mask", "rb")
 binary_values = maskfile.read(29141)
@@ -21,7 +21,7 @@ maskfile.close()
 mask = unpack('?' * 29141, binary_values)
 mask = np.array(mask, dtype=int)
 
-variable_name = 'msshf'
+variable_name = 'sp'
 # load grib
 ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib',
                      backend_kwargs={'filter_by_keys': {'shortName': variable_name}})
@@ -72,7 +72,7 @@ else:
     print(data_numpy.shape)
     data_numpy[np.logical_not(mask), :] = np.nan
 
-    np.save(files_path_prefix + f'Fluxes/{variable_name}_2022.npy', data_numpy)
+    np.save(files_path_prefix + f'Fluxes/{variable_name}_{data_postfix}.npy', data_numpy)
 
 # for year in [2022]:
 #     data_postfix = f'sst+press_{year}'

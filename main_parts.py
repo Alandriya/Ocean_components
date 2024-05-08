@@ -668,14 +668,16 @@ if __name__ == '__main__':
     # plt.tight_layout()
     # fig.savefig(files_path_prefix + f'videos/Mean_year/{coeff_type}_{flux_type}_{start_year}-{end_year}_{postfix}.png')
     # ----------------------------------------------------------------------------------------------
-    # # collect SST and PRESS to 10 years arrays 3d
-    # start_year = 1989
-    # bins_amount = 1000
-    # days_delta = days_delta2
-    # current_shift = 0
+    # collect SST and PRESS to 10 years arrays 3d
+
+    start_year = 2019
+    end_year = 2025
+    bins_amount = 1000
+    days_delta = days_delta5 + days_delta6
+    current_shift = 0
     # sst_array = np.zeros((height * width, days_delta * 4))
     # press_array = np.zeros_like(sst_array)
-    # for year in range(start_year, start_year + 10):
+    # for year in range(start_year, end_year):
     #     print(year)
     #     sst_year = np.load(files_path_prefix + f'SST/SST_{year}.npy')
     #     print(sst_year.shape)
@@ -687,32 +689,49 @@ if __name__ == '__main__':
     #     current_shift += sst_year.shape[1]
     #     print()
     #
-    # np.save(files_path_prefix + f'SST/SST_{start_year}-{start_year + 10}.npy', sst_array)
-    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{start_year + 10}.npy', press_array)
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}.npy', sst_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}.npy', press_array)
 
-    # get sum fluxes
-    # sensible_array = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{start_year+10}.npy')
-    # latent_array = np.load(files_path_prefix + f'Fluxes/LATENT_{start_year}-{start_year+10}.npy')
+    # sensible_array = np.zeros((height * width, days_delta * 4))
+    # latent_array = np.zeros_like(sensible_array)
+    # for year in ['2019-2023', 2023, 2024]:
+    #     print(year)
+    #     sensible_year = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{year}.npy')
+    #     print(sensible_year.shape)
+    #     sensible_array[:, current_shift:current_shift + sensible_year.shape[1]] = sensible_year
+    #
+    #     latent_year = np.load(files_path_prefix + f'Fluxes/LATENT_{year}.npy')
+    #     latent_array[:, current_shift:current_shift + latent_year.shape[1]] = latent_year
+    #
+    #     current_shift += sensible_year.shape[1]
+    #     print()
+    #
+    # np.save(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy', sensible_array)
+    # np.save(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy', latent_array)
+
+    # # get sum fluxes
+    # sensible_array = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy')
+    # latent_array = np.load(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy')
     #
     # flux_array = sensible_array + latent_array
-    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{start_year+10}.npy', flux_array)
-
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}.npy', flux_array)
+    #
     # # Grouping by 1 day
-    # sst_array, press_array = load_prepare_fluxes(f'SST/SST_{start_year}-{start_year+10}.npy',
-    #                                              f'Pressure/PRESS_{start_year}-{start_year+10}.npy',
+    # sst_array, press_array = load_prepare_fluxes(f'SST/SST_{start_year}-{end_year}.npy',
+    #                                              f'Pressure/PRESS_{start_year}-{end_year}.npy',
     #                                              files_path_prefix,
     #                                             prepare=False)
     # print(sst_array.shape)
-    # np.save('D://Data/OceanFull/Data/' + f'SST/SST_{start_year}-{start_year+10}_grouped.npy', sst_array)
-    # np.save('D://Data/OceanFull/Data/' + f'Pressure/PRESS_{start_year}-{start_year + 10}_grouped.npy', press_array)
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy', sst_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy', press_array)
     # del sst_array, press_array
     #
-    # flux_array, _ = load_prepare_fluxes(f'Fluxes/FLUX_{start_year}-{start_year+10}.npy',
-    #                                     f'Fluxes/FLUX_{start_year}-{start_year+10}.npy',
+    # flux_array, _ = load_prepare_fluxes(f'Fluxes/FLUX_{start_year}-{end_year}.npy',
+    #                                     f'Fluxes/FLUX_{start_year}-{end_year}.npy',
     #                                     files_path_prefix,
     #                                     prepare=False)
     # print(flux_array.shape)
-    # np.save('D://Data/OceanFull/Data/' + f'Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy', flux_array)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy', flux_array)
 
     # # normalizing and collecting to bins
     # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
