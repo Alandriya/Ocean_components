@@ -10,6 +10,7 @@ from multiprocessing import Pool
 import datetime
 # from eigenvalues import count_eigenvalues_parralel, scale_to_bins
 from eigenvalues import count_eigenvalues_triplets, count_mean_year, get_trends
+from Plotting.video import create_video
 
 
 files_path_prefix = '/home/aosipova/EM_ocean/'
@@ -38,13 +39,7 @@ if __name__ == '__main__':
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
     print(f'start year {start_year}')
-    # end_year = start_year + 10
-    end_year = 2025
-
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
-    t = t_start
+    end_year = start_year + 10
 
     if start_year == 1979:
         offset = 0
@@ -56,15 +51,26 @@ if __name__ == '__main__':
         offset = days_delta1 + days_delta2 + days_delta3
     else:
         offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+        end_year = 2025
+
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    t = t_start
 
     n_bins = 100
 
+    # pair_name = 'Flux-Flux'
+    # pair_name = 'Flux-SST'
+    # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues',
+    #              start=14610)
+
     count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
 
-    print('Counting mean years', flush=True)
-    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
-        count_mean_year(files_path_prefix, 1979, 2025, names, mask.reshape((161, 181)))
+    # print('Counting mean years', flush=True)
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    #     count_mean_year(files_path_prefix, 1979, 2025, names, mask)
         
-    print('Getting trends', flush=True)
-    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
-        get_trends(files_path_prefix, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, names)
+    # print('Getting trends', flush=True)
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    #     get_trends(files_path_prefix, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, names)

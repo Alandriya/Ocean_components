@@ -976,3 +976,78 @@ def collect_extreme(files_path_prefix: str,
     np.save(files_path_prefix + f'Extreme/data/{local_path_prefix}{coeff_type}'
             f'_mean_lat({time_start}-{time_end})_{mean_days}.npy', np.array(mean_lat_list))
     return
+
+
+def plot_eigenvalues_extreme(files_path_prefix: str,
+                             time_start: int,
+                             time_end: int,
+                             mean_days: int,
+                   names: tuple = ('Sensible', 'Latent'),
+                ):
+    font = {'size': 14}
+    font_names = {'weight': 'bold', 'size': 20}
+    matplotlib.rc('font', **font)
+    sns.set_style("whitegrid")
+    max_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_max.npy')
+    min_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_min.npy')
+    mean_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_mean.npy')
+
+    days = [datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t) for t in
+            range(time_start, time_end, mean_days)]
+
+    if len(max_trend) % mean_days:
+        max_trend = max_trend[:-(len(max_trend)%mean_days)]
+        min_trend = min_trend[:-(len(min_trend) % mean_days)]
+        mean_trend = mean_trend[:-(len(mean_trend) % mean_days)]
+
+    max_trend = np.mean(max_trend.reshape(-1, mean_days), axis=1)
+    min_trend = np.min(min_trend.reshape(-1, mean_days), axis=1)
+    mean_trend = np.mean(mean_trend.reshape(-1, mean_days), axis=1)
+
+    days = days[:len(max_trend)]
+    fig, axs = plt.subplots(figsize=(20, 10))
+    # fig, axs = plt.subplots(2, 1, figsize=(20, 10))
+    # Major ticks every half year, minor ticks every month,
+    if mean_days == 365:
+        axs.xaxis.set_minor_locator(mdates.MonthLocator())
+    axs.xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs.xaxis.get_major_locator()))
+
+    axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
+    axs.plot(days, max_trend, label='max', c='r', alpha=0.75)
+    axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
+    axs.plot(days, mean_trend, label='mean', c='g')
+    axs.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+    if not os.path.exists(files_path_prefix + f'Extreme/plots'):
+        os.mkdir(files_path_prefix + f'Extreme/plots')
+    if not os.path.exists(files_path_prefix + f'Extreme/plots/Eigenvalues'):
+        os.mkdir(files_path_prefix + f'Extreme/plots/Eigenvalues')
+
+    fig.tight_layout()
+    fig.savefig(
+        files_path_prefix + f'Extreme/plots/Eigenvalues/{names[0]}-{names[1]}_({time_start}-{time_end})_mean_{mean_days}.png')
+
+    if mean_days == 365:
+        axs.xaxis.set_minor_locator(mdates.MonthLocator())
+    axs.xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs.xaxis.get_major_locator()))
+
+    x = np.array(range(time_start, time_end, mean_days))
+    x = x[:len(max_trend)]
+    fig.suptitle(f'Regression for {names[0]}-{names[1]} trends, mean of every {mean_days} days', fontsize=20, fontweight='bold')
+
+    axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
+    axs.plot(days, max_trend, label='max', c='r', alpha=0.75)
+    res = linregress(x, max_trend)
+    axs.plot(days, res.intercept + res.slope * x, '--', c='darkviolet',
+                label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+    axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
+    res = linregress(x, min_trend)
+    axs.plot(days, res.intercept + res.slope * x, '--', c='orange',
+                label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+    axs.plot(days, mean_trend, label='mean', c='g')
+    axs.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'Extreme/plots/Eigenvalues/{names[0]}-{names[1]}_({time_start}-{time_end})_mean_{mean_days}_fit_regression.png')
+
+    return

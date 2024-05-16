@@ -75,9 +75,6 @@ def count_eigenvalues_pair(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
 
-    if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}'):
-        os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{t + offset}')
-
     if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
         return
 
@@ -131,34 +128,32 @@ def count_eigenvalues_triplets(files_path_prefix: str,
 
     if not os.path.exists(files_path_prefix + f'Eigenvalues'):
         os.mkdir(files_path_prefix + f'Eigenvalues')
-    if not os.path.exists(files_path_prefix + f'Eigenvalues/tmp'):
-        os.mkdir(files_path_prefix + f'Eigenvalues/tmp')
 
-    for t in range(t_start, flux_array.shape[1] - 1):
-        # print(f'Timestep {t}')
-        # flux-flux
-        count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
-                               offset, ('Flux', 'Flux'))
+    # for t in range(t_start, flux_array.shape[1] - 1):
+    #     print(f'Timestep {t}')
+    #     # flux-flux
+    #     count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
+    #                            offset, ('Flux', 'Flux'))
+    #
+    #     # sst-sst
+    #     count_eigenvalues_pair(files_path_prefix, SST_array, SST_array, quantiles_sst, quantiles_sst, t, n_bins,
+    #                            offset, ('SST', 'SST'))
+    #
+    #     # flux-sst
+    #     count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, t, n_bins,
+    #                            offset, ('Flux', 'SST'))
+    #
+    #     # flux-pressure
+    #     count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, t, n_bins,
+    #                            offset, ('Flux', 'Pressure'))
 
-        # sst-sst
-        count_eigenvalues_pair(files_path_prefix, SST_array, SST_array, quantiles_sst, quantiles_sst, t, n_bins,
-                               offset, ('SST', 'SST'))
-
-        # flux-sst
-        count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, t, n_bins,
-                               offset, ('Flux', 'SST'))
-
-        # flux-pressure
-        count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, t, n_bins,
-                               offset, ('Flux', 'Pressure'))
-
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1], offset, flux_array, quantiles_flux,
+    plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1]-1, offset, flux_array, quantiles_flux,
                      ('Flux', 'Flux'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1], offset, SST_array, quantiles_sst,
+    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1]-1, offset, SST_array, quantiles_sst,
                      ('SST', 'SST'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1], offset, SST_array, quantiles_sst,
+    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1]-1, offset, SST_array, quantiles_sst,
                      ('Flux', 'SST'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, press_array.shape[1], offset, press_array, quantiles_press,
+    plot_eigenvalues(files_path_prefix, 3, mask, 0, press_array.shape[1]-1, offset, press_array, quantiles_press,
                      ('Flux', 'Pressure'))
     return
 
@@ -181,16 +176,16 @@ def count_mean_year(files_path_prefix: str,
     :return:
     """
     height, width = 161, 181
-    mean_year = np.zeros((365, height, width))
-    mean_year_values = np.zeros(365)
+    mean_year = np.zeros((363, height * width))
+    mean_year_values = np.zeros(363)
     print(f'Pair {names[0]}-{names[1]}')
 
     for year in range(start_year, end_year):
         time_start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=1979, month=1, day=1)).days
 
-        for day in range(364):
+        for day in range(363):
             matrix = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{day + time_start + 1}.npy')
-            mean_year[day, :, :] += matrix
+            mean_year[day] += matrix
             mean_year[day][np.logical_not(mask)] = None
 
             eigenvalues = np.load(
