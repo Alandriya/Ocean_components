@@ -984,10 +984,11 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
                              mean_days: int,
                    names: tuple = ('Sensible', 'Latent'),
                 ):
+    sns.set_style("whitegrid")
     font = {'size': 14}
     font_names = {'weight': 'bold', 'size': 20}
     matplotlib.rc('font', **font)
-    sns.set_style("whitegrid")
+
     max_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_max.npy')
     min_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_min.npy')
     mean_trend = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_mean.npy')
@@ -1012,7 +1013,7 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
         axs.xaxis.set_minor_locator(mdates.MonthLocator())
     axs.xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs.xaxis.get_major_locator()))
 
-    axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
+    # axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
     axs.plot(days, max_trend, label='max', c='r', alpha=0.75)
     axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
     axs.plot(days, mean_trend, label='mean', c='g')
@@ -1033,13 +1034,14 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
 
     x = np.array(range(time_start, time_end, mean_days))
     x = x[:len(max_trend)]
-    fig.suptitle(f'Regression for {names[0]}-{names[1]} trends, mean of every {mean_days} days', fontsize=20, fontweight='bold')
+    # fig.suptitle(f'Regression for {names[0]}-{names[1]} trends, mean of every {mean_days} days', fontsize=20, fontweight='bold')
 
-    axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
+    # axs.set_title(f'{names[0]}-{names[1]} trends, mean of every {mean_days} days', fontdict=font_names)
     axs.plot(days, max_trend, label='max', c='r', alpha=0.75)
     res = linregress(x, max_trend)
     axs.plot(days, res.intercept + res.slope * x, '--', c='darkviolet',
                 label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
+    print(f'maximum R^2 {mean_days} mean days = {r2_score(max_trend, res.intercept + res.slope * x): .2e}')
     axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
     res = linregress(x, min_trend)
     axs.plot(days, res.intercept + res.slope * x, '--', c='orange',

@@ -5,6 +5,7 @@ from Plotting.plot_Bel_coefficients import *
 from SRS_count_coefficients import *
 from Plotting.mean_year import *
 from Plotting.video import *
+from Plotting.plot_fluxes import plot_flux_sst_press
 from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
 from extreme_evolution import *
 from ABCF_coeff_counting import *
@@ -35,7 +36,7 @@ if __name__ == '__main__':
     days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
-    # days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
     # collect SST and PRESS to 10 years arrays 3d
@@ -148,9 +149,9 @@ if __name__ == '__main__':
     # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
     #-------------------------------------------------------------------------------------
     # count eigenvalues
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
-    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
-    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
 
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_1979-1989_grouped.npy')
     # SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
@@ -181,13 +182,23 @@ if __name__ == '__main__':
     # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
 
     t_start = 0
-    t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
+    # print(t_end)
+    # raise ValueError
     # print(t_end + flux_array.shape[1])
 
 
-    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure'), ('Pressure', 'Pressure')]:
         # plot_mean_year(files_path_prefix, names)
         # get_trends(files_path_prefix, t_start, t_end, names)
-        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
-        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
-        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
+        # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
+        # print(names)
+        # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
+        # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
+
+    # start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
+    #                     start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    days_delta7 = (datetime.datetime(2023, 10, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta7)
+    print('$\\lambda_1=$')

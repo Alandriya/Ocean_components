@@ -86,8 +86,13 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     # print(files_path_prefix + f'videos/{flux_type}/tmp/%05d.png')
     if os.path.exists(video_name):
         os.remove(video_name)
+    # subprocess.call([
+    #     'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
+    #     '-r', '5', '-pix_fmt', 'yuv420p', video_name,
+    # ])
     subprocess.call([
-        'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
+        './ffmpeg-7.0-amd64-static/ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
         '-r', '5', '-pix_fmt', 'yuv420p', video_name,
     ])
+
     return

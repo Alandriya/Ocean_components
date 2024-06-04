@@ -6,6 +6,7 @@ import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 # import tqdm
 # from Plotting.video import get_continuous_cmap
+import seaborn as sns
 
 x_label_list = ['90W', '60W', '30W', '0']
 y_label_list = ['EQ', '30N', '60N', '80N']
@@ -42,8 +43,9 @@ def plot_eigenvalues(files_path_prefix: str,
 
     print(f'Plotting {names[0]}-{names[1]}', flush=True)
     for t in range(t_start, t_end):
-        if os.path.exists(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png'):
-            continue
+        print(t)
+        # if os.path.exists(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png'):
+        #     continue
         try:
             eigenvalues = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t+offset}.npy')
             eigenvalues = np.real(eigenvalues)
@@ -72,13 +74,15 @@ def plot_eigenvalues(files_path_prefix: str,
             lambda_list.append(eigenvalues[l])
 
         np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t+offset}.npy', matrix_list[0])
+        # continue
 
         date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t+offset)
-        fig.suptitle(f'Lambdas {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
+        # fig.suptitle(f'Lambdas {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
         for i in range(n_lambdas):
-            axs[i].set_title(f'Lambda {i + 1} = {lambda_list[i]:.2e}', fontsize=12)
+            axs[i].set_title(f'$\\lambda_{i + 1}$ = {lambda_list[i]:.2e}', fontsize=12)
             divider = make_axes_locatable(axs[i])
-            cax = divider.append_axes('right', size='5%', pad=0.3)
+
+            cax = divider.append_axes('right', size='5%', pad=0.1)
             lambda_matrix = matrix_list[i].reshape(shape)
             if img[i] is None:
                 img[i] = axs[i].imshow(lambda_matrix,
@@ -93,10 +97,13 @@ def plot_eigenvalues(files_path_prefix: str,
                 axs[i].set_yticklabels(y_label_list)
             else:
                 img[i].set_data(lambda_matrix)
+
             fig.colorbar(img[i], cax=cax, orientation='vertical')
 
         fig.tight_layout()
-        fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png')
+        # fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png')
+        print(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
+        fig.savefig(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
     plt.close(fig)
     return
 
@@ -104,7 +111,8 @@ def plot_eigenvalues(files_path_prefix: str,
 def plot_mean_year(files_path_prefix: str,
                    names: tuple = ('Sensible', 'Latent')):
     height, width = 161, 181
-    mean_year = np.load(files_path_prefix + f'Mean_year/eigenvector_{names[0]}-{names[1]}_1979-2025.npy')
+    sns.set_style("whitegrid")
+    mean_year = np.load(files_path_prefix + f'Mean_year/eigenvector_{names[0]}-{names[1]}_1979-2024.npy')
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
     # fig.suptitle(f'{coeff_name} mean year', fontsize=30)
     axs[0][0].title.set_text('February, 15')
@@ -124,7 +132,7 @@ def plot_mean_year(files_path_prefix: str,
 
     cmap = plt.get_cmap('Blues').copy()
     cmap.set_bad('lightgreen', 1.0)
-    fig.suptitle(f'{names[0]}-{names[1]} first eigenvector mean year', fontsize=30)
+    # fig.suptitle(f'{names[0]}-{names[1]} first eigenvector mean year', fontsize=30)
     for i in range(6):
         divider = make_axes_locatable(axs[i // 3][i % 3])
         cax[i] = divider.append_axes('right', size='5%', pad=0.3)
@@ -141,5 +149,5 @@ def plot_mean_year(files_path_prefix: str,
         fig.colorbar(img[i], cax=cax[i], orientation='vertical')
 
     plt.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Mean_year/Eigenvectors/eigenvector_{names[0]}-{names[1]}_1979-2025_mean_year.png')
+    fig.savefig(files_path_prefix + f'videos/Mean_year/Eigenvectors/eigenvector_{names[0]}-{names[1]}_1979-2024_mean_year.png')
     return

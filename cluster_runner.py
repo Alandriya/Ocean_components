@@ -60,17 +60,19 @@ if __name__ == '__main__':
 
     n_bins = 100
 
-    # pair_name = 'Flux-Flux'
-    # pair_name = 'Flux-SST'
-    # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues',
-    #              start=14610)
-
     count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
 
     # print('Counting mean years', flush=True)
     # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    # for names in [('Pressure', 'Pressure')]:
     #     count_mean_year(files_path_prefix, 1979, 2025, names, mask)
-        
+
     # print('Getting trends', flush=True)
     # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    # for names in [('Pressure', 'Pressure')]:
     #     get_trends(files_path_prefix, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, names)
+
+    # for names in [('Pressure', 'Pressure')]:
+    #     pair_name = f'{names[0]}-{names[1]}'
+    #     create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues',
+    #                  start=14610)

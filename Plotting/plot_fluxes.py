@@ -8,6 +8,7 @@ import numpy as np
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from Plotting.video import get_continuous_cmap
+import seaborn as sns
 
 
 def plot_flux_correlations(files_path_prefix: str,
@@ -185,6 +186,8 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
                         start_pic_num: int = 1
                         ):
+    sns.set_style("whitegrid")
+
     fig, axs = plt.subplots(1, 3, figsize=(20, 5))
     img_flux, img_sst, img_press = None, None, None
 
@@ -196,23 +199,23 @@ def plot_flux_sst_press(files_path_prefix: str,
     press_min = np.nanmin(press)
 
     cmap_flux = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
-    cmap_flux.set_bad('darkgreen', 1.0)
+    cmap_flux.set_bad('lightgreen', 1.0)
     # cmap_sst = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
-    cmap_sst = plt.get_cmap('autumn')
-    cmap_sst.set_bad('darkgreen', 1.0)
+    cmap_sst = plt.get_cmap('Reds').copy()
+    cmap_sst.set_bad('lightgreen', 1.0)
     # cmap_press = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
-    cmap_press = plt.get_cmap('YlOrBr')
-    cmap_press.set_bad('darkgreen', 1.0)
+    cmap_press = plt.get_cmap('Purples').copy()
+    cmap_press.set_bad('lightgreen', 1.0)
 
-    axs[0].set_title(f'Sum flux', fontsize=20)
+    # axs[0].set_title(f'Sum flux', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_flux = divider.append_axes('right', size='5%', pad=0.3)
 
-    axs[1].set_title(f'SST', fontsize=20)
+    # axs[1].set_title(f'SST', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_sst = divider.append_axes('right', size='5%', pad=0.3)
 
-    axs[2].set_title(f'Pressure', fontsize=20)
+    # axs[2].set_title(f'Pressure', fontsize=20)
     divider = make_axes_locatable(axs[2])
     cax_press = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -224,7 +227,7 @@ def plot_flux_sst_press(files_path_prefix: str,
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(start, end)):
         date = start_date + datetime.timedelta(days=(t - start))
-        fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
+        # fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
 
         if img_flux is None:
             img_flux = axs[0].imshow(flux[:, t].reshape(161, 181),
