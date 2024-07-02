@@ -181,14 +181,14 @@ if __name__ == '__main__':
     # pair_name = 'SST-SST'
     # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
 
-    t_start = 0
-    t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
+    # t_start = 0
+    # t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
     # print(t_end)
     # raise ValueError
     # print(t_end + flux_array.shape[1])
 
 
-    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure'), ('Pressure', 'Pressure')]:
+    # for names in [('Flux', 'Flux'), ('SST', 'SS.'), ('Flux', 'SST'), ('Flux', 'Pressure'), ('Pressure', 'Pressure')]:
         # plot_mean_year(files_path_prefix, names)
         # get_trends(files_path_prefix, t_start, t_end, names)
         # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
@@ -199,6 +199,122 @@ if __name__ == '__main__':
     # start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
     # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
     #                     start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
-    days_delta7 = (datetime.datetime(2023, 10, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta7)
-    print('$\\lambda_1=$')
+    # days_delta7 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    # print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta7)
+    # print('$\\lambda_1=$')
+
+
+    # # normalizing and collecting to bins
+    # start_year = 2019
+    # end_year = 2025
+    # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
+    #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
+    # else:
+    #     df = pd.read_excel(files_path_prefix + 'Scaling_df.xlsx')
+
+    # sst_grouped = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    # sst_min = np.nanmin(sst_grouped)
+    # sst_max = np.nanmax(sst_grouped)
+    # print(f'SST min = {sst_min}, max = {sst_max}')
+    # # df.loc[len(df)] = ['sst', start_year, sst_min, sst_max]
+    # sst = (sst_grouped - sst_min)/(sst_max - sst_min)
+    # del sst_grouped
+    # sst, _ = scale_to_bins(sst, bins_amount)
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}_norm_scaled.npy', sst)
+    # del sst
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx')
+
+    # press_grouped = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # press_min = np.nanmin(press_grouped)
+    # press_max = np.nanmax(press_grouped)
+    # print(f'PRESS min = {press_min}, max = {press_max}')
+    # # df.loc[len(df)] = ['press', start_year, press_min, press_max]
+    # press = (press_grouped - press_min)/(press_max - press_min)
+    # del press_grouped
+    # press, _ = scale_to_bins(press, bins_amount)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_norm_scaled.npy', press)
+    # del press
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+
+    # flux_grouped = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # flux_min = np.nanmin(flux_grouped)
+    # flux_max = np.nanmax(flux_grouped)
+    # print(f'FLUX min = {flux_min}, max = {flux_max}')
+    # # df.loc[len(df)] = ['flux', start_year, flux_min, flux_max]
+    # flux = (flux_grouped - flux_min)/(flux_max - flux_min)
+    # del flux_grouped
+    # flux, _ = scale_to_bins(flux, bins_amount)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_norm_scaled.npy', flux)
+    # del flux
+    # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+
+    # count ABF coefficients 3d
+    # start_year = 2019
+    # end_year = 2025
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #
+    # flux = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_norm_scaled.npy')
+    # sst = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_norm_scaled.npy')
+    # press = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_norm_scaled.npy')
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        sst,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='sst-press')
+    #
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        sst,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-sst')
+    #
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=flux.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-press')
+
+
+    # count and plot extreme of coefficients 3d
+    pair_name = 'flux-sst'
+    # pair_name = 'flux-press'
+    # pair_name = 'sst-press'
+
+    mean_days = 30
+    # mean_days = 365
+    time_start = 1
+    time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+
+    if pair_name == 'flux-sst':
+        names = ('Flux', 'SST')
+    elif pair_name == 'flux-press':
+        names = ('Flux', 'Pressure')
+    else:
+        names = ('SST', 'Pressure')
+
+    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders = load_ABCFE(files_path_prefix,
+                                                                                     time_start,
+                                                                                     time_end,
+                                                                                     load_a=True,
+                                                                                     load_b=True,
+                                                                                     path_local=f'Coeff_data_3d/{pair_name}')
+    local_path_prefix = f'{pair_name}/'
+    extract_extreme(files_path_prefix, a_timelist, 'a', time_start, time_end, mean_days, local_path_prefix)
+    extract_extreme(files_path_prefix, b_timelist, 'b', time_start, time_end, mean_days,local_path_prefix)
+    plot_extreme(files_path_prefix, 'a', time_start, time_end, mean_days, local_path_prefix, names)
+    plot_extreme(files_path_prefix, 'b', time_start, time_end, mean_days, local_path_prefix, names)
+
+    for coeff_type in ['a', 'b']:
+        collect_extreme(files_path_prefix, coeff_type, local_path_prefix, mean_days)
+    for coeff_type in ['a', 'b']:
+        plot_extreme_3d(files_path_prefix, coeff_type, 1, time_end, mean_days, fit_regression=True,
+                     fit_sinus=False, fit_fourier_flag=False)

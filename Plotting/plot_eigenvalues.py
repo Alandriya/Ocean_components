@@ -80,9 +80,9 @@ def plot_eigenvalues(files_path_prefix: str,
         # fig.suptitle(f'Lambdas {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
         for i in range(n_lambdas):
             axs[i].set_title(f'$\\lambda_{i + 1}$ = {lambda_list[i]:.2e}', fontsize=12)
-            divider = make_axes_locatable(axs[i])
+            # divider = make_axes_locatable(axs[i])
 
-            cax = divider.append_axes('right', size='5%', pad=0.1)
+            # cax = divider.append_axes('right', size='5%', pad=0.1)
             lambda_matrix = matrix_list[i].reshape(shape)
             if img[i] is None:
                 img[i] = axs[i].imshow(lambda_matrix,
@@ -98,7 +98,7 @@ def plot_eigenvalues(files_path_prefix: str,
             else:
                 img[i].set_data(lambda_matrix)
 
-            fig.colorbar(img[i], cax=cax, orientation='vertical')
+            # fig.colorbar(img[i], cax=cax, orientation='vertical')
 
         fig.tight_layout()
         # fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png')

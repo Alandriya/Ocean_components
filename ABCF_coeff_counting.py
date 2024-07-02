@@ -40,8 +40,10 @@ def count_abfe_coefficients(files_path_prefix: str,
     """
     # !!NOTE: t_absolut here is not an error in naming, it means not a global absolute index - offset from 01.01.1979,
     # but it is absolute in terms of fluxes array from the input indexing
-    for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
-    # for t_absolute in range(time_start + 1, time_end + 1):
+    # for t_absolute in tqdm.tqdm(range(time_start + 1, time_end + 1)):     # comment tqdm if parallel counting
+    for t_absolute in range(time_start + 1, time_end + 1):
+        if t_absolute % 100 ==0:
+            print(f'Iteration {t_absolute}', flush=True)
         if not os.path.exists(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_sens.npy'):
         # if True:
             t_rel = t_absolute - time_start
@@ -49,7 +51,6 @@ def count_abfe_coefficients(files_path_prefix: str,
             a_lat = np.zeros((161, 181), dtype=float)
             b_matrix = np.zeros((4, 161, 181), dtype=float)
             f = np.zeros((161, 181), dtype=float)
-            e_matrix = np.zeros((4, 161, 181), dtype=float)
 
             # set nan where is not ocean in arrays
             for i in range(0, len(mask)):
@@ -145,13 +146,13 @@ def count_abfe_coefficients(files_path_prefix: str,
                 np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_A_lat.npy', a_lat)
                 np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_B.npy', b_matrix)
                 np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_F.npy', f)
-                np.save(files_path_prefix + f'Coeff_data/{int(t_absolute + offset)}_E.npy', e_matrix)
             else:
+                if not os.path.exists(files_path_prefix + f'Coeff_data_3d/{pair_name}'):
+                    os.mkdir(files_path_prefix + f'Coeff_data_3d/{pair_name}')
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_sens.npy', a_sens)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_A_lat.npy', a_lat)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_B.npy', b_matrix)
                 np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_F.npy', f)
-                np.save(files_path_prefix + f'Coeff_data_3d/{pair_name}/{int(t_absolute + offset)}_E.npy', e_matrix)
     return
 
 

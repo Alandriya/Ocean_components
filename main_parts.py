@@ -1041,54 +1041,153 @@ if __name__ == '__main__':
     #     plot_extreme_3d(files_path_prefix, coeff_type, 1, 16071, mean_days, fit_regression=True,
     #                  fit_sinus=True, fit_fourier_flag=True)
     # ----------------------------------------------------------------------------------------------
-
     # # eigenvalues
+    # print(f'start year {start_year}')
+    # end_year = start_year + 10
     #
-    # pair_name = 'flux-sst'
-    # # pair_name = 'flux-press'
-    # # pair_name = 'sst-press'
-    # # pair_name = 'sensible_latent'
-    # if pair_name == 'flux-sst':
-    #     names = ('Flux', 'SST')
-    # elif pair_name == 'flux-press':
-    #     names = ('Flux', 'Pressure')
-    # elif pair_name == 'sst-press':
-    #     names = ('SST', 'Pressure')
+    # if start_year == 1979:
+    #     offset = 0
+    # elif start_year == 1989:
+    #     offset = days_delta1
+    # elif start_year == 1999:
+    #     offset = days_delta1 + days_delta2
+    # elif start_year == 2009:
+    #     offset = days_delta1 + days_delta2 + days_delta3
     # else:
-    #     names = ('Sensible', 'Latent')
-    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #     end_year = 2025
     #
-    # days_delta6 = (datetime.datetime(2019, 2, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2023_grouped.npy')
-    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2023_grouped.npy')
-    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2023_grouped.npy')
-    # flux_array = flux_array[:, :days_delta6]
-    # SST_array = SST_array[:, :days_delta6]
-    # press_array = press_array[:, :days_delta6]
-    # n_bins = 10
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # t = t_start
     #
-    # flux_array, quantiles_flux = scale_to_bins(flux_array, n_bins)
-    # SST_array, quantiles_sst = scale_to_bins(SST_array, n_bins)
-    # press_array, quantiles_press = scale_to_bins(press_array, n_bins)
-    # np.save(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy', flux_array)
-    # np.save(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy', SST_array)
-    # np.save(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy', SST_array)
-    #
-    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019_grouped_scaled100.npy')
-    # SST_array = np.load(files_path_prefix + f'SST/SST_2019_grouped_scaled100.npy')
-    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019_grouped_scaled100.npy')
-    #
-    # values_flux = np.unique(flux_array)
-    # values_flux = values_flux[~numpy.isnan(values_flux)]
-    # values_sst = np.unique(SST_array)
-    # values_sst = values_sst[~numpy.isnan(values_sst)]
-    # values_press = np.unique(press_array)
-    # values_press = values_press[~numpy.isnan(values_press)]
-    # print(len(values_flux))
-    # print(len(values_sst))
-    # print(len(values_press))
-    # # raise ValueError
-    #
-    # count_eigenvalues_triplets(files_path_prefix, mask, flux_array, values_flux, SST_array, values_sst,
-    #                            press_array, values_press, offset, n_bins)
+    # n_bins = 100
+
+    # count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
+
+    # print('Counting mean years', flush=True)
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    # for names in [('Pressure', 'Pressure')]:
+    #     count_mean_year(files_path_prefix, 1979, 2025, names, mask)
+
+    # print('Getting trends', flush=True)
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
+    # for names in [('Pressure', 'Pressure')]:
+    #     get_trends(files_path_prefix, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, names)
+
+    # for names in [('Pressure', 'Pressure')]:
+    #     pair_name = f'{names[0]}-{names[1]}'
+    #     create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues',
+    #                  start=14610)
+
     # ----------------------------------------------------------------------------------------------
+    # collect SST and PRESS to 10 years arrays 3d
+
+    # start_year = 2019
+    # end_year = 2025
+    # bins_amount = 1000
+    # days_delta = days_delta6
+
+    # current_shift = 0
+    # sst_array = np.zeros((height * width, days_delta * 4))
+    # press_array = np.zeros_like(sst_array)
+    # for year in range(start_year, end_year):
+    #     print(year)
+    #     sst_year = np.load(files_path_prefix + f'SST/SST_{year}.npy')
+    #     print(sst_year.shape)
+    #     sst_array[:, current_shift:current_shift + sst_year.shape[1]] = sst_year[:, :min(sst_year.shape[1], days_delta * 4 - current_shift)]
+    #
+    #     press_year = np.load(files_path_prefix + f'Pressure/PRESS_{year}.npy')
+    #     press_array[:, current_shift:current_shift + sst_year.shape[1]] = press_year[:, :min(press_year.shape[1], days_delta * 4 - current_shift)]
+    #
+    #     current_shift += sst_year.shape[1]
+    #     print()
+    #
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}.npy', sst_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}.npy', press_array)
+
+    # current_shift = 0
+    # sensible_array = np.zeros((height * width, days_delta * 4))
+    # latent_array = np.zeros_like(sensible_array)
+    # for year in ['2019-2023', 2023, 2024]:
+    #     print(year)
+    #     sensible_year = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{year}.npy')
+    #     print(sensible_year.shape)
+    #     sensible_array[:, current_shift:current_shift + sensible_year.shape[1]] = sensible_year[:, :min(sensible_year.shape[1], days_delta * 4 - current_shift)]
+    #
+    #     latent_year = np.load(files_path_prefix + f'Fluxes/LATENT_{year}.npy')
+    #     latent_array[:, current_shift:current_shift + latent_year.shape[1]] = latent_year[:, :min(latent_year.shape[1], days_delta * 4 - current_shift)]
+    #
+    #     current_shift += sensible_year.shape[1]
+    #     print()
+    #
+    # np.save(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy', sensible_array)
+    # np.save(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy', latent_array)
+    #
+    # # get sum fluxes
+    # sensible_array = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy')
+    # latent_array = np.load(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy')
+    #
+    # flux_array = sensible_array + latent_array
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}.npy', flux_array)
+    #
+    # # Grouping by 1 day
+    # sst_array, press_array = load_prepare_fluxes(f'SST/SST_{start_year}-{end_year}.npy',
+    #                                              f'Pressure/PRESS_{start_year}-{end_year}.npy',
+    #                                              files_path_prefix,
+    #                                             prepare=False)
+    # print(sst_array.shape)
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy', sst_array)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy', press_array)
+    # del sst_array, press_array
+    #
+    # flux_array, _ = load_prepare_fluxes(f'Fluxes/FLUX_{start_year}-{end_year}.npy',
+    #                                     f'Fluxes/FLUX_{start_year}-{end_year}.npy',
+    #                                     files_path_prefix,
+    #                                     prepare=False)
+    # print(flux_array.shape)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy', flux_array)
+
+    # # normalizing and collecting to bins
+    # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
+    #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
+    # else:
+    #     df = pd.read_excel(files_path_prefix + 'Scaling_df.xlsx')
+
+    # sst_grouped = np.load(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_grouped.npy')
+    # sst_min = np.nanmin(sst_grouped)
+    # sst_max = np.nanmax(sst_grouped)
+    # print(f'SST min = {sst_min}, max = {sst_max}')
+    # # df.loc[len(df)] = ['sst', start_year, sst_min, sst_max]
+    # sst = (sst_grouped - sst_min)/(sst_max - sst_min)
+    # del sst_grouped
+    # sst, _ = scale_to_bins(sst, bins_amount)
+    # np.save(files_path_prefix + f'Data/SST/SST_{start_year}-{start_year+10}_norm_scaled.npy', sst)
+    # del sst
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx')
+    #
+    # press_grouped = np.load(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_grouped.npy')
+    # press_min = np.nanmin(press_grouped)
+    # press_max = np.nanmax(press_grouped)
+    # print(f'PRESS min = {press_min}, max = {press_max}')
+    # # df.loc[len(df)] = ['press', start_year, press_min, press_max]
+    # press = (press_grouped - press_min)/(press_max - press_min)
+    # del press_grouped
+    # press, _ = scale_to_bins(press, bins_amount)
+    # np.save(files_path_prefix + f'Data/Pressure/PRESS_{start_year}-{start_year+10}_norm_scaled.npy', press)
+    # del press
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+    #
+    # flux_grouped = np.load(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_grouped.npy')
+    # flux_min = np.nanmin(flux_grouped)
+    # flux_max = np.nanmax(flux_grouped)
+    # print(f'FLUX min = {flux_min}, max = {flux_max}')
+    # # df.loc[len(df)] = ['flux', start_year, flux_min, flux_max]
+    # flux = (flux_grouped - flux_min)/(flux_max - flux_min)
+    # del flux_grouped
+    # flux, _ = scale_to_bins(flux, bins_amount)
+    # np.save(files_path_prefix + f'Data/Fluxes/FLUX_{start_year}-{start_year+10}_norm_scaled.npy', flux)
+    # del flux
+    # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+    #-------------------------------------------------------------------------------------

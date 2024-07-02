@@ -163,36 +163,39 @@ def load_ABCFE(files_path_prefix: str,
         print('Loading ABC data')
     for t in range(time_start, time_end):
         if load_a:
-            a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
-            a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
-            a_timelist.append([a_sens, a_lat])
+            try:
+                a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
+                a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
+                a_timelist.append([a_sens, a_lat])
 
-            a_sens *= coeff_1
-            a_lat *= coeff_2
+                a_sens *= coeff_1
+                a_lat *= coeff_2
 
-            a1_max = max(a1_max, np.nanmax(a_sens))
-            a1_min = min(a1_min, np.nanmin(a_sens))
-            a2_max = max(a2_max, np.nanmax(a_lat))
-            a2_min = min(a2_min, np.nanmin(a_lat))
-
+                a1_max = max(a1_max, np.nanmax(a_sens))
+                a1_min = min(a1_min, np.nanmin(a_sens))
+                a2_max = max(a2_max, np.nanmax(a_lat))
+                a2_min = min(a2_min, np.nanmin(a_lat))
+            except FileNotFoundError:
+                pass
             # a_max = max(a_max, np.nanmax(a_sens), np.nanmax(a_lat))
             # a_min = min(a_min, np.nanmin(a_sens), np.nanmin(a_lat))
 
         if load_b:
-            b_matrix = np.load(files_path_prefix + f'{path_local}/{t}_B.npy')
-            b_matrix[0] *= coeff_1
-            b_matrix[3] *= coeff_2
-            b_matrix[1] *= math.sqrt(coeff_1 * coeff_2)
-            b_matrix[2] *= math.sqrt(coeff_1 * coeff_2)
-            for i in range(4):
-                np.nan_to_num(b_matrix[i], False, -10)
-                b_matrix[i][np.logical_not(mask.reshape((height, width)))] = np.nan
+            try:
+                b_matrix = np.load(files_path_prefix + f'{path_local}/{t}_B.npy')
+                b_matrix[0] *= coeff_1
+                b_matrix[3] *= coeff_2
+                b_matrix[1] *= math.sqrt(coeff_1 * coeff_2)
+                b_matrix[2] *= math.sqrt(coeff_1 * coeff_2)
+                for i in range(4):
+                    np.nan_to_num(b_matrix[i], False, -10)
+                    b_matrix[i][np.logical_not(mask.reshape((height, width)))] = np.nan
 
-                b_max[i] = max(b_max[i], np.nanmax(b_matrix[i]))
-                b_min[i] = min(b_min[i], np.nanmin(b_matrix[i]))
-            b_timelist.append(b_matrix)
-
-
+                    b_max[i] = max(b_max[i], np.nanmax(b_matrix[i]))
+                    b_min[i] = min(b_min[i], np.nanmin(b_matrix[i]))
+                b_timelist.append(b_matrix)
+            except FileNotFoundError:
+                pass
         if load_f:
             f = np.load(files_path_prefix + f'{path_local}/{t}_F.npy')
             f_timelist.append(f)

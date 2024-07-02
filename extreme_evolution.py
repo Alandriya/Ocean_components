@@ -590,6 +590,7 @@ def plot_extreme_3d(files_path_prefix: str,
             fig.savefig(files_path_prefix + f'Extreme/plots/3D/{mean_days}/{coeff_type}_({time_start}-{time_end})_'
                                             f'{mean_days}_fit_sinus_residuals.png')
         if fit_regression:
+            days_delta = (datetime.datetime(2023, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
             fig, axs = plt.subplots(3, 1, figsize=(20, 10))
             if mean_days == 365:
                 axs[0].xaxis.set_minor_locator(mdates.MonthLocator())
@@ -612,11 +613,13 @@ def plot_extreme_3d(files_path_prefix: str,
             r2 = r2_score(max_flux, res.intercept + res.slope*x)
             axs[0].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'Flux amount of trend for max = {res.intercept * (days_delta): .2e}')
             axs[0].plot(days, mean_flux, c='g', alpha=1, label='mean')
             res = linregress(x, min_flux)
             r2 = r2_score(min_flux, res.intercept + res.slope * x)
             axs[0].plot(days, res.intercept + res.slope*x, '--', c='orange',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'Flux amount of trend for min = {res.intercept * (days_delta): .2e}')
             axs[0].plot(days, min_flux, c='b', alpha=0.75, label='min')
             axs[0].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
@@ -626,11 +629,13 @@ def plot_extreme_3d(files_path_prefix: str,
             r2 = r2_score(max_sst, res.intercept + res.slope*x)
             axs[1].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'SST amount of trend for max = {res.intercept * (days_delta): .2e}')
             axs[1].plot(days, mean_sst, c='g', alpha=1, label='mean')
             res = linregress(x, min_sst)
             r2 = r2_score(min_sst, res.intercept + res.slope * x)
             axs[1].plot(days, res.intercept + res.slope*x, '--', c='orange',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'SST amount of trend for min = {res.intercept * (days_delta): .2e}')
             axs[1].plot(days, min_sst, c='b', alpha=0.75, label='min')
             axs[1].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
@@ -640,11 +645,13 @@ def plot_extreme_3d(files_path_prefix: str,
             r2 = r2_score(max_press, res.intercept + res.slope*x)
             axs[2].plot(days, res.intercept + res.slope*x, '--', c='darkviolet',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'press amount of trend for max = {res.intercept * (days_delta): .2e}')
             axs[2].plot(days, mean_press, c='g', alpha=1, label='mean')
             res = linregress(x, min_press)
             r2 = r2_score(min_press, res.intercept + res.slope * x)
             axs[2].plot(days, res.intercept + res.slope*x, '--', c='orange',
                         label=f'{res.slope:.2e} * x + {res.intercept: .1f}')
+            print(f'press amount of trend for min = {res.intercept * (days_delta): .2e}')
             axs[2].plot(days, min_press, c='b', alpha=0.75, label='min')
             axs[2].legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
@@ -1042,6 +1049,7 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
     axs.plot(days, res.intercept + res.slope * x, '--', c='darkviolet',
                 label=f'{res.slope:.2e} * x + {res.intercept: .5f}')
     print(f'maximum R^2 {mean_days} mean days = {r2_score(max_trend, res.intercept + res.slope * x): .2e}')
+
     axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
     res = linregress(x, min_trend)
     axs.plot(days, res.intercept + res.slope * x, '--', c='orange',
