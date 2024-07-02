@@ -1,4 +1,6 @@
 import datetime
+import os
+
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import numpy as np
@@ -132,6 +134,59 @@ def imshow(inp, title=None):
     if title is not None:
         plt.title(title)
     plt.pause(0.001)  # pause a bit so that plots are updated
+
+
+def plot_1d_predictions(files_path_prefix: str,
+                        y_test: np.ndarray,
+                        y_predict: np.ndarray,
+                        model_name: str,
+                        start_day: datetime.datetime,
+                        cluster_idx: int,
+                        point_idx: int,
+                        ):
+    fig = plt.figure(figsize=(10, 5))
+    days_prediction = len(y_test)
+    days_str = [(start_day + datetime.timedelta(days=d)).strftime('%d.%m.%Y') for d in range(days_prediction)]
+    plt.plot(days_str, y_test, c='r', label='Test values')
+    plt.plot(days_str, y_predict, '-o', c='b', label='Prediction')
+    fig.suptitle(f'Prediction of point {point_idx} in cluster {cluster_idx}')
+    plt.legend()
+    plt.tight_layout()
+    if not os.path.exists(files_path_prefix + f'videos/Forecast/1d'):
+        os.mkdir(files_path_prefix + f'videos/Forecast/1d')
+    if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}'):
+        os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}')
+    if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}'):
+        os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}')
+    plt.savefig(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}/{point_idx}-cluster_{cluster_idx}.png')
+    plt.close(fig)
+    return
+
+
+def plot_clusters(files_path_prefix: str,
+        frequencies: np.ndarray,
+        labels: np.ndarray,
+        yhat: np.ndarray,
+        filename: str):
+    fig, axs = plt.subplots(3, 3, figsize=(30, 30))
+    for label in labels:
+        # get row indexes for samples with this cluster
+        row_ix = np.where(yhat == label)
+        # create scatter of these samples
+        axs[0][0].scatter(frequencies[row_ix, 0], frequencies[row_ix, 1])
+        axs[0][1].scatter(frequencies[row_ix, 0], frequencies[row_ix, 2])
+        axs[0][2].scatter(frequencies[row_ix, 0], frequencies[row_ix, 3])
+        axs[1][0].scatter(frequencies[row_ix, 1], frequencies[row_ix, 0])
+        axs[1][1].scatter(frequencies[row_ix, 1], frequencies[row_ix, 2])
+        axs[1][2].scatter(frequencies[row_ix, 1], frequencies[row_ix, 3])
+        axs[2][0].scatter(frequencies[row_ix, 2], frequencies[row_ix, 0])
+        axs[2][1].scatter(frequencies[row_ix, 2], frequencies[row_ix, 1])
+        axs[2][2].scatter(frequencies[row_ix, 2], frequencies[row_ix, 3])
+
+    # plt.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Forecast/Clusters/{filename}.png')
+    return
+
 
 # def visualize_model(model, num_images=6):
 #     was_training = model.training
