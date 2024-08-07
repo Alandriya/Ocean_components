@@ -1,52 +1,15 @@
-from struct import unpack
-import numpy as np
 import datetime
-import pandas as pd
 import os
-from Forecasting.clusterization import clusterize
 import warnings
+from struct import unpack
+from skimage.metrics import structural_similarity as ssim
+import numpy as np
 import tensorflow as tf
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.applications.vgg16 import preprocess_input
-import torch
-from torch import nn
-from gan import Generator, Discriminator
+import tqdm
+
+from model import MyUnetModel, MyLSTMModel
 
 warnings.filterwarnings("ignore")
-from sklearn.metrics import mean_squared_error
-from darts.models import TransformerModel
-import torchvision
-import torchvision.transforms as transforms
-
-def rmse(y_predict, y_true):
-    return np.sqrt(mean_squared_error(y_predict, y_true))
-
-def scale(array):
-    arr_min = np.nanmin(array)
-    arr_max = np.nanmax(array)
-    return arr_min, arr_max, (array - arr_min) / (arr_max - arr_min)
-
-
-def get_eigen_arrays(files_path_prefix: str, names:tuple, t_start: int, t_end: int):
-    eigenvectors = np.zeros((t_end - t_start, 161*181))
-    eigenvalues = np.zeros(t_end - t_start)
-    for t in range(t_end - t_start):
-        eigenvectors[t] = np.real(np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t_start + t}.npy'))
-        eigenvalues[t] = np.real(np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t_start + t}.npy')[0])
-    return eigenvectors, eigenvalues
-
-def get_coefficients(files_path_prefix: str, names:tuple, t_start: int, t_end: int):
-    a = np.zeros((2, t_end - t_start, 161, 181))
-    b = np.zeros((4, t_end - t_start, 4, 161, 181))
-    for t in range(t_end - t_start):
-        try:
-            a[0, t] = np.load(files_path_prefix + f'Coeff_data_3d/{names[0]}-{names[1]}/{t_start + t}_A_sens.npy').reshape((161, 181))
-            a[1, t] = np.load(files_path_prefix + f'Coeff_data_3d/{names[0]}-{names[1]}/{t_start + t}_A_lat.npy').reshape((161, 181))
-            b[:, t] = np.load(files_path_prefix + f'Coeff_data_3d/{names[0]}-{names[1]}/{t_start + t}_B.npy').reshape((4, 161, 181))
-        except FileNotFoundError:
-            pass
-    return a, b
-
 
 if __name__ == '__main__':
     files_path_prefix = 'E:/Nastya/Data/OceanFull/'
@@ -58,6 +21,7 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
+    mask = mask.reshape((161, 181))
     # ---------------------------------------------------------------------------------------
     # Days deltas
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
@@ -67,151 +31,234 @@ if __name__ == '__main__':
     days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
+    start_year = 2019
+    if start_year == 2019:
+        end_year = 2025
+    else:
+        end_year = start_year + 10
 
-    # load data
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
-    flux_array = np.diff(flux_array, axis=1)
-
-    SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
-    SST_array = np.diff(SST_array, axis=1)
-
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
-    press_array = np.diff(press_array, axis=1)
-
-    t_start = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    t_end = t_start + days_delta6 - 1
-    # ---------------------------------------------------------------------------------------
-    # transform pictures to features
-    # Load pre-trained VGG16 model
-    model_image3d = VGG16(weights='imagenet', include_top=False, input_shape=(161, 181, 3))
-    model_image1d = VGG16(weights='imagenet', include_top=False, input_shape=(161, 181, 3))
-    # flux_array = flux_array.transpose().reshape((-1, 161, 181))
-    # SST_array = SST_array.transpose().reshape((-1, 161, 181))
-    # press_array = press_array.transpose().reshape((-1, 161, 181))
-    #
-    # input_array = np.zeros((t_end-t_start, 161, 181, 3))
-    # input_array[:, :, :, 0] = flux_array
-    # input_array[:, :, :, 1] = SST_array
-    # input_array[:, :, :, 2] = press_array
-
-    # base_vector = model_image3d.predict(input_array)
-    # print(base_vector.shape)
-    # np.save(files_path_prefix + f'Forecast/2019-2025_base_vector.npy', base_vector)
-
-    # A and B coefficients
-    for names in [('flux', 'sst'), ('flux', 'press'), ('sst', 'press')]:
-        a, b = get_coefficients(files_path_prefix, names, t_start, t_start+10)
-        if not os.path.exists(files_path_prefix + f'Forecast/{names[0]}-{names[1]}'):
-            os.mkdir(files_path_prefix + f'Forecast/{names[0]}-{names[1]}')
-        print(np.)
-        a0 = model_image1d.predict(np.concatenate(a[:, 0], a[:, 0], a[:, 0]))
-        print(a0.shape)
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_a0.npy', a0)
-        a1 = model_image1d.predict(a[:, 1])
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_a1.npy', a1)
-
-        b0 = model_image1d.predict(b[:, 0])
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_b0.npy', b0)
-        b1 = model_image1d.predict(b[:, 1])
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_b1.npy', b1)
-        b2 = model_image1d.predict(b[:, 2])
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_b2.npy', b2)
-        b3 = model_image1d.predict(b[:, 3])
-        np.save(files_path_prefix + f'Forecast/{names[0]}-{names[1]}/2019-2025_b3.npy', b3)
-
-
-    # # adding eigenvectors and saving eigenvalues
-    # i = 3
-    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
-    #     eigenvectors, eigenvalues = get_eigen_arrays(files_path_prefix, names, t_start, t_end)
-    #     input_array[:, :, :, i] = eigenvectors.reshape((-1, 161, 181))
-    #     eigenvalues_all[:, i] = eigenvalues
-    #     i += 1
-    # np.save(files_path_prefix + 'Forecast/eigenvalues.npy', eigenvalues_all)
+    # t_start = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # t_end = t_start + days_delta6 - 1
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
     # ---------------------------------------------------------------------------------------
     # configs
-    raise ValueError
-    base_vector = np.load(files_path_prefix + f'Forecast/2019-2025_base_vector.npy')
-    print(base_vector.shape)
-    # eigenvalues = np.load(files_path_prefix + 'Forecast/eigenvalues.npy')
-    train_len = int(base_vector.shape[0] * 2 / 3 + 100)
-    train_days = [datetime.datetime(2019, 1, 1) + datetime.timedelta(days=t) for t in range(train_len)]
-    test_days = [datetime.datetime(2019, 1, 1) + datetime.timedelta(days=t) for t in range(train_len, base_vector.shape[0])]
-
+    width = 181
+    height = 161
     batch_size = 32
-    days_known = 14
-    days_prediction = 10
+    days_known = 10
+    days_prediction = 5
+    features_amount = 3
+    model_type = 'lstm'
 
-    lr = 0.0001
-    num_epochs = 50
-    loss_function = nn.BCELoss()
-
-    device = ""
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
+    # features_amount = 3 + 3*2
+    # 3 for flux, sst, press data, 3 * 2 for (a_flux, b_flux), (a_sst, b_sst), (a_press, b_press), 3 for eigen0_flux,
+    # eigen0_sst, eigen0_press
+    if model_type == 'Unet':
+        mask_batch = np.zeros((batch_size, 161, 181, days_known, 3))
+        mask_batch[:, mask, :, :] = 1
     else:
-        device = torch.device("cpu")
+        mask_batch = np.zeros((batch_size, 161, 181, days_prediction * 3))
+        mask_batch[:, mask, :] = 1
+    # ---------------------------------------------------------------------------------------
+    # load data
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    flux_array = np.diff(flux_array, axis=1)
+
+    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    SST_array = np.diff(SST_array, axis=1)
+
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    press_array = np.diff(press_array, axis=1)
+
+    flux_array = flux_array.reshape((height, width, -1))
+    SST_array = SST_array.reshape((height, width, -1))
+    press_array = press_array.reshape((height, width, -1))
+
+    # TODO delete
+    flux_array = flux_array[:, :, :500]
+    SST_array = SST_array[:, :, :500]
+    press_array = press_array[:, :, :500]
+
+    train_len = int(flux_array.shape[2] * 3 / 5)
+    train_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in range(train_len)]
+    test_len = flux_array.shape[2] - train_len - days_prediction - days_known
+    test_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in
+                 range(train_len, train_len + test_len)]
+
+    # (batch_size, 161, 181, days_known, features_amount)
+
+    if model_type == 'Unet':
+        x_train = np.zeros((train_len, height, width, days_known, features_amount), dtype=float)
+    else:
+        x_train = np.zeros((train_len, days_known, height, width, features_amount), dtype=float)
+    y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
+
+    print('Preparing train', flush=True)
+    for t in range(train_len):
+        # flux
+        if model_type == 'Unet':
+            x_train[t, :, :, :, 0] = flux_array[:, :, t:t+days_known]
+        else:
+            x_train[t, :, :, :, 0] = flux_array[:, :, t:t + days_known].reshape((days_known, height, width))
+        y_train[t, :, :, :, 0] = flux_array[:, :, t+days_known:t+days_known+days_prediction]
+
+        # sst
+        if model_type == 'Unet':
+            x_train[t, :, :, :, 1] = SST_array[:, :, t:t+days_known]
+        else:
+            x_train[t, :, :, :, 1] = SST_array[:, :, t:t + days_known].reshape((days_known, height, width))
+        y_train[t, :, :, :, 1] = SST_array[:, :, t+days_known:t+days_known+days_prediction]
+
+        # press
+        if model_type == 'Unet':
+            x_train[t, :, :, :, 2] = press_array[:, :, t:t+days_known]
+        else:
+            x_train[t, :, :, :, 2] = press_array[:, :, t:t + days_known].reshape((days_known, height, width))
+        y_train[t, :, :, :, 2] = press_array[:, :, t+days_known:t+days_known+days_prediction]
+
+    np.nan_to_num(x_train, copy=False)
+    np.nan_to_num(y_train, copy=False)
+    np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy', x_train)
+    np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train.npy_{model_type}', y_train)
+    del x_train, y_train
+
+    if model_type == 'Unet':
+        x_test = np.zeros((test_len, height, width, days_known, features_amount), dtype=float)
+    else:
+        x_test = np.zeros((test_len, days_known, height, width, features_amount), dtype=float)
+    y_test = np.zeros((test_len, height, width, days_prediction, 3), dtype=float)
+
+    print('Preparing test', flush=True)
+    for t in range(test_len):
+        t_absolute = train_len + t
+        # flux
+        if model_type == 'Unet':
+            x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute+days_known]
+        else:
+            x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute + days_known].reshape(
+                (days_known, height, width))
+        y_test[t, :, :, :, 0] = flux_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+        # sst
+        if model_type == 'Unet':
+            x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute+days_known]
+        else:
+            x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute + days_known].reshape(
+                (days_known, height, width))
+        y_test[t, :, :, :, 1] = SST_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+        # press
+        if model_type == 'Unet':
+            x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute+days_known]
+        else:
+            x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute + days_known].reshape(
+                (days_known, height, width))
+        y_test[t, :, :, :, 2] = press_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+
+    np.nan_to_num(x_test, copy=False)
+    np.nan_to_num(y_test, copy=False)
+    np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy', x_test)
+    np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy', y_test)
+    # raise ValueError
+    # # ---------------------------------------------------------------------------------------
+    x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy')
+    y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}.npy')
+    print('Check nans in train')
+    print(np.isnan(x_train).any())
+    print(np.isnan(y_train).any())
+    # preparing datasets
+    train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(100).batch(batch_size)
+    del x_train, y_train
+    tf.data.Dataset.save(train_ds, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
+    del train_ds
+
+    x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy')
+    y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy')
+    print(np.isnan(x_test).any())
+    print(np.isnan(y_test).any())
+    test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
+    del x_test, y_test
+    tf.data.Dataset.save(test_ds, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
+    del test_ds
+    # raise ValueError
     # ---------------------------------------------------------------------------------------
     # construct model
-    discriminator = Discriminator().to(device=device)
-    generator = Generator().to(device=device)
-    optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=lr)
-    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=lr)
+    model = MyUnetModel(days_prediction, mask_batch)
+    # model.compile()
 
-    transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
-    )
+    model.build(input_shape=(batch_size, height, width, days_known, features_amount))
+    model.make((height, width, days_known, features_amount))
+
+    loss_object = tf.keras.losses.MeanSquaredError()
+
+    optimizer = tf.keras.optimizers.Adam()
+
+    train_loss = tf.keras.metrics.Mean(name='train_loss')
+    train_accuracy = tf.keras.metrics.MeanSquaredError(name='train_accuracy')
+
+    test_loss = tf.keras.metrics.Mean(name='test_loss')
+    test_accuracy = tf.keras.metrics.MeanSquaredError(name='test_accuracy')
     # ---------------------------------------------------------------------------------------
+    @tf.function
+    def train_step(x_train, y_train):
+        with tf.GradientTape() as tape:
+            # training=True is only needed if there are layers with different
+            # behavior during training versus inference (e.g. Dropout).
+            predictions = model(x_train, training=True)
+            # print(predictions.shape)
+            # print(y_train.shape)
+            loss = loss_object(y_train, predictions)
+            # tf.print(y_train)
+            # tf.print(predictions)
+            # print(loss)
+            # print('\n')
+        gradients = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        train_loss(loss)
+        train_accuracy(y_train, predictions)
+
+    @tf.function
+    def test_step(x_test, y_test):
+        # training=False is only needed if there are layers with different
+        # behavior during training versus inference (e.g. Dropout).
+        predictions = model(x_test, training=False)
+        t_loss = loss_object(y_test, predictions)
+
+        test_loss(t_loss)
+        test_accuracy(y_test, predictions)
+    # ---------------------------------------------------------------------------------------
+    train_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
+    test_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
+
     # train
-    train_set = features
-    train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=batch_size, shuffle=True
-    )
+    EPOCHS = 2
 
-    for epoch in range(num_epochs):
-        for n, (real_samples, y) in enumerate(train_loader):
-            # Data for training the discriminator
-            real_samples = real_samples.to(device=device)
-            real_samples_labels = torch.ones((batch_size, 1)).to(
-                device=device
-            )
-            latent_space_samples = torch.randn((batch_size, 100)).to(
-                device=device
-            )
-            generated_samples = generator(latent_space_samples)
-            generated_samples_labels = torch.zeros((batch_size, 1)).to(
-                device=device
-            )
-            all_samples = torch.cat((real_samples, generated_samples))
-            all_samples_labels = torch.cat(
-                (real_samples_labels, generated_samples_labels)
-            )
+    # Loads the weights
+    # model.load_weights(checkpoint_path)
 
-            # Training the discriminator
-            discriminator.zero_grad()
-            output_discriminator = discriminator(all_samples)
-            loss_discriminator = loss_function(
-                output_discriminator, all_samples_labels
-            )
-            loss_discriminator.backward()
-            optimizer_discriminator.step()
+    for epoch in range(EPOCHS):
+        # Reset the metrics at the start of the next epoch
+        train_loss.reset_state()
+        train_accuracy.reset_state()
+        test_loss.reset_state()
+        test_accuracy.reset_state()
 
-            # Data for training the generator
-            latent_space_samples = torch.randn((batch_size, 100)).to(
-                device=device
-            )
+        for x_train, y_train in train_ds:
+            train_step(x_train, y_train)
 
-            # Training the generator
-            generator.zero_grad()
-            generated_samples = generator(latent_space_samples)
-            output_discriminator_generated = discriminator(generated_samples)
-            loss_generator = loss_function(
-                output_discriminator_generated, real_samples_labels
-            )
-            loss_generator.backward()
-            optimizer_generator.step()
+        for x_test, y_test in train_ds:
+            train_step(x_test, y_test)
 
-            # Show loss
-            if n == batch_size - 1:
-                print(f"Epoch: {epoch} Loss D.: {loss_discriminator}")
-                print(f"Epoch: {epoch} Loss G.: {loss_generator}")
+        print(
+            f'Epoch {epoch + 1}, '
+            f'Loss: {train_loss.result():0.2f}, '
+            f'Accuracy: {train_accuracy.result() * 100:0.2f}, '
+            f'Test Loss: {test_loss.result():0.2f}, '
+            f'Test Accuracy: {test_accuracy.result() * 100:0.2f}'
+        )
+
+        # Visualize the model
+        tf.keras.utils.plot_model(model, to_file=files_path_prefix + f'Forecast/model_{model_type}.png', expand_nested=True, dpi=60,
+                                  show_shapes=True, show_layer_names=True)
+
+        # Save the weights
+        model.save_weights(files_path_prefix + f'Forecast/Checkpoints/my_checkpoint_{model_type}')
