@@ -204,7 +204,7 @@ class MyUnetModel(Model):
 
         d1 = self.Conv_1x1(d2)
         output = d1[:, 15:161+15, 5:181+5, :, :]
-        return output * self.mask
+        return output * self.mask[:output.shape[0]]
 
     def make(self, input_shape):
         '''
@@ -223,7 +223,7 @@ class MyLSTMModel(Model):
         # input_shape = (batch_size, 10, 161, 181, features_amount)
         self.mask = tf.convert_to_tensor(mask, dtype=tf.float32)
         self.days_prediction = prediction_length
-        self.lstm = tf.keras.layers.ConvLSTM2D(filters=3*prediction_length, kernel_size=(3, 3), padding='same')
+        self.lstm = tf.keras.layers.ConvLSTM2D(filters=3*prediction_length, kernel_size=(3, 3), padding='same', batch_size=None)
         # self.dense = tf.keras.layers.Dense(prediction_length)
 
     def call(self, x):
@@ -231,7 +231,7 @@ class MyLSTMModel(Model):
         # x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
         x1 = self.lstm(x)
         # print(x1.shape)
-        output = x1 * self.mask
+        output = x1 * self.mask[:x1.shape[0]]
         return tf.reshape(output, (-1, 161, 181, self.days_prediction, 3))
 
     def make(self, input_shape):
@@ -239,7 +239,7 @@ class MyLSTMModel(Model):
         This method makes the command "model.summary()" work.
         input_shape: (H,W,C), do not specify batch B
         '''
-        x = tf.keras.layers.Input(shape=input_shape)
+        x = tf.keras.layers.Input(shape=input_shape, batch_size=None)
         model = tf.keras.Model(inputs=[x], outputs=self.call(x), name='actor')
         print(model.summary(line_length=120, show_trainable=True))
         return model

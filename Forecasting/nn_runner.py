@@ -60,142 +60,151 @@ if __name__ == '__main__':
         mask_batch = np.zeros((batch_size, 161, 181, days_prediction * 3))
         mask_batch[:, mask, :] = 1
     # ---------------------------------------------------------------------------------------
-    # load data
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
-    flux_array = np.diff(flux_array, axis=1)
-
-    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
-    SST_array = np.diff(SST_array, axis=1)
-
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
-    press_array = np.diff(press_array, axis=1)
-
-    flux_array = flux_array.reshape((height, width, -1))
-    SST_array = SST_array.reshape((height, width, -1))
-    press_array = press_array.reshape((height, width, -1))
-
-    # TODO delete
-    flux_array = flux_array[:, :, :500]
-    SST_array = SST_array[:, :, :500]
-    press_array = press_array[:, :, :500]
-
-    train_len = int(flux_array.shape[2] * 3 / 5)
-    train_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in range(train_len)]
-    test_len = flux_array.shape[2] - train_len - days_prediction - days_known
-    test_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in
-                 range(train_len, train_len + test_len)]
-
-    # (batch_size, 161, 181, days_known, features_amount)
-
-    if model_type == 'Unet':
-        x_train = np.zeros((train_len, height, width, days_known, features_amount), dtype=float)
-    else:
-        x_train = np.zeros((train_len, days_known, height, width, features_amount), dtype=float)
-    y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
-
-    print('Preparing train', flush=True)
-    for t in range(train_len):
-        # flux
-        if model_type == 'Unet':
-            x_train[t, :, :, :, 0] = flux_array[:, :, t:t+days_known]
-        else:
-            x_train[t, :, :, :, 0] = flux_array[:, :, t:t + days_known].reshape((days_known, height, width))
-        y_train[t, :, :, :, 0] = flux_array[:, :, t+days_known:t+days_known+days_prediction]
-
-        # sst
-        if model_type == 'Unet':
-            x_train[t, :, :, :, 1] = SST_array[:, :, t:t+days_known]
-        else:
-            x_train[t, :, :, :, 1] = SST_array[:, :, t:t + days_known].reshape((days_known, height, width))
-        y_train[t, :, :, :, 1] = SST_array[:, :, t+days_known:t+days_known+days_prediction]
-
-        # press
-        if model_type == 'Unet':
-            x_train[t, :, :, :, 2] = press_array[:, :, t:t+days_known]
-        else:
-            x_train[t, :, :, :, 2] = press_array[:, :, t:t + days_known].reshape((days_known, height, width))
-        y_train[t, :, :, :, 2] = press_array[:, :, t+days_known:t+days_known+days_prediction]
-
-    np.nan_to_num(x_train, copy=False)
-    np.nan_to_num(y_train, copy=False)
-    np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy', x_train)
-    np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train.npy_{model_type}', y_train)
-    del x_train, y_train
-
-    if model_type == 'Unet':
-        x_test = np.zeros((test_len, height, width, days_known, features_amount), dtype=float)
-    else:
-        x_test = np.zeros((test_len, days_known, height, width, features_amount), dtype=float)
-    y_test = np.zeros((test_len, height, width, days_prediction, 3), dtype=float)
-
-    print('Preparing test', flush=True)
-    for t in range(test_len):
-        t_absolute = train_len + t
-        # flux
-        if model_type == 'Unet':
-            x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute+days_known]
-        else:
-            x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute + days_known].reshape(
-                (days_known, height, width))
-        y_test[t, :, :, :, 0] = flux_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
-        # sst
-        if model_type == 'Unet':
-            x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute+days_known]
-        else:
-            x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute + days_known].reshape(
-                (days_known, height, width))
-        y_test[t, :, :, :, 1] = SST_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
-        # press
-        if model_type == 'Unet':
-            x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute+days_known]
-        else:
-            x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute + days_known].reshape(
-                (days_known, height, width))
-        y_test[t, :, :, :, 2] = press_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
-
-    np.nan_to_num(x_test, copy=False)
-    np.nan_to_num(y_test, copy=False)
-    np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy', x_test)
-    np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy', y_test)
-    # raise ValueError
-    # # ---------------------------------------------------------------------------------------
-    x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy')
-    y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}.npy')
-    print('Check nans in train')
-    print(np.isnan(x_train).any())
-    print(np.isnan(y_train).any())
-    # preparing datasets
-    train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(100).batch(batch_size)
-    del x_train, y_train
-    tf.data.Dataset.save(train_ds, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
-    del train_ds
-
-    x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy')
-    y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy')
-    print(np.isnan(x_test).any())
-    print(np.isnan(y_test).any())
-    test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
-    del x_test, y_test
-    tf.data.Dataset.save(test_ds, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
-    del test_ds
-    # raise ValueError
+    # # load data
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # flux_array = np.diff(flux_array, axis=1)
+    #
+    # SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    # SST_array = np.diff(SST_array, axis=1)
+    #
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # press_array = np.diff(press_array, axis=1)
+    #
+    # flux_array = flux_array.reshape((height, width, -1))
+    # SST_array = SST_array.reshape((height, width, -1))
+    # press_array = press_array.reshape((height, width, -1))
+    #
+    # # TODO delete
+    # flux_array = flux_array[:, :, :500]
+    # SST_array = SST_array[:, :, :500]
+    # press_array = press_array[:, :, :500]
+    #
+    # train_len = int(flux_array.shape[2] * 3 / 5)
+    # train_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in range(train_len)]
+    # test_len = flux_array.shape[2] - train_len - days_prediction - days_known
+    # test_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in
+    #              range(train_len, train_len + test_len)]
+    #
+    # # (batch_size, 161, 181, days_known, features_amount)
+    #
+    # if model_type == 'Unet':
+    #     x_train = np.zeros((train_len, height, width, days_known, features_amount), dtype=float)
+    # else:
+    #     x_train = np.zeros((train_len, days_known, height, width, features_amount), dtype=float)
+    # y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
+    #
+    # print('Preparing train', flush=True)
+    # for t in range(train_len):
+    #     # flux
+    #     if model_type == 'Unet':
+    #         x_train[t, :, :, :, 0] = flux_array[:, :, t:t+days_known]
+    #     else:
+    #         x_train[t, :, :, :, 0] = flux_array[:, :, t:t + days_known].reshape((days_known, height, width))
+    #     y_train[t, :, :, :, 0] = flux_array[:, :, t+days_known:t+days_known+days_prediction]
+    #
+    #     # sst
+    #     if model_type == 'Unet':
+    #         x_train[t, :, :, :, 1] = SST_array[:, :, t:t+days_known]
+    #     else:
+    #         x_train[t, :, :, :, 1] = SST_array[:, :, t:t + days_known].reshape((days_known, height, width))
+    #     y_train[t, :, :, :, 1] = SST_array[:, :, t+days_known:t+days_known+days_prediction]
+    #
+    #     # press
+    #     if model_type == 'Unet':
+    #         x_train[t, :, :, :, 2] = press_array[:, :, t:t+days_known]
+    #     else:
+    #         x_train[t, :, :, :, 2] = press_array[:, :, t:t + days_known].reshape((days_known, height, width))
+    #     y_train[t, :, :, :, 2] = press_array[:, :, t+days_known:t+days_known+days_prediction]
+    #
+    # np.nan_to_num(x_train, copy=False)
+    # np.nan_to_num(y_train, copy=False)
+    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy', x_train)
+    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train.npy_{model_type}', y_train)
+    # del x_train, y_train
+    #
+    # if model_type == 'Unet':
+    #     x_test = np.zeros((test_len, height, width, days_known, features_amount), dtype=float)
+    # else:
+    #     x_test = np.zeros((test_len, days_known, height, width, features_amount), dtype=float)
+    # y_test = np.zeros((test_len, height, width, days_prediction, 3), dtype=float)
+    #
+    # print('Preparing test', flush=True)
+    # for t in range(test_len):
+    #     t_absolute = train_len + t
+    #     # flux
+    #     if model_type == 'Unet':
+    #         x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute+days_known]
+    #     else:
+    #         x_test[t, :, :, :, 0] = flux_array[:, :, t_absolute:t_absolute + days_known].reshape(
+    #             (days_known, height, width))
+    #     y_test[t, :, :, :, 0] = flux_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+    #     # sst
+    #     if model_type == 'Unet':
+    #         x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute+days_known]
+    #     else:
+    #         x_test[t, :, :, :, 1] = SST_array[:, :, t_absolute:t_absolute + days_known].reshape(
+    #             (days_known, height, width))
+    #     y_test[t, :, :, :, 1] = SST_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+    #     # press
+    #     if model_type == 'Unet':
+    #         x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute+days_known]
+    #     else:
+    #         x_test[t, :, :, :, 2] = press_array[:, :, t_absolute:t_absolute + days_known].reshape(
+    #             (days_known, height, width))
+    #     y_test[t, :, :, :, 2] = press_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
+    #
+    # np.nan_to_num(x_test, copy=False)
+    # np.nan_to_num(y_test, copy=False)
+    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy', x_test)
+    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy', y_test)
+    # # raise ValueError
+    # # # ---------------------------------------------------------------------------------------
+    # x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy')
+    # y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}.npy')
+    # print('Check nans in train')
+    # print(np.isnan(x_train).any())
+    # print(np.isnan(y_train).any())
+    # # preparing datasets
+    # train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(100).batch(batch_size)
+    # del x_train, y_train
+    # tf.data.Dataset.save(train_ds, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
+    # del train_ds
+    #
+    # x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy')
+    # y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy')
+    # print(np.isnan(x_test).any())
+    # print(np.isnan(y_test).any())
+    # test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
+    # del x_test, y_test
+    # tf.data.Dataset.save(test_ds, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
+    # del test_ds
+    # # raise ValueError
     # ---------------------------------------------------------------------------------------
     # construct model
-    model = MyUnetModel(days_prediction, mask_batch)
-    # model.compile()
+    if model_type == 'Unet':
+        model = MyUnetModel(days_prediction, mask_batch)
+    else:
+        model = MyLSTMModel(days_prediction, mask_batch)
+    model.compile()
 
-    model.build(input_shape=(batch_size, height, width, days_known, features_amount))
-    model.make((height, width, days_known, features_amount))
+    # if model_type == 'Unet':
+    #     model.build(input_shape=(None, height, width, days_known, features_amount))
+    #     model.make((height, width, days_known, features_amount))
+    # else:
+    #     model.build(input_shape=(None, days_known, height, width, features_amount))
+    #     model.make((days_known, height, width, features_amount))
 
     loss_object = tf.keras.losses.MeanSquaredError()
 
     optimizer = tf.keras.optimizers.Adam()
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.MeanSquaredError(name='train_accuracy')
+    # train_accuracy = tf.keras.metrics.MeanSquaredError(name='train_accuracy')
+    train_accuracy = tf.image.ssim
 
     test_loss = tf.keras.metrics.Mean(name='test_loss')
-    test_accuracy = tf.keras.metrics.MeanSquaredError(name='test_accuracy')
+    # test_accuracy = tf.keras.metrics.MeanSquaredError(name='test_accuracy')
+    test_accuracy = tf.image.ssim
     # ---------------------------------------------------------------------------------------
     @tf.function
     def train_step(x_train, y_train):
@@ -230,7 +239,7 @@ if __name__ == '__main__':
     test_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
 
     # train
-    EPOCHS = 2
+    EPOCHS = 5
 
     # Loads the weights
     # model.load_weights(checkpoint_path)
