@@ -151,6 +151,10 @@ def count_eigenvalues_triplets(files_path_prefix: str,
         # count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, t, n_bins,
         #                        offset, ('Flux', 'Pressure'))
 
+        # # sst-pressure
+        # count_eigenvalues_pair(files_path_prefix, SST_array, press_array, quantiles_sst, quantiles_press, t, n_bins,
+        #                        offset, ('SST', 'Pressure'))
+
     # plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1]-1, offset, flux_array, quantiles_flux,
     #                  ('Flux', 'Flux'))
     # plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1]-1, offset, SST_array, quantiles_sst,
@@ -162,18 +166,21 @@ def count_eigenvalues_triplets(files_path_prefix: str,
     # plot_eigenvalues(files_path_prefix, 3, mask, 0, press_array.shape[1]-1, offset, press_array, quantiles_press,
     #                  ('Pressure', 'Pressure'))
 
-    for t1 in [16071, 16161, 16252, 16344]:
+    # for t1 in [16071, 16161, 16252, 16344]:
+    for t1 in range(t_start, flux_array.shape[1] - 1):
         t = t1 - offset
-        plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, flux_array, quantiles_flux,
-                         ('Flux', 'Flux'))
-        plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
-                         ('SST', 'SST'))
-        plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
-                         ('Flux', 'SST'))
-        plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
-                         ('Flux', 'Pressure'))
-        plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
-                         ('Pressure', 'Pressure'))
+    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, flux_array, quantiles_flux,
+    #     #                  ('Flux', 'Flux'))
+    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
+    #     #                  ('SST', 'SST'))
+    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
+    #     #                  ('Flux', 'SST'))
+    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
+    #     #                  ('Flux', 'Pressure'))
+    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
+    #     #                  ('Pressure', 'Pressure'))
+    plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1]-1, offset, press_array, quantiles_press,
+                         ('SST', 'Pressure'))
     return
 
 
