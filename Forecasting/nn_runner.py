@@ -2,18 +2,24 @@ import datetime
 import os
 import warnings
 from struct import unpack
-from skimage.metrics import structural_similarity as ssim
+# from skimage.metrics import structural_similarity as ssim
 import numpy as np
 import tensorflow as tf
 import tqdm
-
+import argparse
 from model import MyUnetModel, MyLSTMModel
 
 warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
-    files_path_prefix = 'E:/Nastya/Data/OceanFull/'
-    # files_path_prefix = '/home/aosipova/EM_ocean/'
+    # files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+    files_path_prefix = '/home/aosipova/EM_ocean/'
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model_name", type=str)
+    parser.add_argument("features_amount", type=int)
+    args_cmd = parser.parse_args()
+
     # --------------------------------------------------------------------------------
     # Mask
     maskfile = open(files_path_prefix + "mask", "rb")
@@ -47,19 +53,19 @@ if __name__ == '__main__':
     batch_size = 32
     days_known = 10
     days_prediction = 5
-    features_amount = 3
-    model_type = 'lstm'
+    features_amount = args_cmd.features_amount
+    model_type = args_cmd.model_name
 
-    # features_amount = 3 + 3*2
-    # 3 for flux, sst, press data, 3 * 2 for (a_flux, b_flux), (a_sst, b_sst), (a_press, b_press), 3 for eigen0_flux,
-    # eigen0_sst, eigen0_press
+    # features_amount = 3 + 3
+    # 3 for flux, sst, press data, 3 for eigen0_flux, eigen0_sst, eigen0_press
+    # 3 * 2 for (a_flux, b_flux), (a_sst, b_sst), (a_press, b_press),
     if model_type == 'Unet':
         mask_batch = np.zeros((batch_size, 161, 181, days_known, 3))
         mask_batch[:, mask, :, :] = 1
     else:
         mask_batch = np.zeros((batch_size, 161, 181, days_prediction * 3))
         mask_batch[:, mask, :] = 1
-    # ---------------------------------------------------------------------------------------
+    # # ---------------------------------------------------------------------------------------
     # # load data
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
     # flux_array = np.diff(flux_array, axis=1)
@@ -74,11 +80,6 @@ if __name__ == '__main__':
     # SST_array = SST_array.reshape((height, width, -1))
     # press_array = press_array.reshape((height, width, -1))
     #
-    # # TODO delete
-    # flux_array = flux_array[:, :, :500]
-    # SST_array = SST_array[:, :, :500]
-    # press_array = press_array[:, :, :500]
-    #
     # train_len = int(flux_array.shape[2] * 3 / 5)
     # train_days = [datetime.datetime(start_year, 1, 1) + datetime.timedelta(days=t) for t in range(train_len)]
     # test_len = flux_array.shape[2] - train_len - days_prediction - days_known
@@ -89,10 +90,17 @@ if __name__ == '__main__':
     #
     # if model_type == 'Unet':
     #     x_train = np.zeros((train_len, height, width, days_known, features_amount), dtype=float)
+    #     eigenvectors_flux_sst = np.zeros((height, width, days_known))
+    #     eigenvectors_sst_press = np.zeros((height, width, days_known))
+    #     eigenvectors_flux_press = np.zeros((height, width, days_known))
     # else:
     #     x_train = np.zeros((train_len, days_known, height, width, features_amount), dtype=float)
-    # y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
+    #     eigenvectors_flux_sst = np.zeros((days_known, height, width))
+    #     eigenvectors_sst_press = np.zeros((days_known, height, width))
+    #     eigenvectors_flux_press = np.zeros((days_known, height, width))
     #
+    #
+    # y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
     # print('Preparing train', flush=True)
     # for t in range(train_len):
     #     # flux
@@ -116,10 +124,68 @@ if __name__ == '__main__':
     #         x_train[t, :, :, :, 2] = press_array[:, :, t:t + days_known].reshape((days_known, height, width))
     #     y_train[t, :, :, :, 2] = press_array[:, :, t+days_known:t+days_known+days_prediction]
     #
+    #     # --------------------------------------------------------------------------------------------------
+    #     # eigenvectors
+    #     if features_amount > 3:
+    #         for t_lag in range(days_known):
+    #             if model_type == 'lstm':
+    #                 # flux - sst
+    #                 try:
+    #                     eigenvectors_flux_sst[t_lag] = np.load(files_path_prefix + f'Eigenvalues/Flux-SST/eigen0_{t + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-SST/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_flux_sst[t_lag] = np.zeros((height, width))
+    #
+    #                 # sst - press
+    #                 try:
+    #                     eigenvectors_sst_press[t_lag] = np.load(files_path_prefix + f'Eigenvalues/SST-Pressure/eigen0_{t + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/SST-Pressure/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_sst_press[t_lag] = np.zeros((height, width))
+    #
+    #                 # flux - press
+    #                 try:
+    #                     eigenvectors_flux_press[t_lag] = np.load(files_path_prefix + f'Eigenvalues/Flux-Pressure/eigen0_{t + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-Pressure/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_flux_press[t_lag] = np.zeros((height, width))
+    #             else:
+    #                 # flux - sst
+    #                 try:
+    #                     eigenvectors_flux_sst[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-SST/eigen0_{t + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-SST/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_flux_sst[:, :, t_lag] = np.zeros((height, width))
+    #
+    #                 # sst - press
+    #                 try:
+    #                     eigenvectors_sst_press[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/SST-Pressure/eigen0_{t + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/SST-Pressure/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_sst_press[:, :, t_lag] = np.zeros((height, width))
+    #
+    #                 # flux - press
+    #                 try:
+    #                     eigenvectors_flux_press[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-Pressure/eigen0_{t + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-Pressure/eigen0_{t + offset + t_lag}.npy')
+    #                     eigenvectors_flux_press[:, :, t_lag] = np.zeros((height, width))
+    #
+    #         x_train[t, :, :, :, 3] = eigenvectors_flux_sst
+    #         x_train[t, :, :, :, 4] = eigenvectors_sst_press
+    #         x_train[t, :, :, :, 5] = eigenvectors_flux_press
+    #     # -------------------------------------------------------------------------------------------------
+    #
     # np.nan_to_num(x_train, copy=False)
     # np.nan_to_num(y_train, copy=False)
-    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy', x_train)
-    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train.npy_{model_type}', y_train)
+    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}_{features_amount}.npy', x_train)
+    # np.save(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}_{features_amount}.npy', y_train)
     # del x_train, y_train
     #
     # if model_type == 'Unet':
@@ -153,32 +219,93 @@ if __name__ == '__main__':
     #             (days_known, height, width))
     #     y_test[t, :, :, :, 2] = press_array[:, :, t_absolute+days_known:t_absolute+days_known+days_prediction]
     #
+    #     # --------------------------------------------------------------------------------------------------
+    #     # eigenvectors
+    #     if features_amount > 3:
+    #         for t_lag in range(days_known):
+    #             if model_type == 'lstm':
+    #                 # flux - sst
+    #                 try:
+    #                     eigenvectors_flux_sst[t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-SST/eigen0_{t_absolute + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-SST/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_flux_sst[t_lag] = np.zeros((height, width))
+    #
+    #                 # sst - press
+    #                 try:
+    #                     eigenvectors_sst_press[t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/SST-Pressure/eigen0_{t_absolute + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/SST-Pressure/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_sst_press[t_lag] = np.zeros((height, width))
+    #
+    #                 # flux - press
+    #                 try:
+    #                     eigenvectors_flux_press[t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-Pressure/eigen0_{t_absolute + offset + t_lag}.npy').reshape((height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-Pressure/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_flux_press[t_lag] = np.zeros((height, width))
+    #             else:
+    #                 # flux - sst
+    #                 try:
+    #                     eigenvectors_flux_sst[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-SST/eigen0_{t_absolute + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-SST/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_flux_sst[:, :, t_lag] = np.zeros((height, width))
+    #
+    #                 # sst - press
+    #                 try:
+    #                     eigenvectors_sst_press[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/SST-Pressure/eigen0_{t_absolute + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/SST-Pressure/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_sst_press[:, :, t_lag] = np.zeros((height, width))
+    #
+    #                 # flux - press
+    #                 try:
+    #                     eigenvectors_flux_press[:, :, t_lag] = np.load(
+    #                         files_path_prefix + f'Eigenvalues/Flux-Pressure/eigen0_{t_absolute + offset + t_lag}.npy').reshape(
+    #                         (height, width))
+    #                 except FileNotFoundError:
+    #                     print(f'Not existing Eigenvalues/Flux-Pressure/eigen0_{t_absolute + offset + t_lag}.npy')
+    #                     eigenvectors_flux_press[:, :, t_lag] = np.zeros((height, width))
+    #
+    #         x_test[t, :, :, :, 3] = eigenvectors_flux_sst
+    #         x_test[t, :, :, :, 4] = eigenvectors_sst_press
+    #         x_test[t, :, :, :, 5] = eigenvectors_flux_press
+    #     # -------------------------------------------------------------------------------------------------
+    #
     # np.nan_to_num(x_test, copy=False)
     # np.nan_to_num(y_test, copy=False)
-    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy', x_test)
-    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy', y_test)
+    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}_{features_amount}.npy', x_test)
+    # np.save(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}_{features_amount}.npy', y_test)
     # # raise ValueError
     # # # ---------------------------------------------------------------------------------------
-    # x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}.npy')
-    # y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}.npy')
+    # x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{model_type}_{features_amount}.npy')
+    # y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{model_type}_{features_amount}.npy')
     # print('Check nans in train')
     # print(np.isnan(x_train).any())
     # print(np.isnan(y_train).any())
     # # preparing datasets
     # train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(100).batch(batch_size)
     # del x_train, y_train
-    # tf.data.Dataset.save(train_ds, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
+    # tf.data.Dataset.save(train_ds, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}_{features_amount}')
     # del train_ds
     #
-    # x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}.npy')
-    # y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}.npy')
+    # x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{model_type}_{features_amount}.npy')
+    # y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{model_type}_{features_amount}.npy')
     # print(np.isnan(x_test).any())
     # print(np.isnan(y_test).any())
     # test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
     # del x_test, y_test
-    # tf.data.Dataset.save(test_ds, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
+    # tf.data.Dataset.save(test_ds, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}_{features_amount}')
     # del test_ds
-    # # raise ValueError
+    # raise ValueError
     # ---------------------------------------------------------------------------------------
     # construct model
     if model_type == 'Unet':
@@ -199,12 +326,12 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam()
 
     train_loss = tf.keras.metrics.Mean(name='train_loss')
-    # train_accuracy = tf.keras.metrics.MeanSquaredError(name='train_accuracy')
-    train_accuracy = tf.image.ssim
+    train_accuracy = tf.keras.metrics.MeanSquaredError(name='train_accuracy')
+    # train_accuracy = tf.image.ssim
 
     test_loss = tf.keras.metrics.Mean(name='test_loss')
-    # test_accuracy = tf.keras.metrics.MeanSquaredError(name='test_accuracy')
-    test_accuracy = tf.image.ssim
+    test_accuracy = tf.keras.metrics.MeanSquaredError(name='test_accuracy')
+    # test_accuracy = tf.image.ssim
     # ---------------------------------------------------------------------------------------
     @tf.function
     def train_step(x_train, y_train):
@@ -215,8 +342,8 @@ if __name__ == '__main__':
             # print(predictions.shape)
             # print(y_train.shape)
             loss = loss_object(y_train, predictions)
-            # tf.print(y_train)
-            # tf.print(predictions)
+            tf.print(y_train)
+            tf.print(predictions)
             # print(loss)
             # print('\n')
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -235,11 +362,11 @@ if __name__ == '__main__':
         test_loss(t_loss)
         test_accuracy(y_test, predictions)
     # ---------------------------------------------------------------------------------------
-    train_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}')
-    test_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}')
+    train_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_train_ds_{model_type}_{features_amount}')
+    test_ds = tf.data.Dataset.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_test_ds_{model_type}_{features_amount}')
 
     # train
-    EPOCHS = 5
+    EPOCHS = 1
 
     # Loads the weights
     # model.load_weights(checkpoint_path)
@@ -265,9 +392,9 @@ if __name__ == '__main__':
             f'Test Accuracy: {test_accuracy.result() * 100:0.2f}'
         )
 
-        # Visualize the model
-        tf.keras.utils.plot_model(model, to_file=files_path_prefix + f'Forecast/model_{model_type}.png', expand_nested=True, dpi=60,
-                                  show_shapes=True, show_layer_names=True)
+        # # Visualize the model
+        # tf.keras.utils.plot_model(model, to_file=files_path_prefix + f'Forecast/model_{model_type}.png', expand_nested=True, dpi=60,
+        #                           show_shapes=True, show_layer_names=True)
 
         # Save the weights
-        model.save_weights(files_path_prefix + f'Forecast/Checkpoints/my_checkpoint_{model_type}')
+        model.save_weights(files_path_prefix + f'Forecast/Checkpoints/my_checkpoint_{model_type}_{features_amount}')
