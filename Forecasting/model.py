@@ -127,17 +127,18 @@ class MyUnetModel(Model):
         super().__init__()
         # input_shape = (batch_size, 161, 181, 10, features_amount)
         self.mask = tf.convert_to_tensor(mask, dtype=tf.float32)
+        self.days_prediction = prediction_length
         self.maxpool = tf.keras.layers.MaxPool3D(pool_size=(2, 2, 1), strides=(2, 2, 1))
 
         self.conv_block_1 = ConvBlock(filters=64)
         self.conv_block_2 = ConvBlock(filters=128)
         self.conv_block_3 = ConvBlock(filters=256)
         self.conv_block_4 = ConvBlock(filters=512)
-        self.conv_block_5 = ConvBlock(filters=1024)
+        # self.conv_block_5 = ConvBlock(filters=1024)
 
-        self.up_5 = UpConv(filters=512)
-        self.attention_5 = AttentionBlock(filters=256)
-        self.up_conv_5 = ConvBlock(filters=512)
+        # self.up_5 = UpConv(filters=512)
+        # self.attention_5 = AttentionBlock(filters=256)
+        # self.up_conv_5 = ConvBlock(filters=512)
 
         self.up_4 = UpConv(filters=256)
         self.attention_4 = AttentionBlock(filters=128)
@@ -155,7 +156,12 @@ class MyUnetModel(Model):
 
     def call(self, x):
         # padding the image with zeroes to shape 192 x 192
-        x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
+        # x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
+
+        # input_shape = (batch_size, 81, 91, 7, features_amount)
+        # padding the image with zeroes to shape 96 x 96
+        x1 = tf.pad(x, [[0, 0], [7, 8], [2, 3], [0, 0], [0, 0]])
+        # print(x1.shape)
 
         # encoding path
         x1 = self.conv_block_1(x1)
@@ -176,18 +182,18 @@ class MyUnetModel(Model):
         x4 = self.conv_block_4(x4)
         # print(f'x4.shape = {x4.shape}')
 
-        x5 = self.maxpool(x4)
+        # x5 = self.maxpool(x4)
         # print(x5.shape)
-        x5 = self.conv_block_5(x5)
+        # x5 = self.conv_block_5(x5)
         # print(f'x5.shape = {x5.shape}')
 
-        # decoding + concat path
-        d5 = self.up_5(x5)
-        x4 = self.attention_5(g=d5, x=x4)
-        d5 = tf.concat((x4, d5), axis=4)
-        d5 = self.up_conv_5(d5)
+        # # decoding + concat path
+        # d5 = self.up_5(x5)
+        # x4 = self.attention_5(g=d5, x=x4)
+        # d5 = tf.concat((x4, d5), axis=4)
+        # d5 = self.up_conv_5(d5)
 
-        d4 = self.up_4(d5)
+        d4 = self.up_4(x4)
         x3 = self.attention_4(g=d4, x=x3)
         d4 = tf.concat((x3, d4), axis=4)
         d4 = self.up_conv_4(d4)
@@ -203,8 +209,10 @@ class MyUnetModel(Model):
         d2 = self.up_conv_2(d2)
 
         d1 = self.Conv_1x1(d2)
-        output = d1[:, 15:161+15, 5:181+5, :, :]
-        return output * self.mask[:output.shape[0]]
+        # output = d1[:, 15:161+15, 5:181+5, :, :]
+        output = d1[:, 7:81+7, 2:91+2, :self.days_prediction, :]
+        # output = tf.math.multiply(output[:], self.mask)
+        return output
 
     def make(self, input_shape):
         '''
@@ -223,16 +231,35 @@ class MyLSTMModel(Model):
         # input_shape = (batch_size, 10, 161, 181, features_amount)
         self.mask = tf.convert_to_tensor(mask, dtype=tf.float32)
         self.days_prediction = prediction_length
-        self.lstm = tf.keras.layers.ConvLSTM2D(filters=3*prediction_length, kernel_size=(3, 3), padding='same', batch_size=None)
+        self.lstm1 = tf.keras.layers.ConvLSTM2D(filters=256, kernel_size=(5, 5), padding='same',
+                                               batch_size=None, activation='relu', return_sequences=True,
+                                                data_format='channels_last')
+        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
+        self.lstm2 = tf.keras.layers.ConvLSTM2D(filters=128, kernel_size=(3, 3), padding='same',
+                                               batch_size=None, activation='relu', return_sequences=True,
+                                                data_format='channels_last')
+        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
+        self.lstm3 = tf.keras.layers.ConvLSTM2D(filters=3, kernel_size=(3, 3), padding='same',
+                                                batch_size=None, activation='sigmoid', data_format='channels_last',
+                                                return_sequences=True,
+                                                )
         # self.dense = tf.keras.layers.Dense(prediction_length)
 
     def call(self, x):
         # padding the image with zeroes to shape 192 x 192
         # x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
-        x1 = self.lstm(x)
-        # print(x1.shape)
-        output = x1 * self.mask[:x1.shape[0]]
-        return tf.reshape(output, (-1, 161, 181, self.days_prediction, 3))
+        x1 = self.lstm1(x)
+        x2 = self.batch_norm_1(x1)
+        x3 = self.lstm2(x2)
+        x4 = self.batch_norm_2(x3)
+        x5 = self.lstm3(x4)
+
+        # output = x5
+        # print(x5.shape)
+        # output = tf.reshape(output, (-1, self.days_prediction, 81, 91,  3))
+        # output1 = x5[:, 0:self.days_prediction, :, :]
+        # output = tf.math.multiply(output[:], self.mask)
+        return x5[:, :self.days_prediction]
 
     def make(self, input_shape):
         '''

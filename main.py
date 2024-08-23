@@ -285,36 +285,65 @@ if __name__ == '__main__':
 
 
     # count and plot extreme of coefficients 3d
-    pair_name = 'flux-sst'
-    # pair_name = 'flux-press'
-    # pair_name = 'sst-press'
+    # pair_name = 'flux-sst'
+    # # pair_name = 'flux-press'
+    # # pair_name = 'sst-press'
+    #
+    # mean_days = 30
+    # # mean_days = 365
+    # time_start = 1
+    # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    #
+    # if pair_name == 'flux-sst':
+    #     names = ('Flux', 'SST')
+    # elif pair_name == 'flux-press':
+    #     names = ('Flux', 'Pressure')
+    # else:
+    #     names = ('SST', 'Pressure')
+    #
+    # a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders = load_ABCFE(files_path_prefix,
+    #                                                                                  time_start,
+    #                                                                                  time_end,
+    #                                                                                  load_a=True,
+    #                                                                                  load_b=True,
+    #                                                                                  path_local=f'Coeff_data_3d/{pair_name}')
+    # local_path_prefix = f'{pair_name}/'
+    # extract_extreme(files_path_prefix, a_timelist, 'a', time_start, time_end, mean_days, local_path_prefix)
+    # extract_extreme(files_path_prefix, b_timelist, 'b', time_start, time_end, mean_days,local_path_prefix)
+    # plot_extreme(files_path_prefix, 'a', time_start, time_end, mean_days, local_path_prefix, names)
+    # plot_extreme(files_path_prefix, 'b', time_start, time_end, mean_days, local_path_prefix, names)
+    #
+    # for coeff_type in ['a', 'b']:
+    #     collect_extreme(files_path_prefix, coeff_type, local_path_prefix, mean_days)
+    # for coeff_type in ['a', 'b']:
+    #     plot_extreme_3d(files_path_prefix, coeff_type, 1, time_end, mean_days, fit_regression=True,
+    #                  fit_sinus=False, fit_fourier_flag=False)
 
-    mean_days = 30
-    # mean_days = 365
-    time_start = 1
-    time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # if start_year == 1979:
+    #     offset = 0
+    # elif start_year == 1989:
+    #     offset = days_delta1
+    # elif start_year == 1999:
+    #     offset = days_delta1 + days_delta2
+    # elif start_year == 2009:
+    #     offset = days_delta1 + days_delta2 + days_delta3
+    # else:
+    #     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #
+    # if start_year == 2019:
+    #     end_year = 2025
+    # else:
+    #     end_year = start_year + 10
+    #
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # t = 0
+    #
+    # n_bins = 100
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
 
-    if pair_name == 'flux-sst':
-        names = ('Flux', 'SST')
-    elif pair_name == 'flux-press':
-        names = ('Flux', 'Pressure')
-    else:
-        names = ('SST', 'Pressure')
-
-    a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders = load_ABCFE(files_path_prefix,
-                                                                                     time_start,
-                                                                                     time_end,
-                                                                                     load_a=True,
-                                                                                     load_b=True,
-                                                                                     path_local=f'Coeff_data_3d/{pair_name}')
-    local_path_prefix = f'{pair_name}/'
-    extract_extreme(files_path_prefix, a_timelist, 'a', time_start, time_end, mean_days, local_path_prefix)
-    extract_extreme(files_path_prefix, b_timelist, 'b', time_start, time_end, mean_days,local_path_prefix)
-    plot_extreme(files_path_prefix, 'a', time_start, time_end, mean_days, local_path_prefix, names)
-    plot_extreme(files_path_prefix, 'b', time_start, time_end, mean_days, local_path_prefix, names)
-
-    for coeff_type in ['a', 'b']:
-        collect_extreme(files_path_prefix, coeff_type, local_path_prefix, mean_days)
-    for coeff_type in ['a', 'b']:
-        plot_extreme_3d(files_path_prefix, coeff_type, 1, time_end, mean_days, fit_regression=True,
-                     fit_sinus=False, fit_fourier_flag=False)
+    # plot 3d
+    plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1] - 1,
+                        start_date=datetime.datetime(start_year, 1, 1, 0, 0), start_pic_num=offset)

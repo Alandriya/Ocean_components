@@ -9,12 +9,13 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import mean_squared_error
-import tensorflow as tf
-
+# import tensorflow as tf
+import sys
 
 if __name__ == '__main__':
-    files_path_prefix = 'E:/Nastya/Data/OceanFull/'
-    # files_path_prefix = '/home/aosipova/EM_ocean/'
+    # files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+    files_path_prefix = '/home/aosipova/EM_ocean/'
+    np.set_printoptions(threshold=sys.maxsize)
     # --------------------------------------------------------------------------------
     # Mask
     maskfile = open(files_path_prefix + "mask", "rb")
@@ -22,7 +23,7 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
-    mask = mask.reshape((161, 181))
+    mask = mask.reshape((161, 181))[::2, ::2]
     # ---------------------------------------------------------------------------------------
     # Days deltas
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
@@ -41,87 +42,92 @@ if __name__ == '__main__':
     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
     # ---------------------------------------------------------------------------------------
     # configs
-    width = 181
-    height = 161
-    batch_size = 32
-    days_known = 10
+    width = 91
+    height = 81
+    batch_size = 16
+    days_known = 7
     days_prediction = 5
-    features_amount = 9
-    # 3 for flux, sst, press data, 3 * 2 for (a_flux, b_flux), (a_sst, b_sst), (a_press, b_press), 3 for eigen0_flux,
-    # eigen0_sst, eigen0_press
-
-    mask_batch = np.zeros((batch_size, 161, 181, days_prediction * 3))
-    mask_batch[:, mask, :] = 0
+    features_amount = 3
     # ---------------------------------------------------------------------------------------
-    # x_train = np.zeros((train_len, height, width, days_known, features_amount), dtype=float)
-    # y_train = np.zeros((train_len, height, width, days_prediction, 3), dtype=float)
-
-    # x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train.npy')
-    # y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train.npy')
-
-    # x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test.npy')
-    # y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test.npy')
-
-    # # get dumb prediction and plot it
-    # for t in range(1):
-    #     y_pred = np.mean(y_train[-days_known:, :, :, :, :], axis=0)
-    #     start_day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=offset + x_train.shape[0] + t)
-    #     # plot_predictions(files_path_prefix, y_test[t], y_pred, 'Dumb', start_day, mask)
-    #
-    #     flux_error, sst_error, press_error = 0, 0, 0
-    #     for t1 in range(days_prediction):
-    #         flux_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0]))
-    #         sst_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1]))
-    #         press_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2]))
-    #         # flux_error += ssim(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0])
-    #         # sst_error +=ssim(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1])
-    #         # press_error += ssim(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2])
-    #
-    #     flux_error /= days_prediction
-    #     sst_error /= days_prediction
-    #     press_error /= days_prediction
-    #
-    #     print(f'Flux RMSE = {flux_error: .2e}')
-    #     print(f'SST RMSE = {sst_error: .2e}')
-    #     print(f'Press RMSE = {press_error: .2e}')
-
-        # print(f'Flux SSIM = {flux_error: .2f}')
-        # print(f'SST SSIM = {sst_error: .2f}')
-        # print(f'Press SSIM = {press_error: .2f}')
+    x_mins = np.load(files_path_prefix + f'Forecast/Normalize/x_mins_{start_year}-{end_year}_6.npy')
+    x_maxs = np.load(files_path_prefix + f'Forecast/Normalize/x_maxs_{start_year}-{end_year}_6.npy')
+    y_mins = np.load(files_path_prefix + f'Forecast/Normalize/y_mins_{start_year}-{end_year}.npy')
+    y_maxs = np.load(files_path_prefix + f'Forecast/Normalize/y_maxs_{start_year}-{end_year}.npy')
+    print(x_mins)
+    print(x_maxs)
+    print(y_mins)
+    print(y_maxs)
     # raise ValueError
 
+    x_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_Unet_{features_amount}.npy')
+    y_train = np.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_Unet_{features_amount}.npy')
 
-    # # get regression prediction and plot it
-    # for t in range(1):
-    #     y_pred = np.zeros((161, 181, days_prediction, 3))
-    #     for k in range(3):
-    #         for i in tqdm.tqdm(range(161)):
-    #             for j in range(181):
-    #                 if mask[i, j]:
-    #                     regr = linear_model.LinearRegression()
-    #                     regr.fit(x_train[-days_known:, i, j, :, :].reshape((-1, features_amount)), y_train[-days_known:, i, j, :, k].flatten())
-    #                     y_pred[i, j, :, k] = regr.predict(x_test[0, i, j, :, :].reshape((-1, features_amount)))[:days_prediction]
-    #     start_day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=offset + x_train.shape[0] + t)
-    #     # plot_predictions(files_path_prefix, y_test[t], y_pred, 'Linear regression', start_day, mask)
-    #
-    #     flux_error, sst_error, press_error = 0, 0, 0
-    #     for t1 in range(days_prediction):
-    #         # flux_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0]))
-    #         # sst_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1]))
-    #         # press_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2]))
-    #         flux_error += ssim(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0])
-    #         sst_error +=ssim(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1])
-    #         press_error += ssim(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2])
-    #
-    #     flux_error /= days_prediction
-    #     sst_error /= days_prediction
-    #     press_error /= days_prediction
-    #
-    #     # print(f'Flux RMSE = {flux_error: .2e}')
-    #     # print(f'SST RMSE = {sst_error: .2e}')
-    #     # print(f'Press RMSE = {press_error: .2e}')
-    #
-    #     print(f'Flux SSIM = {flux_error: .2f}')
-    #     print(f'SST SSIM = {sst_error: .2f}')
-    #     print(f'Press SSIM = {press_error: .2f}')
+    x_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_Unet_{features_amount}.npy')
+    y_test = np.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_Unet_{features_amount}.npy')
+
+    x_train[:, np.logical_not(mask)] = 0
+    x_test[:, np.logical_not(mask)] = 0
+    y_train[:, np.logical_not(mask)] = 0
+    y_test[:, np.logical_not(mask)] = 0
+
+    flux_error, sst_error, press_error = 0, 0, 0
+    # get dumb prediction and plot it
+    for t in range(10):
+        y_pred = np.mean(y_train[-days_known:, :, :, :, :], axis=0)
+        start_day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=offset + x_train.shape[0] + t)
+        # plot_predictions(files_path_prefix, y_test[t], y_pred, 'Dumb', features_amount, start_day, mask)
+        y_pred[np.logical_not(mask)] = 0
+
+        for t1 in range(days_prediction):
+            # flux_error += np.sqrt(mean_squared_error(y_pred[t1, :, :, 0], y_test[t, t1, :, :, 0]))
+            # sst_error += np.sqrt(mean_squared_error(y_pred[t1, :, :, 1], y_test[t, t1, :, :, 1]))
+            # press_error += np.sqrt(mean_squared_error(y_pred[t1, :, :, 2], y_test[t, t1, :, :, 2]))
+            flux_error += ssim(np.array(y_pred[:, :, t1, 0]), np.array(y_test[t, :, :, t1, 0]), data_range=1)
+            sst_error +=ssim(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1], data_range=1)
+            press_error += ssim(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2], data_range=1)
+
+    flux_error /= days_prediction
+    sst_error /= days_prediction
+    press_error /= days_prediction
+    flux_error /= 10
+    sst_error /= 10
+    press_error /= 10
+
+    print(f'Mean Flux SSIM = {flux_error * 100: .2f}')
+    print(f'Mean SST SSIM = {sst_error * 100: .2f}')
+    print(f'Mean Press SSIM = {press_error * 100: .2f}')
+
+    flux_error, sst_error, press_error = 0, 0, 0
+    # get regression prediction and plot it
+    for t in range(10):
+        y_pred = np.zeros((height, width, days_prediction, 3), dtype=float)
+        for k in range(3):
+            for i in range(height):
+                for j in range(width):
+                    if mask[i, j]:
+                        regr = linear_model.LinearRegression()
+                        regr.fit(x_train[:, i, j, -days_prediction:].reshape((-1, features_amount)), y_train[:, i, j, :days_prediction, k].flatten())
+                        y_pred[i, j, :, k] = regr.predict(x_test[0:1, i, j, -days_prediction:].reshape((-1, features_amount)))
+        start_day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=offset + x_train.shape[0] + t)
+        plot_predictions(files_path_prefix, y_test[t], y_pred, 'Linear regression', features_amount, start_day, mask)
+
+        y_pred = np.array(y_pred, dtype=float)
+        for t1 in range(days_prediction):
+            # flux_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0]))
+            # sst_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1]))
+            # press_error += np.sqrt(mean_squared_error(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2]))
+            flux_error += ssim(y_pred[:, :, t1, 0], y_test[t, :, :, t1, 0], data_range=1)
+            sst_error += ssim(y_pred[:, :, t1, 1], y_test[t, :, :, t1, 1], data_range=1)
+            press_error += ssim(y_pred[:, :, t1, 2], y_test[t, :, :, t1, 2], data_range=1)
+
+    flux_error /= days_prediction
+    sst_error /= days_prediction
+    press_error /= days_prediction
+    flux_error /= 10
+    sst_error /= 10
+    press_error /= 10
+
+    print(f'Regression Flux SSIM = {flux_error * 100: .2f}')
+    print(f'Regression SST SSIM = {sst_error * 100: .2f}')
+    print(f'Regression Press SSIM = {press_error * 100: .2f}')
 

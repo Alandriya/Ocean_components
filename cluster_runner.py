@@ -65,5 +65,5 @@ if __name__ == '__main__':
     t = t_start
 
     n_bins = 100
-    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
     count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)

@@ -62,13 +62,16 @@ def plot_predictions(files_path_prefix: str,
                      Y_test: np.ndarray,
                      Y_predict: np.ndarray,
                      model_name: str,
+                     features_amount: int,
                      start_day: datetime.datetime,
                      mask: np.ndarray):
     print('Plotting')
     if not os.path.exists(files_path_prefix + f'videos/Forecast/{model_name}'):
         os.mkdir(files_path_prefix + f'videos/Forecast/{model_name}')
-
-    days_prediction = Y_predict.shape[2]
+    if model_name == 'lstm':
+        days_prediction = Y_predict.shape[0]
+    else:
+        days_prediction = Y_predict.shape[2]
 
 
     # axs[0].set_title('Real values', fontsize=20)
@@ -81,14 +84,17 @@ def plot_predictions(files_path_prefix: str,
         img = [[None for _ in range(days_prediction)] for _ in range(3)]
         cax = [[None for _ in range(days_prediction)] for _ in range(3)]
 
-        y_min = np.nanmin(Y_test[:, :, :, k]) / 2
-        y_max = np.nanmax(Y_test[:, :, :, k]) / 2
-
         test_min = np.nanmin(Y_test[:, :, :, k])
         test_max = np.nanmax(Y_test[:, :, :, k])
 
-        mape = mean_absolute_percentage_error(((Y_test[:, :, :, k]-test_min)/(test_max - test_min)).flatten(),
-                                              ((Y_predict[:, :, :, k]-test_min)/(test_max - test_min)).flatten())
+        pred_min = np.nanmin(Y_predict[:, :, :, k])
+        pred_max = np.nanmax(Y_predict[:, :, :, k])
+
+        y_min = min(test_min, pred_min)
+        y_max = max(test_max, pred_max)
+
+        # mape = mean_absolute_percentage_error(((Y_test[:, :, :, k]-test_min)/(test_max - test_min)).flatten(),
+        #                                       ((Y_predict[:, :, :, k]-test_min)/(test_max - test_min)).flatten())
 
         cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - y_min) / (y_max - y_min), 1])
         cmap.set_bad('darkgreen', 1.0)
@@ -96,29 +102,39 @@ def plot_predictions(files_path_prefix: str,
         cmap_diff = plt.get_cmap('Reds').copy()
         cmap_diff.set_bad('darkgreen', 1.0)
 
-        for t in tqdm.tqdm(range(days_prediction)):
-            Y_test[np.logical_not(mask), :, k] = np.nan
-            Y_predict[np.logical_not(mask), :, k] = np.nan
-            difference = np.array(np.abs(Y_predict[:, :, t, k] - Y_test[:, :, t, k]))
+        if model_name == 'lstm':
+            Y_test[:, np.logical_not(mask), :] = np.nan
+            Y_predict[:, np.logical_not(mask), :] = np.nan
+        else:
+            Y_test[np.logical_not(mask), :, :] = np.nan
+            Y_predict[np.logical_not(mask), :, :] = np.nan
 
+        for t in range(days_prediction):
+            if model_name == 'lstm':
+                ypredict = Y_predict[t, :, :, k]
+                ytest = Y_test[t, :, :, k]
+            else:
+                ypredict = Y_predict[:, :, t, k]
+                ytest = Y_test[:, :, t, k]
+            difference = np.array(np.abs(ypredict - ytest))
             day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
             for i in range(3):
                 divider = make_axes_locatable(axs[i][t])
                 cax[i][t] = divider.append_axes('right', size='5%', pad=0.3)
 
                 axs[0][t].set_title(f'{day_str}, real values', fontsize=16)
-                img[0][t] = axs[0][t].imshow(Y_test[:, :, t, k],
+                img[0][t] = axs[0][t].imshow(ytest,
                                              interpolation='none',
                                              cmap=cmap,
-                                             vmin=y_min,
-                                             vmax=y_max)
+                                             vmin=y_min/2,
+                                             vmax=y_max/2)
 
                 axs[1][t].set_title(f'{day_str}, predictions', fontsize=16)
-                img[1][t] = axs[1][t].imshow(Y_predict[:, :, t, k],
+                img[1][t] = axs[1][t].imshow(ypredict,
                                              interpolation='none',
                                              cmap=cmap,
-                                             vmin=y_min,
-                                             vmax=y_max)
+                                             vmin=y_min/2,
+                                             vmax=y_max/2)
 
                 axs[2][t].set_title(f'{day_str}, absolute difference', fontsize=16)
                 img[2][t] = axs[2][t].imshow(difference,
@@ -131,18 +147,18 @@ def plot_predictions(files_path_prefix: str,
                 fig.colorbar(img[i][t], cax=cax[i][t], orientation='vertical')
 
         if k == 0:
-            fig.suptitle(f'{model_name}, Flux, MAPE with normalized test = {mape: .2e}', fontsize=30)
+            fig.suptitle(f'{model_name}, Flux', fontsize=30)
         elif k == 1:
-            fig.suptitle(f'{model_name}, SST, MAPE with normalized test = {mape: .2e}', fontsize=30)
+            fig.suptitle(f'{model_name}, SST', fontsize=30)
         else:
-            fig.suptitle(f'{model_name}, Pressure, MAPE with normalized test = {mape: .2e}', fontsize=30)
+            fig.suptitle(f'{model_name}, Pressure', fontsize=30)
         plt.tight_layout()
         if k == 0:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_Flux.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_Flux.png')
         elif k == 1:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_SST.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_SST.png')
         else:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_press.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_press.png')
     return
 
 
