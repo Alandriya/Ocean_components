@@ -230,7 +230,7 @@ def plot_flux_sst_press(files_path_prefix: str,
         # fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
 
         if img_flux is None:
-            img_flux = axs[0].imshow(flux[:, t].reshape(161, 181),
+            img_flux = axs[0].imshow(flux[:, t].reshape(161, 181)[::2, ::2],
                                      interpolation='none',
                                      cmap=cmap_flux,
                                      vmin=flux_min,
@@ -240,7 +240,7 @@ def plot_flux_sst_press(files_path_prefix: str,
             axs[0].set_xticklabels(x_label_list)
             axs[0].set_yticklabels(y_label_list)
 
-            img_sst = axs[1].imshow(sst[:, t].reshape(161, 181),
+            img_sst = axs[1].imshow(sst[:, t].reshape(161, 181)[::2, ::2],
                                      interpolation='none',
                                      cmap=cmap_sst,
                                      vmin=sst_min,
@@ -250,7 +250,7 @@ def plot_flux_sst_press(files_path_prefix: str,
             axs[1].set_xticklabels(x_label_list)
             axs[1].set_yticklabels(y_label_list)
 
-            img_press = axs[2].imshow(press[:, t].reshape(161, 181),
+            img_press = axs[2].imshow(press[:, t].reshape(161, 181)[::2, ::2],
                                      interpolation='none',
                                      cmap=cmap_press,
                                      vmin=press_min,
@@ -260,9 +260,9 @@ def plot_flux_sst_press(files_path_prefix: str,
             axs[2].set_xticklabels(x_label_list)
             axs[2].set_yticklabels(y_label_list)
         else:
-            img_flux.set_data(flux[:, t].reshape(161, 181))
-            img_sst.set_data(sst[:, t].reshape(161, 181))
-            img_press.set_data(press[:, t].reshape(161, 181))
+            img_flux.set_data(flux[:, t].reshape(161, 181)[::2, ::2])
+            img_sst.set_data(sst[:, t].reshape(161, 181)[::2, ::2])
+            img_press.set_data(press[:, t].reshape(161, 181)[::2, ::2])
 
         fig.colorbar(img_flux, cax=cax_flux, orientation='vertical')
         fig.colorbar(img_sst, cax=cax_sst, orientation='vertical')
