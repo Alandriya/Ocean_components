@@ -31,7 +31,27 @@ def fix_random(seed):
 if __name__ == '__main__':
     fix_random(2024)
     np.set_printoptions(threshold=sys.maxsize)
+    start_year = 2019
+    end_year = 2025
+    x_train = torch.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{cfg.features_amount}.pt')
+    x_train = x_train[:100].clone()
+    torch.save(x_train, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_x_train_{cfg.features_amount}_short.pt')
+    del x_train
 
+    y_train = torch.load(files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{cfg.features_amount}.pt')
+    y_train = y_train[:100].clone()
+    torch.save(y_train, files_path_prefix + f'Forecast/Train/{start_year}-{end_year}_y_train_{cfg.features_amount}_short.pt')
+    del y_train
+
+    x_test = torch.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{cfg.features_amount}.pt')
+    x_test = x_test[:50].clone()
+    torch.save(x_test,
+               files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_train_{cfg.features_amount}_short.pt', )
+    del x_test
+    y_test = torch.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{cfg.features_amount}.pt')
+    y_test = y_test[:50].clone()
+    torch.save(y_test, files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_train_{cfg.features_amount}_short.pt', )
+    raise ValueError
     end_year, offset = count_offset(start_year)
     mask = load_mask(files_path_prefix)
     mask_batch = np.zeros((cfg.height, cfg.width, cfg.out_len, 3))

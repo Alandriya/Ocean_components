@@ -7,5 +7,4 @@
 venv/
 data/
 articles/
-models/
 Forecasting/darts_logs/*
