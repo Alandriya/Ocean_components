@@ -8,7 +8,6 @@ from sklearn import linear_model
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import mean_squared_error
 # import tensorflow as tf
 import sys
 

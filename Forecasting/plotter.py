@@ -93,9 +93,6 @@ def plot_predictions(files_path_prefix: str,
         y_min = min(test_min, pred_min)
         y_max = max(test_max, pred_max)
 
-        # mape = mean_absolute_percentage_error(((Y_test[:, :, :, k]-test_min)/(test_max - test_min)).flatten(),
-        #                                       ((Y_predict[:, :, :, k]-test_min)/(test_max - test_min)).flatten())
-
         cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - y_min) / (y_max - y_min), 1])
         cmap.set_bad('darkgreen', 1.0)
 
@@ -117,7 +114,8 @@ def plot_predictions(files_path_prefix: str,
                 ypredict = Y_predict[:, :, t, k]
                 ytest = Y_test[:, :, t, k]
             difference = np.array(np.abs(ypredict - ytest))
-            day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
+            # day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
+            day_str = f'day {t}'
             for i in range(3):
                 divider = make_axes_locatable(axs[i][t])
                 cax[i][t] = divider.append_axes('right', size='5%', pad=0.3)
@@ -126,15 +124,15 @@ def plot_predictions(files_path_prefix: str,
                 img[0][t] = axs[0][t].imshow(ytest,
                                              interpolation='none',
                                              cmap=cmap,
-                                             vmin=y_min/2,
-                                             vmax=y_max/2)
+                                             vmin=test_min,
+                                             vmax=test_max)
 
                 axs[1][t].set_title(f'{day_str}, predictions', fontsize=16)
                 img[1][t] = axs[1][t].imshow(ypredict,
                                              interpolation='none',
                                              cmap=cmap,
-                                             vmin=y_min/2,
-                                             vmax=y_max/2)
+                                             vmin=pred_min,
+                                             vmax=pred_max)
 
                 axs[2][t].set_title(f'{day_str}, absolute difference', fontsize=16)
                 img[2][t] = axs[2][t].imshow(difference,

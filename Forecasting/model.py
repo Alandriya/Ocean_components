@@ -1,272 +1,150 @@
-import tensorflow as tf
-from tensorflow.keras import Model
+from torch import nn
+from config import cfg
+import torch
+import numpy as np
+import math
+from collections import OrderedDict
 
 
-class ConvBlock(tf.keras.Model):
-    def __init__(self, filters):
+def make_layers(block):
+    layers = []
+    for layer_name, v in block.items():
+        if 'pool' in layer_name:
+            layer = nn.MaxPool2d(kernel_size=v[0], stride=v[1],
+                                 padding=v[2])
+            layers.append((layer_name, layer))
+        elif 'deconv' in layer_name:
+            transposeConv2d = nn.ConvTranspose2d(in_channels=v[0], out_channels=v[1],
+                                                 kernel_size=v[2], stride=v[3],
+                                                 padding=v[4], dilation=v[5])
+            layers.append((layer_name, transposeConv2d))
+            if 'relu' in layer_name:
+                layers.append(('relu_' + layer_name, nn.ReLU(inplace=True)))
+            elif 'leaky' in layer_name:
+                layers.append(('leaky_' + layer_name, nn.LeakyReLU(negative_slope=0.2, inplace=True)))
+        elif 'conv' in layer_name:
+            conv2d = cfg.CONV_conv(in_channels=v[0], out_channels=v[1],
+                                   kernel_size=v[2], stride=v[3],
+                                   padding=v[4], dilation=v[5])
+            layers.append((layer_name, conv2d))
+            if 'relu' in layer_name:
+                layers.append(('relu_' + layer_name, nn.ReLU(inplace=True)))
+            elif 'leaky' in layer_name:
+                layers.append(('leaky_' + layer_name, nn.LeakyReLU(negative_slope=0.2, inplace=True)))
+            elif 'prelu' in layer_name:
+                layers.append(('prelu_' + layer_name, nn.PReLU()))
+        else:
+            raise NotImplementedError
+
+    return nn.Sequential(OrderedDict(layers))
+
+
+def scheduled_sampling(shape, eta):
+    S, B, C, H, W = shape
+    random_flip = np.random.random_sample((S - 1, B))  # outS-1 * B
+    true_token = (random_flip < eta)
+    one = torch.FloatTensor(1, C, H, W).fill_(1.0).cuda()  # 1*C*H*W
+    zero = torch.FloatTensor(1, C, H, W).fill_(0.0).cuda()  # 1*C*H*W
+    masks = []
+    for t in range(S - 1):
+        masks_b = []  # B*C*H*W
+        for i in range(B):
+            if true_token[t, i]:
+                masks_b.append(one)
+            else:
+                masks_b.append(zero)
+        mask = torch.cat(masks_b, 0)  # along batch size
+        masks.append(mask)  # outS-1 * B*C*H*W
+    return masks
+
+
+def reverse_scheduled_sampling(shape_r, epoch):
+    start_epoch = cfg.epoch / 3
+    end_epoch = cfg.epoch * 2 / 3
+    step = start_epoch / 5
+    if epoch < start_epoch:
+        eta_r = 0.5
+    elif epoch < end_epoch:
+        eta_r = 1.0 - 0.5 * math.exp(-float(epoch - start_epoch) / step)
+    else:
+        eta_r = 1.0
+    if epoch < start_epoch:
+        eta = 0.5
+    elif epoch < end_epoch:
+        eta = 0.5 - 0.5 * (epoch - start_epoch) / (end_epoch - start_epoch)
+    else:
+        eta = 0.0
+    S, B, C, H, W = shape_r
+    random_flip_r = np.random.random_sample((cfg.in_len - 1, B))  # inS-1 * B
+    random_flip = np.random.random_sample((S - cfg.in_len - 1, B))  # outS-1 * B
+    true_token_r = (random_flip_r < eta_r)  # 若eta为1，true_token[t, i]全部为True，mask元素全为1
+    true_token = (random_flip < eta)  # 若eta为0，true_token[t, i]全部为False，mask元素全为0
+    one = torch.FloatTensor(1, C, H, W).fill_(1.0).cuda()  # 1*C*H*W
+    zero = torch.FloatTensor(1, C, H, W).fill_(0.0).cuda()  # 1*C*H*W
+    masks = []
+    for t in range(S - 2):
+        if t < cfg.in_len - 1:
+            masks_b = []  # B*C*H*W
+            for i in range(B):
+                if true_token_r[t, i]:
+                    masks_b.append(one)
+                else:
+                    masks_b.append(zero)
+            mask = torch.cat(masks_b, 0)  # along batch size
+            masks.append(mask)  # inS-1 * B*C*H*W
+        else:
+            masks_b = []  # B*C*H*W
+            for i in range(B):
+                if true_token[t - (cfg.in_len - 1), i]:
+                    masks_b.append(one)
+                else:
+                    masks_b.append(zero)
+            mask = torch.cat(masks_b, 0)  # along batch size
+            masks.append(mask)  # outS-1 * B*C*H*W
+    return masks
+
+
+class Model(nn.Module):
+    def __init__(self, embed, rnn, fc):
         super().__init__()
-        # Spatial decomposition
-        self.conv1 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(3, 3, 1),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True,
-                                            )
-        # Temporal decomposition
-        self.conv2 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(1, 1, 3),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True, )
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-        self.relu_1 = tf.keras.layers.ReLU()
+        self.embed = make_layers(embed)
+        self.rnns = rnn
+        self.fc = make_layers(fc)
+        self.use_ss = cfg.scheduled_sampling
+        self.use_rss = cfg.reverse_scheduled_sampling
 
-        self.conv3 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(3, 3, 1),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True,
-                                            )
-        # Temporal decomposition
-        self.conv4 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(1, 1, 3),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True,)
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
+    def forward(self, inputs, mode=''):
+        x, eta, epoch = inputs  # s b c h w
+        out_len = cfg.out_len
 
-    def call(self, input):
-        x = self.conv1(input)
-        x = self.conv2(x)
-        x = self.batch_norm_1(x)
-        x = self.relu_1(x)
-
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = self.batch_norm_2(x)
-        x = tf.keras.activations.relu(x)
-        return x
-
-    def make(self, input_shape):
-        '''
-        This method makes the command "model.summary()" work.
-        input_shape: (H,W,C), do not specify batch B
-        '''
-        x = tf.keras.layers.Input(shape=input_shape)
-        model = tf.keras.Model(inputs=[x], outputs=self.call(x), name='actor')
-        print(model.summary(line_length=120, show_trainable=True))
-        return model
-
-
-class UpConv(tf.keras.Model):
-    def __init__(self, filters):
-        super().__init__()
-        self.up_1 = tf.keras.layers.UpSampling3D(size=(2, 2, 1))
-        # Spatial decomposition
-        self.conv1 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(3, 3, 1),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True,
-                                            )
-        # Temporal decomposition
-        self.conv2 = tf.keras.layers.Conv3D(filters,
-                                            kernel_size=(1, 1, 3),
-                                            strides=1,
-                                            padding='same',
-                                            use_bias=True,)
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-
-    def call(self, input):
-        x = self.up_1(input)
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.batch_norm_1(x)
-        x = tf.keras.activations.relu(x)
-        return x
-
-    def make(self, input_shape):
-        '''
-        This method makes the command "model.summary()" work.
-        input_shape: (H,W,C), do not specify batch B
-        '''
-        x = tf.keras.layers.Input(shape=input_shape)
-        model = tf.keras.Model(inputs=[x], outputs=self.call(x), name='actor')
-        print(model.summary(line_length=120, show_trainable=True))
-        return model
-
-
-class AttentionBlock(tf.keras.Model):
-    def __init__(self, filters):
-        super().__init__()
-        self.conv_1 = tf.keras.layers.Conv3D(filters, kernel_size=(1, 1, 1), strides=(1, 1, 1), padding='same', use_bias=True)
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-
-        self.conv_2 = tf.keras.layers.Conv3D(filters, kernel_size=(1, 1, 1), strides=(1, 1, 1), padding='same', use_bias=True)
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-
-        self.conv_3 = tf.keras.layers.Conv3D(1, kernel_size=(1, 1, 1), strides=(1, 1, 1), padding='same', use_bias=True)
-        self.batch_norm_3 = tf.keras.layers.BatchNormalization()
-
-    def call(self, g, x):
-        g1 = self.conv_1(g)
-        g1 = self.batch_norm_1(g1)
-
-        x1 = self.conv_2(x)
-        x1 = self.batch_norm_2(x1)
-
-        psi = self.conv_3(g1 + x1)
-        psi = self.batch_norm_3(psi)
-        psi = tf.keras.activations.sigmoid(psi)
-        psi = tf.keras.activations.relu(psi)
-        return x*psi
-
-
-class MyUnetModel(Model):
-    def __init__(self, prediction_length, mask):
-        super().__init__()
-        # input_shape = (batch_size, 161, 181, 10, features_amount)
-        self.mask = tf.convert_to_tensor(mask, dtype=tf.float32)
-        self.days_prediction = prediction_length
-        self.maxpool = tf.keras.layers.MaxPool3D(pool_size=(2, 2, 1), strides=(2, 2, 1))
-
-        self.conv_block_1 = ConvBlock(filters=64)
-        self.conv_block_2 = ConvBlock(filters=128)
-        self.conv_block_3 = ConvBlock(filters=256)
-        self.conv_block_4 = ConvBlock(filters=512)
-        # self.conv_block_5 = ConvBlock(filters=1024)
-
-        # self.up_5 = UpConv(filters=512)
-        # self.attention_5 = AttentionBlock(filters=256)
-        # self.up_conv_5 = ConvBlock(filters=512)
-
-        self.up_4 = UpConv(filters=256)
-        self.attention_4 = AttentionBlock(filters=128)
-        self.up_conv_4 = ConvBlock(filters=256)
-
-        self.up_3 = UpConv(filters=128)
-        self.attention_3 = AttentionBlock(filters=64)
-        self.up_conv_3 = ConvBlock(filters=128)
-
-        self.up_2 = UpConv(filters=64)
-        self.attention_2 = AttentionBlock(filters=32)
-        self.up_conv_2 = ConvBlock(filters=64)
-
-        self.Conv_1x1 = tf.keras.layers.Conv3D(3, kernel_size=1, strides=1, padding='same')
-
-    def call(self, x):
-        # padding the image with zeroes to shape 192 x 192
-        # x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
-
-        # input_shape = (batch_size, 81, 91, 7, features_amount)
-        # padding the image with zeroes to shape 96 x 96
-        x1 = tf.pad(x, [[0, 0], [7, 8], [2, 3], [0, 0], [0, 0]])
-        # print(x1.shape)
-
-        # encoding path
-        x1 = self.conv_block_1(x1)
-        # print(f'x1.shape = {x1.shape}')
-
-        x2 = self.maxpool(x1)
-        # print(x2.shape)
-        x2 = self.conv_block_2(x2)
-        # print(f'x2.shape = {x2.shape}')
-
-        x3 = self.maxpool(x2)
-        # print(x3.shape)
-        x3 = self.conv_block_3(x3)
-        # print(f'x3.shape = {x3.shape}')
-
-        x4 = self.maxpool(x3)
-        # print(x4.shape)
-        x4 = self.conv_block_4(x4)
-        # print(f'x4.shape = {x4.shape}')
-
-        # x5 = self.maxpool(x4)
-        # print(x5.shape)
-        # x5 = self.conv_block_5(x5)
-        # print(f'x5.shape = {x5.shape}')
-
-        # # decoding + concat path
-        # d5 = self.up_5(x5)
-        # x4 = self.attention_5(g=d5, x=x4)
-        # d5 = tf.concat((x4, d5), axis=4)
-        # d5 = self.up_conv_5(d5)
-
-        d4 = self.up_4(x4)
-        x3 = self.attention_4(g=d4, x=x3)
-        d4 = tf.concat((x3, d4), axis=4)
-        d4 = self.up_conv_4(d4)
-
-        d3 = self.up_3(d4)
-        x2 = self.attention_3(g=d3, x=x2)
-        d3 = tf.concat((x2, d3), axis=4)
-        d3 = self.up_conv_3(d3)
-
-        d2 = self.up_2(d3)
-        x1 = self.attention_2(g=d2, x=x1)
-        d2 = tf.concat((x1, d2), axis=4)
-        d2 = self.up_conv_2(d2)
-
-        d1 = self.Conv_1x1(d2)
-        # output = d1[:, 15:161+15, 5:181+5, :, :]
-        output = d1[:, 7:81+7, 2:91+2, :self.days_prediction, :]
-        # output = tf.math.multiply(output[:], self.mask)
-        return output
-
-    def make(self, input_shape):
-        '''
-        This method makes the command "model.summary()" work.
-        input_shape: (H,W,C), do not specify batch B
-        '''
-        x = tf.keras.layers.Input(shape=input_shape)
-        model = tf.keras.Model(inputs=[x], outputs=self.call(x), name='actor')
-        print(model.summary(line_length=120, show_trainable=True))
-        return model
-
-# -----------------------------------------------------------------------------------------------
-class MyLSTMModel(Model):
-    def __init__(self, prediction_length, mask):
-        super().__init__()
-        # input_shape = (batch_size, 10, 161, 181, features_amount)
-        self.mask = tf.convert_to_tensor(mask, dtype=tf.float32)
-        self.days_prediction = prediction_length
-        self.lstm1 = tf.keras.layers.ConvLSTM2D(filters=256, kernel_size=(5, 5), padding='same',
-                                               batch_size=None, activation='relu', return_sequences=True,
-                                                data_format='channels_last')
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-        self.lstm2 = tf.keras.layers.ConvLSTM2D(filters=128, kernel_size=(3, 3), padding='same',
-                                               batch_size=None, activation='relu', return_sequences=True,
-                                                data_format='channels_last')
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-        self.lstm3 = tf.keras.layers.ConvLSTM2D(filters=3, kernel_size=(3, 3), padding='same',
-                                                batch_size=None, activation='sigmoid', data_format='channels_last',
-                                                return_sequences=True,
-                                                )
-        # self.dense = tf.keras.layers.Dense(prediction_length)
-
-    def call(self, x):
-        # padding the image with zeroes to shape 192 x 192
-        # x1 = tf.pad(x, [[0, 0], [15, 16], [5, 6], [0, 0], [0, 0]])
-        x1 = self.lstm1(x)
-        x2 = self.batch_norm_1(x1)
-        x3 = self.lstm2(x2)
-        x4 = self.batch_norm_2(x3)
-        x5 = self.lstm3(x4)
-
-        # output = x5
-        # print(x5.shape)
-        # output = tf.reshape(output, (-1, self.days_prediction, 81, 91,  3))
-        # output1 = x5[:, 0:self.days_prediction, :, :]
-        # output = tf.math.multiply(output[:], self.mask)
-        return x5[:, :self.days_prediction]
-
-    def make(self, input_shape):
-        '''
-        This method makes the command "model.summary()" work.
-        input_shape: (H,W,C), do not specify batch B
-        '''
-        x = tf.keras.layers.Input(shape=input_shape, batch_size=None)
-        model = tf.keras.Model(inputs=[x], outputs=self.call(x), name='actor')
-        print(model.summary(line_length=120, show_trainable=True))
-        return model
+        shape = [out_len] + list(x.shape)[1:]
+        shape_r = [cfg.in_len + out_len] + list(x.shape)[1:]
+        if self.use_rss:
+            mask = reverse_scheduled_sampling(shape_r, epoch)
+        elif self.use_ss:
+            mask = scheduled_sampling(shape, eta)
+        outputs = []
+        decouple_losses = []
+        layer_hiddens = None
+        output = None
+        m = None
+        for t in range(x.shape[0] - 1):
+            if self.use_rss:
+                if t == 0:
+                    input = x[t]
+                else:
+                    input = mask[t - 1] * x[t] + (1 - mask[t - 1]) * output
+            else:
+                if t < cfg.in_len:
+                    input = x[t]
+                else:
+                    if self.use_ss:
+                        input = mask[t - cfg.in_len] * x[t] + (1 - mask[t - cfg.in_len]) * output
+                    else:
+                        input = output
+            output, m, layer_hiddens, decouple_loss = self.rnns(input, m, layer_hiddens, self.embed, self.fc)
+            outputs.append(output)
+            decouple_losses.append(decouple_loss)
+        outputs = torch.stack(outputs)  # s b c h w
+        decouple_losses = torch.stack(decouple_losses)  # s l b c
+        return outputs, decouple_losses

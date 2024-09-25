@@ -335,15 +335,18 @@ if __name__ == '__main__':
     # else:
     #     end_year = start_year + 10
     #
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
     # t = 0
     #
     # n_bins = 100
-    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
     # count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
 
-    # plot 3d
-    plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1] - 1,
-                        start_date=datetime.datetime(start_year, 1, 1, 0, 0), start_pic_num=offset)
+    # # plot 3d
+    # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1] - 1,
+    #                     start_date=datetime.datetime(start_year, 1, 1, 0, 0), start_pic_num=offset)
+
+    x_train = np.load(files_path_prefix + 'Forecast/Train/2019-2025_x_train_Unet_6_small.npy')
+    print(x_train[0])
