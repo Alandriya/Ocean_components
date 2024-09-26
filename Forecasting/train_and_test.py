@@ -27,7 +27,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
         os.makedirs(model_save_path)
         log_save_path = os.path.join(save_path, 'logs')
         os.makedirs(log_save_path)
-        test_metrics_save_path = os.path.join(save_path, "test_metrics.xlsx")
+        # test_metrics_save_path = os.path.join(save_path, "test_metrics.xlsx")
         writer = SummaryWriter(log_save_path)
     train_loss = 0.0
     params_lis = []
@@ -42,6 +42,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
         train_sampler.set_epoch(epoch)
         model.train()
         for idx, train_batch in enumerate(train_loader, 1):
+            #print(type(train_batch))
             train_batch = normalize_data_cuda(train_batch)
             optimizer.zero_grad()
             train_pred, decouple_loss = model([train_batch, eta, epoch], mode='train')
@@ -69,7 +70,6 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
                 Total_params = np.around(Total_params / 1e+6, decimals=decimals)
                 Trainable_params = np.around(Trainable_params / 1e+6, decimals=decimals)
                 NonTrainable_params = np.around(NonTrainable_params / 1e+6, decimals=decimals)
-                # 使用nn.BatchNorm2d时，flop计算会报错，需要注释掉
                 flops, _ = profile(model.module, inputs=([train_batch, eta, epoch], 'train',))
                 flops = np.around(flops / 1e+9, decimals=decimals)
                 params_lis.append(Total_params)

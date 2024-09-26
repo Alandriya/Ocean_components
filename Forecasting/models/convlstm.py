@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import sys
 sys.path.append("..")
-from Forecasting.config import cfg
+from config import cfg
 
 
 class ConvLSTM_Cell(nn.Module):
@@ -52,6 +52,7 @@ class ConvLSTM(nn.Module):
         print('This is ConvLSTM!')
 
     def forward(self, x, m, layer_hiddens, embed, fc):
+        #print(x.get_device())
         x = embed(x)
         next_layer_hiddens = []
         for l in range(self.n_layers):

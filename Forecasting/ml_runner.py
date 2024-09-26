@@ -13,7 +13,7 @@ import sys
 
 if __name__ == '__main__':
     # files_path_prefix = 'E:/Nastya/Data/OceanFull/'
-    files_path_prefix = '/home/aosipova/EM_ocean/'
+    files_path_prefix = 'D:/Programming/PythonProjects/Alana/Data/'
     np.set_printoptions(threshold=sys.maxsize)
     # --------------------------------------------------------------------------------
     # Mask

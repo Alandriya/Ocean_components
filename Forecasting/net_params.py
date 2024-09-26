@@ -1,4 +1,4 @@
-from Forecasting.models.convlstm import *
+from models.convlstm import *
 from config import cfg
 from collections import OrderedDict
 
@@ -76,6 +76,6 @@ if cfg.dataset in ['human3.6m', 'ucf50', 'sports10']:
             rnn,
             OrderedDict({'conv_fc': [hs, 3, 1, 1, 0, 1]})]
 else:
-    nets = [OrderedDict({'conv_embed': [1, hs, 1, 1, 0, 1]}),
+    nets = [OrderedDict({'conv_embed': [3, hs, 1, 1, 0, 1]}),
             rnn,
-            OrderedDict({'conv_fc': [hs, 1, 1, 1, 0, 1]})]
+            OrderedDict({'conv_fc': [hs, 3, 1, 1, 0, 1]})]

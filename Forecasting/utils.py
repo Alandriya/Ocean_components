@@ -93,7 +93,8 @@ class Evaluation(object):
 
 
 def normalize_data_cuda(batch):
-    batch = batch.permute(1, 0, 2, 3, 4)  # S x B x C x H x W
+    #print(type(batch))
+    batch = torch.permute(batch, (1, 0, 2, 3, 4))  # S x B x C x H x W
     batch = batch / 255.0
     return batch.cuda()
 
