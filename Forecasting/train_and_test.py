@@ -37,7 +37,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
     for epoch in range(1, train_epoch + 1):
         if is_master_proc():
             print('epoch: ', epoch)
-        pbar = tqdm(total=len(train_loader), desc="train_batch", disable=not is_master_proc())
+        # pbar = tqdm(total=len(train_loader), desc="train_batch", disable=not is_master_proc())
         # train
         train_sampler.set_epoch(epoch)
         model.train()
@@ -53,7 +53,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
             train_loss += loss.item()
             eta -= delta
             eta = max(eta, 0)
-            pbar.update(1)
+            # pbar.update(1)
 
             # compute Params and FLOPs for Generator
             if epoch == 1 and idx == 1 and is_master_proc():
@@ -80,7 +80,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
                 print(f'Trained params: {Trainable_params}M')
                 print(f'Untrained params: {NonTrainable_params}M')
                 print(f'FLOPs: {flops}G')
-        pbar.close()
+        # pbar.close()
 
         # valid
         if epoch % valid_epoch == 0:

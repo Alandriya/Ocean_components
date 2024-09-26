@@ -1,4 +1,4 @@
-# run: torchrun --nproc_per_node=4 --master_port 39985 main.py 3 2019
+# run: torchrun --nproc_per_node=4 --master_port 39985 main_nn.py 3 2019
 import os
 from config import cfg
 

@@ -1,7 +1,9 @@
-# files_path_prefix = '/home/aosipova/EM_ocean/'
-files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+files_path_prefix = '/home/aosipova/EM_ocean/'
+SHORT_POSTFIX = ''
+# files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+# SHORT_POSTFIX = '_short'
 # files_path_prefix = 'D:/Programming/PythonProjects/Alana/Data/'
-SHORT_POSTFIX = '_short'
+# SHORT_POSTFIX = '_short'
 
 import os
 from torch.nn import Conv2d, ConvTranspose2d
@@ -43,7 +45,15 @@ class OrderedEasyDict(OrderedDict):
     __setitem__ = __setattr__
 
 cfg = OrderedEasyDict()
-cfg.model_name = 'ConvLSTM'
+
+
+# ConvLSTM  TrajGRU  PredRNN  PredRNN++  MIM  MotionRNN  PredRNN-V2  PrecipLSTM  CMS-LSTM  MoDeRNN
+# MS-ConvLSTM  MS-TrajGRU  MS-PredRNN  MS-PredRNN++  MS-MIM  MS-MotionRNN  MS-PredRNN-V2  MS-PrecipLSTM  MS-CMS-LSTM  MS-MoDeRNN
+# MS-ConvLSTM-WO-Skip  MS-ConvLSTM-UNet3+  MS-ConvLSTM-FC
+# MS-LSTM  MK-LSTM
+
+
+cfg.model_name = 'MS-LSTM'
 cfg.postfix_short = SHORT_POSTFIX
 cfg.gpu = '0, 1, 2, 3'
 cfg.gpu_nums = len(cfg.gpu.split(','))
@@ -64,7 +74,7 @@ cfg.width = 91
 cfg.height = 81
 cfg.in_len = 7
 cfg.out_len = 5
-cfg.epoch = 1
+cfg.epoch = 20
 
 cfg.early_stopping = False
 cfg.early_stopping_patience = 3
