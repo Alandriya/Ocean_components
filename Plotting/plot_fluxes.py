@@ -113,6 +113,7 @@ def plot_fluxes(files_path_prefix: str,
                 group: int = 4,
                 start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
                 start_pic_num: int = 1):
+    sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
     img_sens, img_lat = None, None
 
@@ -120,13 +121,15 @@ def plot_fluxes(files_path_prefix: str,
     flux_min = min(np.nanmin(sensible), np.nanmin(latent))
 
     cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
-    cmap.set_bad('darkgreen', 1.0)
+    cmap.set_bad('lightgreen', 1.0)
+    # cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
+    # cmap.set_bad('darkgreen', 1.0)
 
-    axs[0].set_title(f'Sensible', fontsize=20)
+    # axs[0].set_title(f'Sensible', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_sens = divider.append_axes('right', size='5%', pad=0.3)
 
-    axs[1].set_title(f'Latent', fontsize=20)
+    # axs[1].set_title(f'Latent', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_lat = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -139,10 +142,10 @@ def plot_fluxes(files_path_prefix: str,
     for t in tqdm.tqdm(range(start, end)):
         date = start_date + datetime.timedelta(hours=6 * group * (t - start))
 
-        if group == 1:
-            fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
-        else:
-            fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        # if group == 1:
+        #     fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
+        # else:
+        #     fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d")}', fontsize=30)
         if img_sens is None:
             img_sens = axs[0].imshow(sensible[:, t].reshape(161, 181),
                                      interpolation='none',
@@ -172,6 +175,7 @@ def plot_fluxes(files_path_prefix: str,
             img_lat.set_data(latent[:, t].reshape(161, 181))
 
         fig.colorbar(img_lat, cax=cax_lat, orientation='vertical')
+        fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/Fluxes/Flux_{pic_num:05d}.png')
         pic_num += 1
     return

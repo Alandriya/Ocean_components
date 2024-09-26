@@ -5,7 +5,7 @@ from Plotting.plot_Bel_coefficients import *
 from SRS_count_coefficients import *
 from Plotting.mean_year import *
 from Plotting.video import *
-from Plotting.plot_fluxes import plot_flux_sst_press
+from Plotting.plot_fluxes import *
 from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
 from extreme_evolution import *
 from ABCF_coeff_counting import *
@@ -39,8 +39,16 @@ if __name__ == '__main__':
     days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    plot_fluxes(files_path_prefix, sensible_array, latent_array, offset, offset + 100, 4, datetime.datetime(2022, 1, 1))
+    # ---------------------------------------------------------------------------------------
+    # Plot fluxes
+    sensible_array = np.load(files_path_prefix + 'Fluxes/sensible_grouped_2019-2022.npy')
+    sensible_array[np.logical_not(mask), :] = np.nan
+    latent_array = np.load(files_path_prefix + 'Fluxes/latent_grouped_2019-2022.npy')
+    latent_array[np.logical_not(mask), :] = np.nan
+    offset = (datetime.datetime(2022, 1, 1) - datetime.datetime(2019, 1, 1)).days
+    plot_fluxes(files_path_prefix, sensible_array, latent_array, offset, offset + 100, 1, datetime.datetime(2022, 1, 1))
     raise ValueError
+    # ---------------------------------------------------------------------------------------
     # collect SST and PRESS to 10 years arrays 3d
 
     start_year = 2019
