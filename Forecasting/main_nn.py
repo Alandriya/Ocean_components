@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from model import Model
 from loss import Loss
-from train_and_test import train_and_test
+from train_and_test import train_and_test, test
 from net_params import nets
 import random
 import numpy as np
@@ -58,6 +58,12 @@ torch.distributed.init_process_group(backend="gloo")
 
 # model parallel
 model = Model(nets[0], nets[1], nets[2])
+epoch = cfg.epoch
+save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH
+model_save_path = os.path.join(save_path, 'models')
+if cfg.LOAD_MODEL and os.path.exists(os.path.join(model_save_path, 'epoch_{}.pth'.format(epoch))):
+    model.load_state_dict(torch.load(os.path.join(model_save_path, 'epoch_{}.pth'.format(epoch)), weights_only=True))
+
 model = model.cuda()
 model = nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
 
@@ -86,3 +92,6 @@ criterion = Loss().cuda()
 
 # train valid test
 train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader, train_sampler)
+
+# test and plot
+test(model, criterion, test_loader, train_epoch, cfg)

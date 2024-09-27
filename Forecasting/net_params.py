@@ -1,4 +1,5 @@
 from models.convlstm import *
+from models.ms_lstm import *
 from config import cfg
 from collections import OrderedDict
 
@@ -16,6 +17,8 @@ else:
 
 if cfg.model_name == 'ConvLSTM':
     rnn = ConvLSTM
+elif cfg.model_name == 'MS-LSTM':
+    rnn = MS_LSTM
 # elif cfg.model_name == 'TrajGRU':
 #     rnn = TrajGRU
 # elif cfg.model_name == 'PredRNN':

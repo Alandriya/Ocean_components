@@ -52,8 +52,9 @@ cfg = OrderedEasyDict()
 # MS-ConvLSTM-WO-Skip  MS-ConvLSTM-UNet3+  MS-ConvLSTM-FC
 # MS-LSTM  MK-LSTM
 
-
-cfg.model_name = 'MS-LSTM'
+cfg.LOAD_MODEL = True
+cfg.DELETE_OLD_MODEL = False
+cfg.model_name = 'ConvLSTM'
 cfg.postfix_short = SHORT_POSTFIX
 cfg.gpu = '0, 1, 2, 3'
 cfg.gpu_nums = len(cfg.gpu.split(','))

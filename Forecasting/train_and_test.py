@@ -9,6 +9,9 @@ import shutil
 import pandas as pd
 import time
 from thop import profile
+from plotter import plot_predictions
+from loader import load_mask
+
 
 def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader, train_sampler):
     train_valid_metrics_save_path, model_save_path, writer, save_path, test_metrics_save_path = [None] * 5
@@ -20,7 +23,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
         eval_ = Evaluation(seq_len=IN_LEN + OUT_LEN - 1, use_central=False)
     if is_master_proc():
         save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH
-        if os.path.exists(save_path):
+        if cfg.DELETE_OLD_MODEL and os.path.exists(save_path):
             shutil.rmtree(save_path)
         os.makedirs(save_path)
         model_save_path = os.path.join(save_path, 'models')
@@ -134,3 +137,27 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
 
     if is_master_proc():
         writer.close()
+
+def test(model, criterion, test_loader, train_epoch, cfg):
+    test_loss = 0.0
+    if 'kth' in cfg.dataset:
+        eval_ = Evaluation(seq_len=IN_LEN + EVAL_LEN - 1, use_central=False)
+    else:
+        eval_ = Evaluation(seq_len=IN_LEN + OUT_LEN - 1, use_central=False)
+
+    ssim = 0.0
+    with torch.no_grad():
+        for test_batch in test_loader:
+            test_batch = normalize_data_cuda(test_batch)
+            test_pred, decouple_loss = model([test_batch, 0, train_epoch], mode='test')
+            ssim += get_SSIM(test_batch[1:, ...], test_pred)
+
+            loss = criterion(test_batch[1:, ...], test_pred, decouple_loss)
+            test_loss += loss.item()
+            test_batch_numpy = test_batch.cpu().numpy()
+            test_pred_numpy = np.clip(test_pred.cpu().numpy(), 0.0, 1.0)
+            eval_.update(test_batch_numpy[1:, ...], test_pred_numpy)
+            plot_predictions(cfg.root_path, test_batch[1:, ...].numpy(), test_pred.numpy(), cfg.model_name,
+                             cfg.features_amount, 0, load_mask(cfg.root_path))
+    print(f'SSIM test = {ssim}')
+    return

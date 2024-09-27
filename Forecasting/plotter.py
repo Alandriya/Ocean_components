@@ -152,11 +152,11 @@ def plot_predictions(files_path_prefix: str,
             fig.suptitle(f'{model_name}, Pressure', fontsize=30)
         plt.tight_layout()
         if k == 0:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_Flux.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_Flux_{start_day}.png')
         elif k == 1:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_SST.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_SST_{start_day}.png')
         else:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_press.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_press_{start_day}.png')
     return
 
 
