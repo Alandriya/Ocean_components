@@ -1020,7 +1020,7 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
         axs.xaxis.set_minor_locator(mdates.MonthLocator())
     axs.xaxis.set_major_formatter(mdates.ConciseDateFormatter(axs.xaxis.get_major_locator()))
 
-    axs.set_title(f'{names[0]}-{names[1]} eigenvalues trends, mean of every {mean_days} days', fontdict=font_names)
+    # axs.set_title(f'{names[0]}-{names[1]} eigenvalues trends, mean of every {mean_days} days', fontdict=font_names)
     # axs.plot(days, max_trend, label='max', c='r', alpha=0.75)
     # axs.plot(days, min_trend, label='min', c='b', alpha=0.75)
     # axs.plot(days, mean_trend, label='mean', c='g')
