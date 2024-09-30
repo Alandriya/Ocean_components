@@ -17,7 +17,8 @@ def _FSpecialGauss(size, sigma):
     g = np.exp(-((x ** 2 + y ** 2) / (2.0 * sigma ** 2)))
     return g / g.sum()
 
-def _SSIMForMultiScale(img1, img2, max_val=255, filter_size=11,
+
+def _SSIMForMultiScale(img1, img2, max_val=255.0, filter_size=11,
                        filter_sigma=1.5, k1=0.01, k2=0.03):
     """Return the Structural Similarity Map between `img1` and `img2`.
     This function attempts to match the functionality of ssim_index_new.m by
@@ -84,36 +85,22 @@ def _SSIMForMultiScale(img1, img2, max_val=255, filter_size=11,
     c2 = (k2 * max_val) ** 2
     v1 = 2.0 * sigma12 + c2
     v2 = sigma11 + sigma22 + c2
-    ssim = np.mean((((2.0 * mu12 + c1) * v1) / ((mu11 + mu22 + c1) * v2)), axis=(1, 2, 3))
-    cs = np.mean(v1 / v2, axis=(1, 2, 3))
+    ssim = np.mean((((2.0 * mu12 + c1) * v1) / ((mu11 + mu22 + c1) * v2)), axis=(1, 2))
+    cs = np.mean(v1 / v2, axis=(1, 2))
     return ssim, cs
+
 
 def get_SSIM(prediction, truth):
     """Calculate the SSIM score following
     [TIP2004] Image Quality Assessment: From Error Visibility to Structural Similarity
     Same functionality as
     https://github.com/coupriec/VideoPredictionICLR2016/blob/master/image_error_measures.lua#L50-L75
-    We use nowcasting.helpers.msssim, which is borrowed from Tensorflow to do the evaluation
-    Parameters
-    ----------
-    prediction : np.ndarray  sbchw
-    truth : np.ndarray
-    Returns
-    -------
-    ret : np.ndarray
-    :param truth:
-    :param prediction:
     """
+
     s, b, c, h, w = prediction.shape
     prediction = prediction.reshape((s * b, h, w, c))
     truth = truth.reshape((s * b, h, w, c))
-    # if 'human3.6m' in cfg.GLOBAL.dataset:
-    #     for i in range(s * b):
-    #         prediction[i] = cv2.cvtColor(prediction[i], cv2.COLOR_BGR2GRAY)
-    #         truth[i] = cv2.cvtColor(truth[i], cv2.COLOR_BGR2GRAY)
-    #     prediction = prediction[:, np.newaxis]
-    #     truth = truth[:, np.newaxis]
-
     ssim, cs = _SSIMForMultiScale(img1=prediction, img2=truth, max_val=1.0)
-    ret = ssim.reshape((s, b))
-    return ret
+    # print(f'SSIM shape: {ssim.shape}')
+
+    return ssim.reshape((s, b, c))

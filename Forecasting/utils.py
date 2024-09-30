@@ -33,14 +33,15 @@ def as_type(data):
 
 
 class Evaluation(object):
-    def __init__(self, seq_len, use_central=False, thresholds=None):
+    def __init__(self, seq_len, use_central=False, thresholds=None, max_val=(1.0, 1.0, 1.0)):
         self._total_batch_num = 0
         self._thresholds = cfg.HKO.THRESHOLDS if thresholds is None else thresholds
-        self._ssim = np.zeros((seq_len,), dtype=cfg.data_type)
-        self._mae = np.zeros((seq_len,), dtype=cfg.data_type)
-        self._mse = np.zeros((seq_len,), dtype=cfg.data_type)
+        self._ssim = np.zeros((OUT_LEN, 3), dtype=cfg.data_type)
+        self._mae = np.zeros((OUT_LEN,), dtype=cfg.data_type)
+        self._mse = np.zeros((OUT_LEN,), dtype=cfg.data_type)
         self._seq_len = seq_len
         self._use_central = use_central
+        self._max_val = max_val
 
     def clear_all(self):
         self._total_batch_num = 0
@@ -60,29 +61,16 @@ class Evaluation(object):
             gt = gt[:, :, :, central_region[1]:central_region[3], central_region[0]:central_region[2]]
 
         self._total_batch_num += batch_size
-
-        # TODO Save all the mse, mae, gdl, hits, misses, false_alarms and correct_negatives
         ssim = get_SSIM(prediction=pred, truth=gt)
-        # bw = cfg.HKO.BALANCING_WEIGHTS
-        # weights = get_balancing_weights_numba(data=gt, base_balancing_weights=bw, thresholds=self._thresholds)
 
         # # S*B*1*H*W
-        # balanced_mse = (weights * np.square(pred - gt)).sum(axis=(2, 3, 4))
-        # balanced_mae = (weights * np.abs(pred - gt)).sum(axis=(2, 3, 4))
         mse = np.square(pred - gt).sum(axis=(2, 3, 4))
         mae = np.abs(pred - gt).sum(axis=(2, 3, 4))
-        # hits, misses, false_alarms, correct_negatives = get_hit_miss_counts_numba(prediction=pred, truth=gt,
-        #                                                                           thresholds=self._thresholds)
 
         self._ssim += sum_batch(ssim)
-        # self._balanced_mse += sum_batch(balanced_mse)
-        # self._balanced_mae += sum_batch(balanced_mae)
         self._mse += sum_batch(mse)
         self._mae += sum_batch(mae)
-        # self._total_hits += sum_batch(hits)
-        # self._total_misses += sum_batch(misses)
-        # self._total_false_alarms += sum_batch(false_alarms)
-        # self._total_correct_negatives += sum_batch(correct_negatives)
+
 
     def get_metrics(self):
         ssim = self._ssim / self._total_batch_num
@@ -92,10 +80,13 @@ class Evaluation(object):
         return l_all
 
 
-def normalize_data_cuda(batch):
+def normalize_data_cuda(batch, min_vals, max_vals):
     #print(type(batch))
+    # print(f'min_vals = {min_vals}')
+    # print(f'max_vals = {max_vals}')
     batch = torch.permute(batch, (1, 0, 2, 3, 4))  # S x B x C x H x W
-    batch = batch / 255.0
+    for channel in range(batch.shape[2]):
+        batch[:, :, channel] = (batch[:, :, channel] - min_vals[channel]) / max_vals[channel]
     return batch.cuda()
 
 

@@ -19,8 +19,6 @@ import torch.distributed as dist
 from loader import create_dataloaders, count_offset
 import argparse
 
-def cleanup():
-    dist.destroy_process_group()
 
 # fix random seed
 def fix_random(seed):
@@ -56,16 +54,23 @@ end_year, offset = count_offset(start_year)
 # parallel group
 torch.distributed.init_process_group(backend="gloo")
 
-# model parallel
+# model
 model = Model(nets[0], nets[1], nets[2])
-epoch = cfg.epoch
-save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH
-model_save_path = os.path.join(save_path, 'models')
-if cfg.LOAD_MODEL and os.path.exists(os.path.join(model_save_path, 'epoch_{}.pth'.format(epoch))):
-    model.load_state_dict(torch.load(os.path.join(model_save_path, 'epoch_{}.pth'.format(epoch)), weights_only=True))
 
+# optimizer
+if cfg.optimizer == 'SGD':
+    optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9)
+elif cfg.optimizer == 'Adam':
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+else:
+    optimizer = None
+
+
+model_save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH + f'models/epoch_{cfg.epoch}.pth'
 model = model.cuda()
 model = nn.parallel.DistributedDataParallel(model, find_unused_parameters=True)
+if cfg.LOAD_MODEL and os.path.exists(model_save_path):
+    model.load_state_dict(model_save_path)
 
 threads = cfg.dataloader_thread
 train_data, valid_data, test_data = create_dataloaders(cfg.root_path, start_year, end_year, cfg)
@@ -79,14 +84,6 @@ valid_loader = DataLoader(valid_data, num_workers=threads, batch_size=batch_size
                           sampler=valid_sampler)
 loader = [train_loader, test_loader, valid_loader]
 
-# optimizer
-if cfg.optimizer == 'SGD':
-    optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9)
-elif cfg.optimizer == 'Adam':
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-else:
-    optimizer = None
-
 # loss
 criterion = Loss().cuda()
 
@@ -94,4 +91,4 @@ criterion = Loss().cuda()
 train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader, train_sampler)
 
 # test and plot
-test(model, criterion, test_loader, train_epoch, cfg)
+# test(model, criterion, test_loader, train_epoch, cfg)

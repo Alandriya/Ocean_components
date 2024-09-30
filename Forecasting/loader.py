@@ -214,6 +214,8 @@ def create_dataloaders(files_path_prefix, start_year, end_year, cfg):
     x_test = torch.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_x_test_{cfg.features_amount}{cfg.postfix_short}.pt')
     y_test = torch.load(files_path_prefix + f'Forecast/Test/{start_year}-{end_year}_y_test_{cfg.features_amount}{cfg.postfix_short}.pt')
 
+    cfg.min_vals = tuple(torch.amin(y_train, dim=(0, 1, 2, 3)))
+    cfg.max_vals = tuple(torch.amax(y_train, dim=(0, 1, 2, 3)))
     train_dataset = Data(x_train, y_train)
     test_dataset = Data(x_test, y_test)
 

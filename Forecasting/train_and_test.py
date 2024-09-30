@@ -1,3 +1,4 @@
+import datetime
 
 from config import cfg
 import numpy as np
@@ -17,10 +18,7 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
     train_valid_metrics_save_path, model_save_path, writer, save_path, test_metrics_save_path = [None] * 5
     train_loader, test_loader, valid_loader = loader
     start = time.time()
-    if 'kth' in cfg.dataset:
-        eval_ = Evaluation(seq_len=IN_LEN + EVAL_LEN - 1, use_central=False)
-    else:
-        eval_ = Evaluation(seq_len=IN_LEN + OUT_LEN - 1, use_central=False)
+    eval_ = Evaluation(seq_len=OUT_LEN, use_central=False)
     if is_master_proc():
         save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH
         if cfg.DELETE_OLD_MODEL and os.path.exists(save_path):
@@ -40,16 +38,14 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
     for epoch in range(1, train_epoch + 1):
         if is_master_proc():
             print('epoch: ', epoch)
-        # pbar = tqdm(total=len(train_loader), desc="train_batch", disable=not is_master_proc())
-        # train
         train_sampler.set_epoch(epoch)
         model.train()
         for idx, train_batch in enumerate(train_loader, 1):
             #print(type(train_batch))
-            train_batch = normalize_data_cuda(train_batch)
+            train_batch = normalize_data_cuda(train_batch, cfg.min_vals, cfg.max_vals)
             optimizer.zero_grad()
             train_pred, decouple_loss = model([train_batch, eta, epoch], mode='train')
-            loss = criterion(train_batch[1:, ...], train_pred, decouple_loss)
+            loss = criterion(train_batch[IN_LEN:, ...], train_pred, decouple_loss)
             loss.backward()
             optimizer.step()
             loss = reduce_tensor(loss)  # all reduce
@@ -92,9 +88,9 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
             valid_loss = 0.0
             with torch.no_grad():
                 for valid_batch in valid_loader:
-                    valid_batch = normalize_data_cuda(valid_batch)
+                    valid_batch = normalize_data_cuda(valid_batch, cfg.min_vals, cfg.max_vals)
                     valid_pred, decouple_loss = model([valid_batch, 0, train_epoch], mode='test')
-                    loss = criterion(valid_batch[1:, ...], valid_pred, decouple_loss)
+                    loss = criterion(valid_batch[IN_LEN:, ...], valid_pred, decouple_loss)
                     loss = reduce_tensor(loss)  # all reduce
                     valid_loss += loss.item()
             valid_loss = valid_loss / len(valid_loader)
@@ -115,13 +111,13 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
     test_loss = 0.0
     with torch.no_grad():
         for test_batch in test_loader:
-            test_batch = normalize_data_cuda(test_batch)
+            test_batch = normalize_data_cuda(test_batch, cfg.min_vals, cfg.max_vals)
             test_pred, decouple_loss = model([test_batch, 0, train_epoch], mode='test')
-            loss = criterion(test_batch[1:, ...], test_pred, decouple_loss)
+            loss = criterion(test_batch[IN_LEN:, ...], test_pred, decouple_loss)
             test_loss += loss.item()
             test_batch_numpy = test_batch.cpu().numpy()
             test_pred_numpy = np.clip(test_pred.cpu().numpy(), 0.0, 1.0)
-            eval_.update(test_batch_numpy[1:, ...], test_pred_numpy)
+            eval_.update(test_batch_numpy[IN_LEN:, ...], test_pred_numpy)
 
     if is_master_proc():
         test_metrics_lis = eval_.get_metrics()
@@ -132,32 +128,45 @@ def train_and_test(model, optimizer, criterion, train_epoch, valid_epoch, loader
         print("===============================")
         print('Running time: {} hours'.format(running_time))
         print("===============================")
-        print(f'Test SSIM: {test_loss}')
+        print(f'Test loss: {test_loss}')
         eval_.clear_all()
 
     if is_master_proc():
         writer.close()
 
+
 def test(model, criterion, test_loader, train_epoch, cfg):
+    if not is_master_proc():
+        return
     test_loss = 0.0
-    if 'kth' in cfg.dataset:
-        eval_ = Evaluation(seq_len=IN_LEN + EVAL_LEN - 1, use_central=False)
-    else:
-        eval_ = Evaluation(seq_len=IN_LEN + OUT_LEN - 1, use_central=False)
+    eval_ = Evaluation(seq_len=OUT_LEN, use_central=False)
 
     ssim = 0.0
     with torch.no_grad():
-        for test_batch in test_loader:
-            test_batch = normalize_data_cuda(test_batch)
+        for idx, test_batch in enumerate(test_loader):
+            test_batch = normalize_data_cuda(test_batch, cfg.min_vals, cfg.max_vals)
             test_pred, decouple_loss = model([test_batch, 0, train_epoch], mode='test')
-            ssim += get_SSIM(test_batch[1:, ...], test_pred)
 
-            loss = criterion(test_batch[1:, ...], test_pred, decouple_loss)
+            loss = criterion(test_batch[IN_LEN:, ...], test_pred, decouple_loss)
             test_loss += loss.item()
             test_batch_numpy = test_batch.cpu().numpy()
             test_pred_numpy = np.clip(test_pred.cpu().numpy(), 0.0, 1.0)
-            eval_.update(test_batch_numpy[1:, ...], test_pred_numpy)
-            plot_predictions(cfg.root_path, test_batch[1:, ...].numpy(), test_pred.numpy(), cfg.model_name,
-                             cfg.features_amount, 0, load_mask(cfg.root_path))
-    print(f'SSIM test = {ssim}')
+            eval_.update(test_batch_numpy[IN_LEN:, ...], test_pred_numpy)
+            ssim += get_SSIM(test_batch_numpy[IN_LEN:, ...], test_pred_numpy)
+
+            if idx == 0:
+                print('Plotting', flush=True)
+                for batch_day in range(test_batch.shape[1]):
+                    day = datetime.datetime(2019, 1, 1) + datetime.timedelta(days = batch_day)
+                    real_values = test_batch_numpy[IN_LEN:, ...].reshape(cfg.out_len, test_pred_numpy.shape[2],
+                                                                         test_pred_numpy.shape[3], test_pred_numpy.shape[4])
+                    predictions = test_pred_numpy.reshape(cfg.out_len, test_pred_numpy.shape[2],
+                                                                         test_pred_numpy.shape[3], test_pred_numpy.shape[4])
+                    plot_predictions(cfg.root_path, real_values, predictions, cfg.model_name,
+                                     cfg.features_amount, day, load_mask(cfg.root_path))
+    # print(f'SSIM test full = {ssim/len(test_loader)}')
+    # print(ssim.shape)
+    print(f'SSIM test Flux = {np.sum(ssim[:, :, 0])/len(test_loader)/ OUT_LEN :.2f}')
+    print(f'SSIM test SST = {np.sum(ssim[:, :, 1]) / len(test_loader)/ OUT_LEN :.2f}')
+    print(f'SSIM test Pressure = {np.sum(ssim[:, :, 2]) / len(test_loader) / OUT_LEN: .2f}')
     return

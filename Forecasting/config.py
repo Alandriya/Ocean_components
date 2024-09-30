@@ -1,7 +1,7 @@
-files_path_prefix = '/home/aosipova/EM_ocean/'
-SHORT_POSTFIX = ''
-# files_path_prefix = 'E:/Nastya/Data/OceanFull/'
-# SHORT_POSTFIX = '_short'
+# files_path_prefix = '/home/aosipova/EM_ocean/'
+# SHORT_POSTFIX = ''
+files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+SHORT_POSTFIX = '_short'
 # files_path_prefix = 'D:/Programming/PythonProjects/Alana/Data/'
 # SHORT_POSTFIX = '_short'
 
@@ -54,19 +54,16 @@ cfg = OrderedEasyDict()
 
 cfg.LOAD_MODEL = True
 cfg.DELETE_OLD_MODEL = False
-cfg.model_name = 'ConvLSTM'
+cfg.model_name = ' PrecipLSTM'
 cfg.postfix_short = SHORT_POSTFIX
 cfg.gpu = '0, 1, 2, 3'
 cfg.gpu_nums = len(cfg.gpu.split(','))
 cfg.work_path = 'MS-RNN'
-cfg.dataset = 'DWD-12-480'  # moving-mnist-20  kth_160_png  taxiBJ  HKO-7-180-with-mask  MeteoNet-120  DWD-12-480  RAIN-F
-if ('HKO' in cfg.dataset) or ('MeteoNet' in cfg.dataset) or ('DWD' in cfg.dataset) or ('RAIN-F' in cfg.dataset):
-    cfg.data_path = 'Precipitation-Nowcasting'
-else:
-    cfg.data_path = 'Spatiotemporal'
+cfg.dataset = 'Ocean'
+# cfg.data_path = 'Spatiotemporal'
 cfg.lstm_hidden_state = 64
 cfg.kernel_size = 3
-cfg.batch = int(4 / len(cfg.gpu.split(',')))
+cfg.batch = int(64 / len(cfg.gpu.split(',')))
 cfg.LSTM_conv = Conv2d
 cfg.LSTM_deconv = ConvTranspose2d
 cfg.CONV_conv = Conv2d
@@ -76,6 +73,8 @@ cfg.height = 81
 cfg.in_len = 7
 cfg.out_len = 5
 cfg.epoch = 20
+cfg.min_vals = (0, 0, 0)
+cfg.max_vals = (1, 1, 1)
 
 cfg.early_stopping = False
 cfg.early_stopping_patience = 3
@@ -104,7 +103,7 @@ cfg.root_path = files_path_prefix
 
 cfg.GLOBAL = OrderedEasyDict()
 cfg.GLOBAL.MODEL_LOG_SAVE_PATH = os.path.join(cfg.root_path, cfg.work_path, 'save', cfg.dataset, cfg.model_name)
-cfg.GLOBAL.DATASET_PATH = os.path.join(cfg.root_path, cfg.data_path, 'dataset', cfg.dataset)
+# cfg.GLOBAL.DATASET_PATH = os.path.join(cfg.root_path, cfg.data_path, 'dataset', cfg.dataset)
 
 cfg.HKO = OrderedEasyDict()
 cfg.HKO.THRESHOLDS = np.array([0.5, 2, 5, 10, 30])

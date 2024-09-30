@@ -58,6 +58,7 @@ def get_continuous_cmap(hex_list, float_list=None):
     cmp = colors.LinearSegmentedColormap('my_cmp', segmentdata=cdict, N=256)
     return cmp
 
+
 def plot_predictions(files_path_prefix: str,
                      Y_test: np.ndarray,
                      Y_predict: np.ndarray,
@@ -65,14 +66,11 @@ def plot_predictions(files_path_prefix: str,
                      features_amount: int,
                      start_day: datetime.datetime,
                      mask: np.ndarray):
-    print('Plotting')
+    # print('Plotting')
     if not os.path.exists(files_path_prefix + f'videos/Forecast/{model_name}'):
         os.mkdir(files_path_prefix + f'videos/Forecast/{model_name}')
-    if model_name == 'lstm':
-        days_prediction = Y_predict.shape[0]
-    else:
-        days_prediction = Y_predict.shape[2]
 
+    days_prediction = Y_predict.shape[0]
 
     # axs[0].set_title('Real values', fontsize=20)
     # axs[1].set_title('Predicted values', fontsize=20)
@@ -99,23 +97,15 @@ def plot_predictions(files_path_prefix: str,
         cmap_diff = plt.get_cmap('Reds').copy()
         cmap_diff.set_bad('darkgreen', 1.0)
 
-        if model_name == 'lstm':
-            Y_test[:, np.logical_not(mask), :] = np.nan
-            Y_predict[:, np.logical_not(mask), :] = np.nan
-        else:
-            Y_test[np.logical_not(mask), :, :] = np.nan
-            Y_predict[np.logical_not(mask), :, :] = np.nan
+        Y_test[:, :, np.logical_not(mask)] = np.nan
+        Y_predict[:, :,  np.logical_not(mask)] = np.nan
 
         for t in range(days_prediction):
-            if model_name == 'lstm':
-                ypredict = Y_predict[t, :, :, k]
-                ytest = Y_test[t, :, :, k]
-            else:
-                ypredict = Y_predict[:, :, t, k]
-                ytest = Y_test[:, :, t, k]
+            ypredict = Y_predict[t, k, :, :]
+            ytest = Y_test[t, k, :, :]
             difference = np.array(np.abs(ypredict - ytest))
-            # day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
-            day_str = f'day {t}'
+            day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
+            # day_str = f'day {t}'
             for i in range(3):
                 divider = make_axes_locatable(axs[i][t])
                 cax[i][t] = divider.append_axes('right', size='5%', pad=0.3)
@@ -152,11 +142,12 @@ def plot_predictions(files_path_prefix: str,
             fig.suptitle(f'{model_name}, Pressure', fontsize=30)
         plt.tight_layout()
         if k == 0:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_Flux_{start_day}.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_Flux_{day_str}.png')
         elif k == 1:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_SST_{start_day}.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_SST_{day_str}.png')
         else:
-            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_press_{start_day}.png')
+            fig.savefig(files_path_prefix + f'videos/Forecast/{model_name}/{model_name}_{features_amount}_press_{day_str}.png')
+        plt.close(fig)
     return
 
 

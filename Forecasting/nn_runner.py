@@ -111,7 +111,7 @@ if __name__ == '__main__':
             train_sampler.set_epoch(epoch)
             model.train()
             for idx, train_batch in enumerate(train_loader, 1):
-                train_batch = normalize_data_cuda(train_batch)
+                train_batch = normalize_data_cuda(train_batch, cfg.min_vals, cfg.max_vals)
                 optimizer.zero_grad()
                 train_pred, decouple_loss = model([train_batch, eta, epoch], mode='train')
                 loss = criterion(train_batch[1:, ...], train_pred, decouple_loss)
@@ -158,7 +158,7 @@ if __name__ == '__main__':
                 valid_loss = 0.0
                 with torch.no_grad():
                     for valid_batch in valid_loader:
-                        valid_batch = normalize_data_cuda(valid_batch)
+                        valid_batch = normalize_data_cuda(valid_batch, cfg.min_vals, cfg.max_vals)
                         valid_pred, decouple_loss = model([valid_batch, 0, train_epoch], mode='test')
                         loss = criterion(valid_batch[1:, ...], valid_pred, decouple_loss)
                         loss = reduce_tensor(loss)  # all reduce
@@ -182,7 +182,7 @@ if __name__ == '__main__':
         test_loss = 0.0
         with torch.no_grad():
             for test_batch in test_loader:
-                test_batch = normalize_data_cuda(test_batch)
+                test_batch = normalize_data_cuda(test_batch, cfg.min_vals, cfg.max_vals)
                 test_pred, decouple_loss = model([test_batch, 0, train_epoch], mode='test')
                 loss = criterion(test_batch[1:, ...], test_pred, decouple_loss)
                 test_loss += loss.item()

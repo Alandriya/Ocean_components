@@ -1,5 +1,6 @@
 from models.convlstm import *
 from models.ms_lstm import *
+from models.preciplstm import *
 from config import cfg
 from collections import OrderedDict
 
@@ -19,6 +20,9 @@ if cfg.model_name == 'ConvLSTM':
     rnn = ConvLSTM
 elif cfg.model_name == 'MS-LSTM':
     rnn = MS_LSTM
+elif cfg.model_name == 'PrecipLSTM':
+    rnn = PrecipLSTM
+
 # elif cfg.model_name == 'TrajGRU':
 #     rnn = TrajGRU
 # elif cfg.model_name == 'PredRNN':
@@ -35,8 +39,7 @@ elif cfg.model_name == 'MS-LSTM':
 #     rnn = MoDeRNN
 # elif cfg.model_name == 'PredRNN-V2':
 #     rnn = PredRNN_V2
-# elif cfg.model_name == 'PrecipLSTM':
-#     rnn = PrecipLSTM
+
 #
 # elif cfg.model_name == 'MS-ConvLSTM-WO-Skip':
 #     rnn = MS_ConvLSTM_WO_Skip
@@ -74,11 +77,6 @@ elif cfg.model_name == 'MS-LSTM':
 
 rnn = rnn(input_channel=hs, output_channel=hs, b_h_w=(b, h, w), kernel_size=k, stride=s, padding=p)
 
-if cfg.dataset in ['human3.6m', 'ucf50', 'sports10']:
-    nets = [OrderedDict({'conv_embed': [3, hs, 1, 1, 0, 1]}),
-            rnn,
-            OrderedDict({'conv_fc': [hs, 3, 1, 1, 0, 1]})]
-else:
-    nets = [OrderedDict({'conv_embed': [3, hs, 1, 1, 0, 1]}),
-            rnn,
-            OrderedDict({'conv_fc': [hs, 3, 1, 1, 0, 1]})]
+nets = [OrderedDict({'conv_embed': [3*cfg.in_len, hs, 1, 1, 0, 1]}),
+        rnn,
+        OrderedDict({'conv_fc': [hs, 3, 1, 1, 0, 1]})]
