@@ -1,5 +1,0 @@
-README.md
-localAttention.egg-info/PKG-INFO
-localAttention.egg-info/SOURCES.txt
-localAttention.egg-info/dependency_links.txt
-localAttention.egg-info/top_level.txt
