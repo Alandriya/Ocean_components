@@ -2,20 +2,20 @@
 import numpy as np
 import scipy.linalg
 
-from Plotting.plot_Bel_coefficients import *
-from SRS_count_coefficients import *
-from Plotting.mean_year import *
-from Plotting.video import *
+# from Plotting.plot_Bel_coefficients import *
+# from SRS_count_coefficients import *
+# from Plotting.mean_year import *
+# from Plotting.video import *
 from Plotting.plot_fluxes import *
 from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
 from Plotting.plot_extreme import *
-from extreme_evolution import *
+# from extreme_evolution import *
 from ABCF_coeff_counting import *
 from eigenvalues import *
 from data_processing import load_ABCFE, load_prepare_fluxes
 
-# files_path_prefix = 'home/aosipova/EM_ocean'
-files_path_prefix = 'E:/Nastya/Data/OceanFull/'
+files_path_prefix = '/home/aosipova/EM_ocean/'
+# files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 # files_path_prefix = 'D://Data/OceanFull/'
 
 # timesteps = 7320
@@ -41,6 +41,7 @@ if __name__ == '__main__':
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
     # # ---------------------------------------------------------------------------------------
     # # Plot fluxes
@@ -56,8 +57,8 @@ if __name__ == '__main__':
 
     # start_year = 2019
     # end_year = 2025
-    # bins_amount = 1000
-    # days_delta = days_delta6
+    # # bins_amount = 1000
+    # days_delta = days_delta7 + days_delta5
 
     # current_shift = 0
     # sst_array = np.zeros((height * width, days_delta * 4))
@@ -162,52 +163,55 @@ if __name__ == '__main__':
     # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
     #-------------------------------------------------------------------------------------
     # count eigenvalues
-    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
-    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
-    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
+    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
+    SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
+    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
 
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_1979-1989_grouped.npy')
     # SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
     # press_array = np.load(files_path_prefix + f'Pressure/PRESS_1979-1989_grouped.npy')
-    #
-    # t = 0
-    # cpu_amount = 4
-    #
-    # n_bins = 100
+
+    t = 0
+    cpu_amount = 4
+
+    n_bins = 100
     # offset = 0
-    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
 
-    # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
-    # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
-    # press_array_grouped, quantiles_press = scale_to_bins(press_array, n_bins)
-    # np.save(files_path_prefix + f'Eigenvalues\quantiles_flux_{n_bins}.npy', quantiles_flux)
-    # np.save(files_path_prefix + f'Eigenvalues\quantiles_sst_{n_bins}.npy', quantiles_sst)
-    # np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
+    flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
+    SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
+    press_array_grouped, quantiles_press = scale_to_bins(press_array, n_bins)
+    np.save(files_path_prefix + f'Eigenvalues\quantiles_flux_{n_bins}.npy', quantiles_flux)
+    np.save(files_path_prefix + f'Eigenvalues\quantiles_sst_{n_bins}.npy', quantiles_sst)
+    np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
 
-    # count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins, 1)
-    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure')]:
-    #     count_mean_year(files_path_prefix, 1979, 2022, names, mask.reshape((161, 181)))
+    print('Counting eigen')
+    count_eigenvalues_triplets(files_path_prefix,
+                               0, flux_array, SST_array, press_array, mask, offset, n_bins)
+    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'),
+                  ('Flux', 'Pressure'), ('SST', 'Pressure')]:
+        count_mean_year(files_path_prefix, 1979, 2024, names, mask.reshape((161, 181)))
 
 
     # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
 
-    # t_start = 0
-    # t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
-    #
-    #
-    # for names in [('Flux', 'Flux'), ('SST', 'SS.'), ('Flux', 'SST'), ('Flux', 'Pressure'), ('Pressure', 'Pressure')]:
-    #     plot_mean_year(files_path_prefix, names)
-    #     get_trends(files_path_prefix, t_start, t_end, names)
-    #     # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
-    #     print(names)
-    #     plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
-    #     plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
+    t_start = 0
+    t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7
 
-    # start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
-    # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
-    #                     start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
-    # days_delta7 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    # print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta7)
+
+    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'),
+                  ('Flux', 'Pressure'), ('SST', 'Pressure')]:
+        plot_mean_year(files_path_prefix, names)
+        get_trends(files_path_prefix, t_start, t_end, names)
+        # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
+        print(names)
+        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
+        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
+
+    start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
+                        start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    # print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7)
     # print('$\\lambda_1=$')
 
 
@@ -351,32 +355,32 @@ if __name__ == '__main__':
     #     names = ('SST', 'Pressure')
 
     # mean_days = 30
-    mean_days = 365
+    # mean_days = 365
     # time_start = 1
     # time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
 
-    start_year = 2019
-    if start_year == 1979:
-        offset = 0
-        time_end = days_delta1
-    elif start_year == 1989:
-        offset = days_delta1
-        time_end = days_delta1 + days_delta2
-    elif start_year == 1999:
-        offset = days_delta1 + days_delta2
-        time_end = days_delta1 + days_delta2 + days_delta3
-    elif start_year == 2009:
-        offset = days_delta1 + days_delta2 + days_delta3
-        time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4
-    else:
-        offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-        time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
-
-    time_start = offset
-    if start_year == 2019:
-        end_year = 2025
-    else:
-        end_year = start_year + 10
+    # start_year = 2019
+    # if start_year == 1979:
+    #     offset = 0
+    #     time_end = days_delta1
+    # elif start_year == 1989:
+    #     offset = days_delta1
+    #     time_end = days_delta1 + days_delta2
+    # elif start_year == 1999:
+    #     offset = days_delta1 + days_delta2
+    #     time_end = days_delta1 + days_delta2 + days_delta3
+    # elif start_year == 2009:
+    #     offset = days_delta1 + days_delta2 + days_delta3
+    #     time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    # else:
+    #     offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #     time_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6
+    #
+    # time_start = offset
+    # if start_year == 2019:
+    #     end_year = 2025
+    # else:
+    #     end_year = start_year + 10
 
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
     # SST_array = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
@@ -394,14 +398,14 @@ if __name__ == '__main__':
     # extract_extreme(files_path_prefix, SST_array, 'diff', time_start, time_end, mean_days, f'SST/')
     # extract_extreme(files_path_prefix, press_array, 'diff', time_start, time_end, mean_days, f'Pressure/')
 
-    for coeff_type in ['raw']:
-        collect_extreme(files_path_prefix, coeff_type, 'Flux/', mean_days)
-        collect_extreme(files_path_prefix, coeff_type, 'SST/', mean_days)
-        collect_extreme(files_path_prefix, coeff_type, 'Pressure/', mean_days)
-    for coeff_type in ['raw']:
-        plot_extreme_3d(files_path_prefix, coeff_type, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, mean_days,
-                        fit_regression=True,
-                     fit_sinus=False, fit_fourier_flag=False)
+    # for coeff_type in ['raw']:
+    #     collect_extreme(files_path_prefix, coeff_type, 'Flux/', mean_days)
+    #     collect_extreme(files_path_prefix, coeff_type, 'SST/', mean_days)
+    #     collect_extreme(files_path_prefix, coeff_type, 'Pressure/', mean_days)
+    # for coeff_type in ['raw']:
+    #     plot_extreme_3d(files_path_prefix, coeff_type, 0, days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta6, mean_days,
+    #                     fit_regression=True,
+    #                  fit_sinus=False, fit_fourier_flag=False)
 
 
     # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Flux', 'SST'), ('Flux', 'Pressure'), ('Pressure', 'Pressure')]:

@@ -10,18 +10,20 @@ import datetime
 import pandas as pd
 
 # files_path_prefix = 'D://Data/OceanFull/'
-files_path_prefix = 'E://Nastya/Data/OceanFull/'
+files_path_prefix = 'D://Nastya/Data/OceanFull/'
 # data_postfix = '2022_sst+press'
 # data_postfix = '1979-1989_sst+press'
-data_postfix = 'flux+sst+press_2024-till_april'
+data_postfix = 'flux+sst+press_2024-till_november'
 
-maskfile = open('D://Data/OceanFull/' + "mask", "rb")
+maskfile = open(files_path_prefix + "mask", "rb")
 binary_values = maskfile.read(29141)
 maskfile.close()
 mask = unpack('?' * 29141, binary_values)
 mask = np.array(mask, dtype=int)
 
-variable_name = 'sp'
+# variable_name = 'sst'
+variable_name = 'slhf'
+# variable_name = 'mslhf'
 # load grib
 ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib',
                      backend_kwargs={'filter_by_keys': {'shortName': variable_name}})
