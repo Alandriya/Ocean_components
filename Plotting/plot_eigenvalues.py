@@ -74,7 +74,7 @@ def plot_eigenvalues(files_path_prefix: str,
             lambda_list.append(eigenvalues[l])
 
         np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t+offset}.npy', matrix_list[0])
-        continue
+        # continue
 
         date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t+offset)
         # fig.suptitle(f'Lambdas {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
@@ -101,9 +101,9 @@ def plot_eigenvalues(files_path_prefix: str,
             # fig.colorbar(img[i], cax=cax, orientation='vertical')
 
         fig.tight_layout()
-        # fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png')
-        print(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
-        fig.savefig(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
+        fig.savefig(files_path_prefix + f'videos/Eigenvalues/{names[0]}-{names[1]}/Lambdas_{t+offset}.png')
+        # print(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
+        # fig.savefig(files_path_prefix + f'videos/Joint_article/{names[0]}-{names[1]}_Lambdas_{t + offset}.png')
     plt.close(fig)
     return
 

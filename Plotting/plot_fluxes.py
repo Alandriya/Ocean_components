@@ -1,4 +1,5 @@
 import datetime
+import os.path
 from copy import deepcopy
 
 import matplotlib
@@ -188,9 +189,13 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start: int,
                         end: int,
                         start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
-                        start_pic_num: int = 1
+                        start_pic_num: int = 1,
+                        frequency: int = 1,
                         ):
     sns.set_style("whitegrid")
+
+    if not os.path.exists(files_path_prefix + f'videos/3D/flux-sst-press/hourly'):
+        os.mkdir(files_path_prefix + f'videos/3D/flux-sst-press/hourly')
 
     fig, axs = plt.subplots(1, 3, figsize=(20, 5))
     img_flux, img_sst, img_press = None, None, None
@@ -230,7 +235,13 @@ def plot_flux_sst_press(files_path_prefix: str,
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(start, end)):
-        date = start_date + datetime.timedelta(days=(t - start))
+        if frequency == 1:
+            date = start_date + datetime.timedelta(days=(t - start))
+            fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
+
+        elif frequency == 24:
+            date = start_date + datetime.timedelta(hours=(t - start))
+            fig.suptitle(f'{date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
         # fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
 
         if img_flux is None:
@@ -273,6 +284,6 @@ def plot_flux_sst_press(files_path_prefix: str,
         fig.colorbar(img_press, cax=cax_press, orientation='vertical')
 
         fig.tight_layout()
-        fig.savefig(files_path_prefix + f'videos/3D/flux-sst-press/{pic_num:05d}.png')
+        fig.savefig(files_path_prefix + f'videos/3D/flux-sst-press/hourly/{pic_num:05d}.png')
         pic_num += 1
     return

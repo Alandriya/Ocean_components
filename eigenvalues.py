@@ -77,6 +77,8 @@ def count_eigenvalues_pair(files_path_prefix: str,
 
     if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
         return
+    else:
+        print(f'Counting timestep {t + offset}')
 
     b_matrix = np.zeros((n_bins, n_bins))
     for i1 in range(0, n_bins):

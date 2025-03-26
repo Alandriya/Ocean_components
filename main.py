@@ -1,21 +1,23 @@
 
 import numpy as np
+import pandas as pd
 import scipy.linalg
 
+from struct import unpack
 # from Plotting.plot_Bel_coefficients import *
 # from SRS_count_coefficients import *
 # from Plotting.mean_year import *
-# from Plotting.video import *
+from Plotting.video import *
 from Plotting.plot_fluxes import *
-from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
-from Plotting.plot_extreme import *
+# from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
+# from Plotting.plot_extreme import *
 # from extreme_evolution import *
-from ABCF_coeff_counting import *
+# from ABCF_coeff_counting import *
 from eigenvalues import *
 from data_processing import load_ABCFE, load_prepare_fluxes
 
-files_path_prefix = '/home/aosipova/EM_ocean/'
-# files_path_prefix = 'D:/Nastya/Data/OceanFull/'
+# files_path_prefix = '/home/aosipova/EM_ocean/'
+files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 # files_path_prefix = 'D://Data/OceanFull/'
 
 # timesteps = 7320
@@ -43,7 +45,89 @@ if __name__ == '__main__':
     days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    # # ---------------------------------------------------------------------------------------
+    start_year = 2019
+    end_year = 2025
+    bins_amount = 1000
+    days_delta = days_delta5 + days_delta7
+    current_shift = 0
+
+    # # normalizing and collecting to bins
+    # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
+    #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
+    # else:
+    #     df = pd.read_excel(files_path_prefix + 'Scaling_df.xlsx')
+
+    # sst_grouped = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_grouped.npy')
+    # sst_min = np.nanmin(sst_grouped)
+    # sst_max = np.nanmax(sst_grouped)
+    # print(f'SST min = {sst_min}, max = {sst_max}')
+    # # df.loc[len(df)] = ['sst', start_year, sst_min, sst_max]
+    # sst = (sst_grouped - sst_min)/(sst_max - sst_min)
+    # del sst_grouped
+    # sst, _ = scale_to_bins(sst, bins_amount)
+    # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}_norm_scaled.npy', sst)
+    # del sst
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx')
+    #
+    # press_grouped = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # press_min = np.nanmin(press_grouped)
+    # press_max = np.nanmax(press_grouped)
+    # print(f'PRESS min = {press_min}, max = {press_max}')
+    # # df.loc[len(df)] = ['press', start_year, press_min, press_max]
+    # press = (press_grouped - press_min)/(press_max - press_min)
+    # del press_grouped
+    # press, _ = scale_to_bins(press, bins_amount)
+    # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_norm_scaled.npy', press)
+    # del press
+    # # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+    #
+    # flux_grouped = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # flux_min = np.nanmin(flux_grouped)
+    # flux_max = np.nanmax(flux_grouped)
+    # print(f'FLUX min = {flux_min}, max = {flux_max}')
+    # # df.loc[len(df)] = ['flux', start_year, flux_min, flux_max]
+    # flux = (flux_grouped - flux_min)/(flux_max - flux_min)
+    # del flux_grouped
+    # flux, _ = scale_to_bins(flux, bins_amount)
+    # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_norm_scaled.npy', flux)
+    # del flux
+    # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
+    # # ----------------------------------------------------------------------------------------------
+    # # count ABF coefficients 3d
+    # start_year = 2019
+    # end_year = 2025
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    #
+    # flux = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_norm_scaled.npy')
+    # sst = np.load(files_path_prefix + f'SST/SST_{start_year}-{end_year}_norm_scaled.npy')
+    # press = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_norm_scaled.npy')
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        sst,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='sst-press')
+    #
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        sst,
+    #                        time_start=0,
+    #                        time_end=sst.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-sst')
+    #
+    # count_abfe_coefficients(files_path_prefix,
+    #                        mask,
+    #                        flux,
+    #                        press,
+    #                        time_start=0,
+    #                        time_end=flux.shape[1] - 1,
+    #                        offset=offset,
+    #                        pair_name='flux-press')
+    # # ----------------------------------------------------------------------------------------------
     # # Plot fluxes
     # sensible_array = np.load(files_path_prefix + 'Fluxes/sensible_grouped_2019-2022.npy')
     # sensible_array[np.logical_not(mask), :] = np.nan
@@ -171,46 +255,42 @@ if __name__ == '__main__':
     # SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
     # press_array = np.load(files_path_prefix + f'Pressure/PRESS_1979-1989_grouped.npy')
 
-    t = 0
-    cpu_amount = 4
-
+    # t = 0
+    # cpu_amount = 4
+    #
     n_bins = 100
-    # offset = 0
-    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
-
-    flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
-    SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
-    press_array_grouped, quantiles_press = scale_to_bins(press_array, n_bins)
-    np.save(files_path_prefix + f'Eigenvalues\quantiles_flux_{n_bins}.npy', quantiles_flux)
-    np.save(files_path_prefix + f'Eigenvalues\quantiles_sst_{n_bins}.npy', quantiles_sst)
-    np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
-
-    print('Counting eigen')
+    # # offset = 0
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    #
+    # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
+    # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
+    # press_array_grouped, quantiles_press = scale_to_bins(press_array, n_bins)
+    # np.save(files_path_prefix + f'Eigenvalues\quantiles_flux_{n_bins}.npy', quantiles_flux)
+    # np.save(files_path_prefix + f'Eigenvalues\quantiles_sst_{n_bins}.npy', quantiles_sst)
+    # np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
+    #
+    # print('Counting eigen')
     count_eigenvalues_triplets(files_path_prefix,
                                0, flux_array, SST_array, press_array, mask, offset, n_bins)
-    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'),
-                  ('Flux', 'Pressure'), ('SST', 'Pressure')]:
-        count_mean_year(files_path_prefix, 1979, 2024, names, mask.reshape((161, 181)))
+    for pair_name in ['Flux-Flux', 'Flux-SST', 'Flux-Pressure', 'SST-SST', 'Pressure-Pressure', 'SST-Pressure']:
+        create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvectors', start=offset)
 
-
-    # create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvalues', start=14610)
-
-    t_start = 0
-    t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7
-
-
-    for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'),
-                  ('Flux', 'Pressure'), ('SST', 'Pressure')]:
-        plot_mean_year(files_path_prefix, names)
-        get_trends(files_path_prefix, t_start, t_end, names)
-        # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
-        print(names)
-        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
-        plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
-
-    start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
-    plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
-                        start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    # t_start = 0
+    # t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7
+    #
+    #
+    # for names in [('Flux', 'Flux'), ('SST', 'SST'), ('Pressure', 'Pressure'), ('Flux', 'SST'),
+    #               ('Flux', 'Pressure'), ('SST', 'Pressure')]:
+    #     plot_mean_year(files_path_prefix, names)
+    #     get_trends(files_path_prefix, t_start, t_end, names)
+    #     # plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 7, names)
+    #     print(names)
+    #     plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 30, names)
+    #     plot_eigenvalues_extreme(files_path_prefix, t_start, t_end, 365, names)
+    #
+    # start_date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days= days_delta1 + days_delta2 + days_delta3 + days_delta4)
+    # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1], start_date=start_date,
+    #                     start_pic_num= days_delta1 + days_delta2 + days_delta3 + days_delta4)
     # print(days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7)
     # print('$\\lambda_1=$')
 
@@ -431,3 +511,18 @@ if __name__ == '__main__':
     # plot_extreme_3d(files_path_prefix, 'a', 1, 16071, mean_days,
     #                 fit_regression=True,
     #              fit_sinus=False, fit_fourier_flag=False)
+
+    # flux_array = np.load()
+    # SST_array = np.load(files_path_prefix + f'DATA/SST_2024_hourly.npy')
+    # press_array = np.load(files_path_prefix + f'DATA/PRESS_2024_hourly.npy')
+    # flux_array = np.zeros_like(SST_array)
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # start_year = 2024
+    # SST_array = np.moveaxis(SST_array, (0, 1), (1, 0))
+    # press_array = np.moveaxis(press_array, (0, 1), (1, 0))
+    # flux_array = np.moveaxis(flux_array, (0, 1), (1, 0))
+    #
+    # plot_flux_sst_press(files_path_prefix, flux_array, SST_array, press_array, 0, flux_array.shape[1],
+    #                     start_date=datetime.datetime(start_year, 1, 1, 0, 0),
+    #                     start_pic_num=offset)
+

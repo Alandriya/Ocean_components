@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 
 import matplotlib.colors as colors
 import numpy as np
@@ -82,17 +83,20 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     :return:
     """
     video_name = files_path_prefix + f'videos/{name}.mp4'
-    # print(video_name)
+    print(video_name)
     # print(files_path_prefix + f'videos/{flux_type}/tmp/%05d.png')
+    # print(files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png")
+    # print(os.path.exists(files_path_prefix + tmp_dir))
     if os.path.exists(video_name):
         os.remove(video_name)
-    # subprocess.call([
-    #     'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
-    #     '-r', '5', '-pix_fmt', 'yuv420p', video_name,
-    # ])
     subprocess.call([
-        './ffmpeg-7.0-amd64-static/ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
+        'ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
         '-r', '5', '-pix_fmt', 'yuv420p', video_name,
     ])
+    time.sleep(5)
+    # subprocess.call([
+    #     './ffmpeg-7.0-amd64-static/ffmpeg', '-itsscale', str(speed), '-start_number', str(start), '-i', files_path_prefix + tmp_dir + f"{pic_prefix}%5d.png",
+    #     '-r', '5', '-pix_fmt', 'yuv420p', video_name,
+    # ])
 
     return

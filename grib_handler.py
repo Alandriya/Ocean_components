@@ -13,29 +13,30 @@ import pandas as pd
 files_path_prefix = 'D://Nastya/Data/OceanFull/'
 # data_postfix = '2022_sst+press'
 # data_postfix = '1979-1989_sst+press'
-data_postfix = 'flux+sst+press_2024-till_november'
+data_postfix = 'LATENT_2024_hourly'
 
 maskfile = open(files_path_prefix + "mask", "rb")
 binary_values = maskfile.read(29141)
 maskfile.close()
 mask = unpack('?' * 29141, binary_values)
 mask = np.array(mask, dtype=int)
+mask = mask.reshape((161, 181))
 
 # variable_name = 'sst'
-variable_name = 'slhf'
-# variable_name = 'mslhf'
+# variable_name = 'sp'
+variable_name = 'avg_slhtf'
 # load grib
-ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib',
-                     backend_kwargs={'filter_by_keys': {'shortName': variable_name}})
-# ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', cache=True)
-# print(ds.variables)
+# ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib', engine='cfgrib',
+#                      backend_kwargs={'filter_by_keys': {'shortName': variable_name}})
+ds = xr.open_dataset(files_path_prefix + f'GRIB/{data_postfix}.grib')
+print(ds.variables)
 # raise ValueError
 # print(ds.coords['valid_time'])
 # raise ValueError
 # print(ds.coords['time'].shape)
+# raise ValueError
 
-
-# variable_name = 'sp'
+# variable_name = 'sst'
 # variable_name = 'mslhf'
 tmp = ds.variables[variable_name]
 gc.collect()
@@ -43,12 +44,12 @@ gc.collect()
 if variable_name in ['sst', 'sp']:
     tmp = tmp[:, ::2, ::2]
     shape = tmp.shape
-    print(tmp.shape)
-    tmp_new = tmp.data.reshape((-1, shape[1] * shape[2])).transpose()
-    del tmp
-    tmp_new = np.array(tmp_new)
-    tmp_new[np.logical_not(mask), :] = np.nan
-    np.save(files_path_prefix + f'{variable_name}_{data_postfix}.npy', tmp_new)
+    # print(tmp.shape)
+    # tmp_new = tmp.data.reshape((-1, shape[1] * shape[2])).transpose()
+    # del tmp
+    # tmp_new = np.array(tmp_new)
+    # tmp[:, np.where(np.logical_not(mask))[0], np.where(np.logical_not(mask))[1]] = np.nan
+    np.save(files_path_prefix + f'DATA/{data_postfix}.npy', tmp)
 
     # data_numpy = np.zeros((161, 181, shape[0]))
     #
@@ -69,10 +70,10 @@ else:
         for i in range(161):
             data_numpy[i, :, t * shape[1]:(t+1)*shape[1]] = tmp[t, :, i, :].data.transpose()
 
-    del tmp
-    data_numpy = data_numpy.reshape((-1, data_numpy.shape[2]))
-    print(data_numpy.shape)
-    data_numpy[np.logical_not(mask), :] = np.nan
+    # del tmp
+    # data_numpy = data_numpy.reshape((-1, data_numpy.shape[2]))
+    # print(data_numpy.shape)
+    # data_numpy[np.logical_not(mask), :] = np.nan
 
     np.save(files_path_prefix + f'Fluxes/{variable_name}_{data_postfix}.npy', data_numpy)
 

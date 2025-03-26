@@ -65,5 +65,10 @@ if __name__ == '__main__':
     t = t_start
 
     n_bins = 100
-    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4
+    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
     count_eigenvalues_triplets(files_path_prefix, 0, flux_array, SST_array, press_array, mask, offset, n_bins)
+
+    count_eigenvalues_triplets(files_path_prefix,
+                               0, flux_array, SST_array, press_array, mask, offset, n_bins)
+    for pair_name in ['Flux-Flux', 'Flux-SST', 'Flux-Pressure', 'SST-SST', 'Pressure-Pressure', 'SST-Pressure']:
+        create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvectors', start=offset)
