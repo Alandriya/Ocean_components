@@ -67,12 +67,12 @@ The considered North Atlantic region is represented as a grid which boundaries i
 degrees, and in longitude from $0$ to $80$ degrees. Here you can see some of the maps with the examples of the created 
 plots:
 
-![](video examples\16436.png)
+<img src="https://github.com/Alandriya/Ocean_components/blob/e4c051c70628421a7656b5755406fc4b18d98974/video%20examples/16436.png" width="300">
 <center>An example of the data used: total heat flux, SST and surface pressure, averaged data for January, $1$, 
 $2024$.
 </center>
 
-![](video examples\press-press_eigenvectors.png)
+<img src="https://github.com/Alandriya/Ocean_components/blob/e4c051c70628421a7656b5755406fc4b18d98974/video%20examples/press-press_eigenvectors.png" width="300">
 <center>The first three eigenvectors from the ordered set for the Pressure-Pressure pair on 
 $01.01.23$, $01.04.23$, $01.07.23$ and $01.10.23$
 </center>
