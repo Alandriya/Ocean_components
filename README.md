@@ -26,7 +26,7 @@ Flux variable (considering 3, 5, 7 and 10 days length horizons);
 - **Video examples** folder contains several examples of the short videos of the coefficients estimations and eigenvectors, 
 which could be created with this software.
 
-## Installation from github
+## Installation from Github
 If you want to use this code, you should follow the following steps.
 
 ### 1. Download 
