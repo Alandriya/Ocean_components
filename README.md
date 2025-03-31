@@ -4,9 +4,11 @@
 This repository contains python scripts for parsing, plotting, estimating and predicting oceanic data 
 of several variables (sensible and latent heat fluxes, their sum, sea surface temperature - SST and atmospheric pressure)
 in the area of North Atlantic, implementing the It'o stochastic differential equation (SDE) model:
+
 $$
     dX = a(t,X)\,dt + b(t, X)\,dW(t), 
 $$
+
 where $X(t)$ is a random process whose values represent the values of the observed variables,
 $a(t,X)$ is a drift coefficient and $b(t,X)$ is a diffusion coefficient, $dW(t)$ are the increments of the Wiener 
 process (a Gaussian white noise).
@@ -59,6 +61,21 @@ For **all other aims** (constructing the random coefficients estimations or the 
 Karhunen-Lo'eve decomposition of the diffusion coefficient, getting the extreme trends, etc.) you should launch 
 the main.py script, uncommenting the needed sections. Some old sections of the main.py script can be found in the 
 Data_processing/main_parts.py script.
+
+## Visual representation
+The considered North Atlantic region is represented as a grid which boundaries in latitude range from $-90$ to $0$ 
+degrees, and in longitude from $0$ to $80$ degrees. Here you can see some of the maps with the examples of the created 
+plots:
+
+![](video examples\16436.png)
+<center>An example of the data used: total heat flux, SST and surface pressure, averaged data for January, $1$, 
+$2024$.
+</center>
+
+![](video examples\press-press_eigenvectors.png)
+<center>The first three eigenvectors from the ordered set for the Pressure-Pressure pair on 
+$01.01.23$, $01.04.23$, $01.07.23$ and $01.10.23$
+</center>
 
 ## Related publications
 If you use this repository in your work, please consider citing one or more of these publications:
