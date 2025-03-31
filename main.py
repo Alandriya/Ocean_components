@@ -13,8 +13,8 @@ from Plotting.plot_fluxes import *
 # from Plotting.plot_extreme import *
 # from extreme_evolution import *
 # from ABCF_coeff_counting import *
-from eigenvalues import *
-from data_processing import load_ABCFE, load_prepare_fluxes
+from Eigenvalues.eigenvalues import *
+from Data_processing.data_processing import load_ABCFE, load_prepare_fluxes
 
 # files_path_prefix = '/home/aosipova/EM_ocean/'
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
@@ -270,8 +270,11 @@ if __name__ == '__main__':
     # np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
     #
     # print('Counting eigen')
+    print(offset  + days_delta7)
+    # raise ValueError
     count_eigenvalues_triplets(files_path_prefix,
-                               0, flux_array, SST_array, press_array, mask, offset, n_bins)
+                               0, flux_array, SST_array, press_array, mask,
+                               offset, n_bins)
     for pair_name in ['Flux-Flux', 'Flux-SST', 'Flux-Pressure', 'SST-SST', 'Pressure-Pressure', 'SST-Pressure']:
         create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvectors', start=offset)
 

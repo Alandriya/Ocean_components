@@ -77,7 +77,7 @@ def plot_eigenvalues(files_path_prefix: str,
         # continue
 
         date = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=t+offset)
-        # fig.suptitle(f'Lambdas {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
+        fig.suptitle(f'Eigenvectors {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")}', fontsize=20)
         for i in range(n_lambdas):
             axs[i].set_title(f'$\\lambda_{i + 1}$ = {lambda_list[i]:.2e}', fontsize=12)
             # divider = make_axes_locatable(axs[i])
