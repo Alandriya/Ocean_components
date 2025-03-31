@@ -1,9 +1,11 @@
-import numpy as np
 import os
 import random
+
+import numpy as np
 import torch
-from Forecasting.config import cfg
+
 from Forecasting.SSIM import get_SSIM
+from Forecasting.config import cfg
 from Forecasting.loader import load_mask
 
 IN_LEN = cfg.in_len

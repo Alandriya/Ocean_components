@@ -1,6 +1,8 @@
-from torch import nn
-import torch
 import sys
+
+import torch
+from torch import nn
+
 sys.path.append("..")
 from Forecasting.config import cfg
 

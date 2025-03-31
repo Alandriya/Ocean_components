@@ -1,15 +1,13 @@
-import numpy as np
-from struct import unpack
-import matplotlib.pyplot as plt
 import datetime
-import matplotlib
-import pylab
 import os
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy
 import seaborn as sns
 import tqdm
-
 from VarGamma import fit_ml, pdf, cdf
-import scipy
 from scipy.stats import pearsonr
 
 

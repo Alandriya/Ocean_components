@@ -9,9 +9,6 @@ import matplotlib
 import seaborn as sns
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
-import numpy, scipy.optimize
-from data_processing import load_ABCFE
-from symfit import parameters, variables, sin, cos, Fit
 from sklearn.metrics import r2_score
 from extreme_evolution import fit_sin, fit_fourier, fit_linear, rmse
 

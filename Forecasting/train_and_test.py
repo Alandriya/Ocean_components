@@ -1,11 +1,13 @@
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-from Forecasting.utils import *
-from Forecasting.config import cfg
-from Plotting.nn_plotter import plot_predictions
-import time
 import datetime
 import shutil
+import time
+
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+
+from Forecasting.config import cfg
+from Forecasting.utils import *
+from Plotting.nn_plotter import plot_predictions
 
 
 def train(train_data, model, criterion, optimizer, mask, model_save_path):

@@ -1,40 +1,25 @@
 from struct import unpack
 import datetime
-import numpy as np
-import tqdm
-from sklearn.metrics import mean_absolute_percentage_error
-from plotter import plot_predictions
 from sklearn import linear_model
 from sklearn.multioutput import MultiOutputRegressor
-from sklearn.ensemble import GradientBoostingRegressor
 # from skimage.metrics import structural_similarity as ssim
-from SSIM import get_SSIM
 # import tensorflow as tf
 import sys
-import torch
+
 # SHORT_POSTFIX = '_short'
 SHORT_POSTFIX = ''
 files_path_prefix = 'E:/Nastya/Data/OceanFull/'
-from config import cfg
 import copy
 from loader import Data2
-import torch
-from torch import nn
-from model import Model
 # from models.encoder_decoder import Encoder_Decoder
-from models.attetion_unet import AttU_Net
-from models.dense_unet import DenseU_Net
 from loss import *
-import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from loader import count_offset, load_mask, create_dataloaders
+from loader import count_offset, load_mask
 import argparse
-from collections import OrderedDict
 from utils import *
-from plotter import plot_train_loss, plot_predictions
 from utils import normalize_data_cuda
-from loader import scale_to_bins, load_np_data, Data2
+from loader import Data2
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 
 if __name__ == '__main__':

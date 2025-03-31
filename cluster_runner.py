@@ -1,17 +1,12 @@
 import argparse
-import numpy as np
-import pandas as pd
-from struct import unpack
-import os
-from scipy.linalg import sqrtm
-from scipy.linalg.interpolative import estimate_spectral_norm
-from numpy.linalg import norm
-from multiprocessing import Pool
 import datetime
+from struct import unpack
+
+import numpy as np
+
 # from eigenvalues import count_eigenvalues_parralel, scale_to_bins
-from Eigenvalues.eigenvalues import count_eigenvalues_triplets, count_mean_year, get_trends
+from Eigenvalues.eigenvalues import count_eigenvalues_triplets
 from Plotting.video import create_video
-import copy
 
 files_path_prefix = '/home/aosipova/EM_ocean/'
 

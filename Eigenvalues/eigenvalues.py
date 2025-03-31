@@ -1,10 +1,11 @@
-import numpy as np
-import tqdm
-import os
-from scipy.linalg import sqrtm
-import gc
-from Plotting.plot_eigenvalues import plot_eigenvalues
 import datetime
+import gc
+import os
+
+import numpy as np
+from scipy.linalg import sqrtm
+
+from Plotting.plot_eigenvalues import plot_eigenvalues
 
 
 def scale_to_bins(arr, bins=100):

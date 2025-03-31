@@ -1,15 +1,16 @@
+import datetime
 import os
-import tqdm
+from copy import deepcopy
+
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import datetime
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.colors as colors
-from copy import deepcopy
-from data_processing import EM_dataframes_to_grids
 import plotly.express as px
+import tqdm
+from data_processing import EM_dataframes_to_grids
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from video import truncate_colormap
 
 

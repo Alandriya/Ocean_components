@@ -1,17 +1,17 @@
 import copy
 import math
+import os
+from multiprocessing import Pool
+from struct import unpack
 
-from skimage.measure import block_reduce
-from scipy.stats import pearsonr
 import numpy as np
 import tqdm
-from struct import unpack
-from multiprocessing import Pool
-import os
+from data_processing import scale_to_bins
+from numpy.linalg import norm
 from scipy.linalg import sqrtm
 from scipy.linalg.interpolative import estimate_spectral_norm
-from numpy.linalg import norm
-from data_processing import scale_to_bins
+from scipy.stats import pearsonr
+from skimage.measure import block_reduce
 
 files_path_prefix = 'D://Data/OceanFull/'
 

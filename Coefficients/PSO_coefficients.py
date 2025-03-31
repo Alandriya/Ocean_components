@@ -1,30 +1,16 @@
 import random
 import time
+from math import exp, pi, sqrt
 
 import numpy as np
-import pyswarms as ps
-from pyswarms.single.global_best import GlobalBestPSO
-import math
-from math import inf, exp, pi, sqrt
-import statsmodels.api as sm
-from sklearn.mixture import GaussianMixture
-import matplotlib.pyplot as plt
-import scipy.stats as ss
-from scipy.special import rel_entr
-import pyquil
 import scipy
-from forest.benchmarking.distance_measures import total_variation_distance
-
-import swarmlib
-from swarmlib import PSOProblem
-
-
-import pymoo
+import scipy.stats as ss
+import statsmodels.api as sm
 from pymoo.algorithms.soo.nonconvex.pso import PSO
-from pymoo.algorithms.soo.nonconvex.nelder import NelderMead
-from pymoo.algorithms.soo.nonconvex.ga import GA
-from pymoo.optimize import minimize
 from pymoo.core.problem import Problem
+from pymoo.optimize import minimize
+from pyswarms.single.global_best import GlobalBestPSO
+from sklearn.mixture import GaussianMixture
 
 
 class MixtureProblem(Problem):

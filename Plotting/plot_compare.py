@@ -1,12 +1,14 @@
-import matplotlib.pyplot as plt
 import datetime
-import numpy as np
-from Plotting.video import get_continuous_cmap
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import math
-import matplotlib.dates as mdates
 import os
+
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import numpy as np
 import tqdm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from Plotting.video import get_continuous_cmap
 
 
 def plot_Kor_Bel_histograms(files_path_prefix: str,

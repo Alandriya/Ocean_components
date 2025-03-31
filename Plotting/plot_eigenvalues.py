@@ -1,12 +1,12 @@
 import datetime
 import os
-import numpy as np
+
 import matplotlib.pyplot as plt
-import tqdm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import numpy as np
 # import tqdm
 # from Plotting.video import get_continuous_cmap
 import seaborn as sns
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 x_label_list = ['90W', '60W', '30W', '0']
 y_label_list = ['EQ', '30N', '60N', '80N']

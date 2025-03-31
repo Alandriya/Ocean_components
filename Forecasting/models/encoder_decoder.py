@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 from Forecasting.config import cfg
 
 

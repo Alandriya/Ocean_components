@@ -1,6 +1,7 @@
 import numpy as np
-from torch import nn
 import torch
+from torch import nn
+
 from Forecasting.config import cfg
 
 

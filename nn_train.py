@@ -1,14 +1,15 @@
 # ..\Venv\Scripts\activate
 # run: torchrun --nproc_per_node=1 --master_port 39985 nn_train.py
-import os
 import datetime
+import os
+
 from Forecasting.config import cfg
+
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 # from models.encoder_decoder import Encoder_Decoder
 from Forecasting.models.attetion_unet import AttU_Net
-from Forecasting.models.dense_unet import DenseU_Net
 from Forecasting.loss import Loss_MSE
-from Forecasting.loader import load_mask, Data
+from Forecasting.loader import Data
 import argparse
 from collections import OrderedDict
 from Forecasting.utils import *

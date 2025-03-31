@@ -1,18 +1,14 @@
-import os.path
 import os
+import os.path
+
+import numpy
 import numpy as np
+import scipy.optimize
 import tqdm
-import matplotlib.pyplot as plt
-import datetime
-import matplotlib.dates as mdates
-import matplotlib
-import seaborn as sns
 from scipy.optimize import curve_fit
-from scipy.stats import linregress
-import numpy, scipy.optimize
-from data_processing import load_ABCFE
 from symfit import parameters, variables, sin, cos, Fit
-from sklearn.metrics import r2_score
+
+from data_processing import load_ABCFE
 
 
 def fit_linear(x, a, b):

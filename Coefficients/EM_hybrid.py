@@ -1,13 +1,10 @@
-import pandas as pd
-import numpy as np
-import tqdm
 from math import exp, pi, sqrt
-from sklearn.mixture import GaussianMixture
-from scipy.optimize import minimize
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from sklearn.cluster import KMeans
-import pyswarms as ps
-from pyswarms.single.global_best import GlobalBestPSO
+from sklearn.mixture import GaussianMixture
 
 
 def l2_to_PSO(params, x, hist, n_components):

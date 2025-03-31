@@ -3,13 +3,13 @@ import os.path
 from copy import deepcopy
 
 import matplotlib
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from Plotting.video import get_continuous_cmap
-import seaborn as sns
 
 
 def plot_flux_correlations(files_path_prefix: str,

@@ -1,13 +1,9 @@
 import gc
-import os.path
+from struct import unpack
 
-import cfgrib
+import numpy as np
 import tqdm
 import xarray as xr
-import numpy as np
-from struct import unpack
-import datetime
-import pandas as pd
 
 # files_path_prefix = 'D://Data/OceanFull/'
 files_path_prefix = 'D://Nastya/Data/OceanFull/'

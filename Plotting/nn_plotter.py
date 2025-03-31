@@ -1,16 +1,15 @@
 import copy
 import datetime
 import os
-from sklearn.metrics import mean_absolute_percentage_error
-from sklearn.metrics import mean_squared_error
+
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
-import tqdm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.colors as colors
-from Forecasting.config import cfg
 # files_path_prefix = 'D://Data/OceanFull/'
 import seaborn as sns
+import tqdm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 
 def hex_to_rgb(value):
     """

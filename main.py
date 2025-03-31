@@ -1,20 +1,14 @@
-
-import numpy as np
-import pandas as pd
-import scipy.linalg
-
 from struct import unpack
-# from Plotting.plot_Bel_coefficients import *
-# from SRS_count_coefficients import *
-# from Plotting.mean_year import *
-from Plotting.video import *
-from Plotting.plot_fluxes import *
+
 # from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
 # from Plotting.plot_extreme import *
 # from extreme_evolution import *
 # from ABCF_coeff_counting import *
 from Eigenvalues.eigenvalues import *
-from Data_processing.data_processing import load_ABCFE, load_prepare_fluxes
+# from Plotting.plot_Bel_coefficients import *
+# from SRS_count_coefficients import *
+# from Plotting.mean_year import *
+from Plotting.video import *
 
 # files_path_prefix = '/home/aosipova/EM_ocean/'
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'

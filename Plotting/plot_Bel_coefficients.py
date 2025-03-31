@@ -1,16 +1,17 @@
-import os.path
-
-import numpy as np
 import datetime
 import gc
+import os.path
+
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-import tqdm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from Plotting.video import get_continuous_cmap
-import seaborn as sns
+import numpy as np
 import scipy
+import seaborn as sns
+import tqdm
 from VarGamma import fit_ml, pdf, cdf
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from Plotting.video import get_continuous_cmap
 
 x_label_list = ['90W', '60W', '30W', '0']
 y_label_list = ['EQ', '30N', '60N', '80N']

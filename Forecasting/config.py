@@ -4,8 +4,9 @@ files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 # SHORT_POSTFIX = '_short'
 
 import os
-import numpy as np
 from collections import OrderedDict
+
+import numpy as np
 
 
 class OrderedEasyDict(OrderedDict):

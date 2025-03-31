@@ -6,8 +6,8 @@ from struct import unpack
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from EM_hybrid import *
-from Plotting.video import get_continuous_cmap
 from Kor_Bel_compare import plot_difference_1d
+from Plotting.video import get_continuous_cmap
 
 width = 181
 height = 161

@@ -1,10 +1,12 @@
-import numpy as np
 import datetime
+
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from Plotting.video import get_continuous_cmap
+import numpy as np
 import tqdm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from Plotting.video import get_continuous_cmap
 
 width = 181
 height = 161

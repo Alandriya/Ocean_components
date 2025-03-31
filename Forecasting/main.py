@@ -1,23 +1,20 @@
 # ..\venv_base\Scripts\activate
 # run: torchrun --nproc_per_node=4 --master_port 39985 main.py 3 2019
 import os
+
 from config import cfg
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 
 import torch
 from torch import nn
-from model import Model
 from models.encoder_decoder import Encoder_Decoder
 from loss import Loss
 from train_and_test import train_and_test, test
-from net_params import nets
 import random
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.distributed as dist
 from loader import create_dataloaders, count_offset
 import argparse
 from collections import OrderedDict

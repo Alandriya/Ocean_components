@@ -1,10 +1,8 @@
 # from numpy.ma.core import max_val, min_val
-from scipy import signal
-from scipy.ndimage.filters import convolve
-from Forecasting.config import cfg
 import numpy as np
-import torch
 from skimage.metrics import structural_similarity as ssim
+
+from Forecasting.config import cfg
 
 
 def get_SSIM(prediction, truth, mask=None):
