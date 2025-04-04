@@ -1,0 +1,15 @@
+services:
+  pytorch-app:
+    build:
+      context: .
+
+    volumes:
+      - /Python projects/Ocean_components/Logs:/app/output
+    ports:
+      - 8000:8000
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+    command: python3 nn_train.py
+
