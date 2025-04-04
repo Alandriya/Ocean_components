@@ -2,7 +2,6 @@
 # run: torchrun --nproc_per_node=1 --master_port 39985 nn_train.py
 import datetime
 import os
-
 from Forecasting.config import cfg
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
@@ -13,20 +12,24 @@ from Forecasting.loader import Data
 import argparse
 from collections import OrderedDict
 from Forecasting.utils import *
-from Forecasting.train_and_test import train
+from Forecasting.train import train
 
 
 if __name__ == '__main__':
     fix_random(2024)
-    cfg.nn_mode = 'train'
+
     mask = load_mask(cfg.root_path)
+    logs_filename = f'{cfg.root_path}/{cfg.nn_mode}_logs.txt'
+    # logs_file = open(logs_filename, 'w')
+    # logs_file.write(f'CUDA {torch.cuda.is_available()}')
+    print(f'CUDA is availiable: {torch.cuda.is_available()}')
 
     LR = cfg.LR
     parser = argparse.ArgumentParser()
 
     # parallel group
     torch.distributed.init_process_group(backend="gloo")
-    threads = cfg.dataloader_thread
+    # threads = cfg.dataloader_thread
 
     model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
 
@@ -46,13 +49,15 @@ if __name__ == '__main__':
     # model_load_path = model_save_path
     if cfg.nn_mode == 'test':
         model_load_path = model_save_path
-    model = model.cuda()
+    # model = model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=False)
 
     # reading model weights if save exists
     print(f'Trying to read {model_load_path},\n exists = {os.path.exists(model_load_path)}\n')
-    if cfg.LOAD_MODEL and os.path.exists(model_load_path):
+    # logs_file.write(f'Trying to read {model_load_path},\n exists = {os.path.exists(model_load_path)}\n')
+    if cfg.LOAD_MODEL and os.path.exists(model_load_path) and cfg.nn_mode == 'test':
         print('Loading model')
+        # logs_file.write('Loading model')
         # original saved file with DataParallel
         state_dict = torch.load(model_load_path)
         new_state_dict = OrderedDict()
@@ -68,6 +73,7 @@ if __name__ == '__main__':
     days_delta2 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
     train_data = Data(cfg, 0, days_delta1)
     test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2)
-
     train(train_data, model, criterion, optimizer, mask, model_save_path)
+
+    # logs_file.close()
 

@@ -1,7 +1,7 @@
 # files_path_prefix = '/home/aosipova/EM_ocean/'
-SHORT_POSTFIX = ''
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
-# SHORT_POSTFIX = '_short'
+# files_path_prefix = ''
+
 
 import os
 from collections import OrderedDict
@@ -47,11 +47,11 @@ cfg = OrderedEasyDict()
 cfg.features_amount = 3
 # ConvLSTM  MS-LSTM  Att-Unet Transformer
 cfg.model_name = 'Attention U-net'
+cfg.nn_mode = 'train'
 
 cfg.bins = 100
 cfg.LOAD_MODEL = True
 cfg.DELETE_OLD_MODEL = False
-cfg.postfix_short = SHORT_POSTFIX
 cfg.channels = 1
 cfg.A_coeff_weight = 0.5
 cfg.B_coeff_weight = 0.3

@@ -47,7 +47,7 @@ def load_np_data(files_path_prefix, start_year, end_year):
 
 def load_mask(files_path_prefix):
     # Mask
-    maskfile = open(files_path_prefix + "mask", "rb")
+    maskfile = open(files_path_prefix + "DATA/mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)

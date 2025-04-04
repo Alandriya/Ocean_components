@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from models.encoder_decoder import Encoder_Decoder
 from loss import Loss
-from train_and_test import train_and_test, test
+from train import train_and_test, test
 import random
 import numpy as np
 from torch.utils.data import DataLoader
