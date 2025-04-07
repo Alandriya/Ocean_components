@@ -19,9 +19,6 @@ if __name__ == '__main__':
     fix_random(2024)
 
     mask = load_mask(cfg.root_path)
-    logs_filename = f'{cfg.root_path}/{cfg.nn_mode}_logs.txt'
-    # logs_file = open(logs_filename, 'w')
-    # logs_file.write(f'CUDA {torch.cuda.is_available()}')
     print(f'CUDA is availiable: {torch.cuda.is_available()}')
 
     LR = cfg.LR
@@ -49,7 +46,7 @@ if __name__ == '__main__':
     # model_load_path = model_save_path
     if cfg.nn_mode == 'test':
         model_load_path = model_save_path
-    # model = model.cuda()
+    model = model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=False)
 
     # reading model weights if save exists
@@ -57,7 +54,6 @@ if __name__ == '__main__':
     # logs_file.write(f'Trying to read {model_load_path},\n exists = {os.path.exists(model_load_path)}\n')
     if cfg.LOAD_MODEL and os.path.exists(model_load_path) and cfg.nn_mode == 'test':
         print('Loading model')
-        # logs_file.write('Loading model')
         # original saved file with DataParallel
         state_dict = torch.load(model_load_path)
         new_state_dict = OrderedDict()
@@ -75,5 +71,4 @@ if __name__ == '__main__':
     test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2)
     train(train_data, model, criterion, optimizer, mask, model_save_path)
 
-    # logs_file.close()
 

@@ -1,8 +1,6 @@
 import datetime
-import shutil
 import time
 
-import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
@@ -28,8 +26,8 @@ def test(test_data, model, mask):
                 print(f'time elapsed: {int((time.time() - time_start)/60)} minutes')
                 test_batch = normalize_data(test_batch, cfg.min_vals, cfg.max_vals)
                 input = test_batch[:, :cfg.in_len, :cfg.channels].clone()
-                # test_batch = test_batch.cuda()
-                # input = input.cuda()
+                test_batch = test_batch.cuda()
+                input = input.cuda()
                 test_pred_values = model(input)
 
                 test_batch_scaled = test_batch.clone().detach()
@@ -77,7 +75,6 @@ def test(test_data, model, mask):
                                          test_pred_numpy, cfg.model_name,
                                          cfg.features_amount, day, mask, cfg, postfix_simple=True)
                     break
-        logs_file.write(f'SSIM flux = {ssim_flux / amount:.4f}\n MSE flux = {mse_flux / amount:.4f}')
         print(f'SSIM flux = {ssim_flux / amount:.4f}')
         print(f'MSE flux = {mse_flux / amount:.4f}')
         return

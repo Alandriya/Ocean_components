@@ -23,8 +23,8 @@ def train(train_data, model, criterion, optimizer, mask, model_save_path):
             optimizer.zero_grad()
             train_batch = normalize_data(train_batch, cfg.min_vals, cfg.max_vals)
             input = train_batch[:, :cfg.in_len, :cfg.channels].clone()
-            # train_batch = train_batch.cuda()
-            # input = input.cuda()
+            train_batch = train_batch.cuda()
+            input = input.cuda()
             train_pred = model(input)
             loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
                              train_pred[:, :, :cfg.channels], mask)
