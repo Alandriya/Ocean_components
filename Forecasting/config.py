@@ -1,5 +1,5 @@
-# files_path_prefix = '/home/aosipova/EM_ocean/'
-files_path_prefix = 'D:/Nastya/Data/OceanFull/'
+files_path_prefix = '/home/aosipova/EM_ocean/'
+# files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 # files_path_prefix = ''
 
 
@@ -50,11 +50,11 @@ cfg.model_name = 'Attention U-net'
 cfg.nn_mode = 'train'
 
 cfg.bins = 100
-cfg.LOAD_MODEL = True
-cfg.DELETE_OLD_MODEL = False
+cfg.LOAD_MODEL = False
+cfg.DELETE_OLD_MODEL = True
 cfg.channels = 1
-cfg.A_coeff_weight = 0.5
-cfg.B_coeff_weight = 0.3
+cfg.A_coeff_weight = 0.3
+cfg.B_coeff_weight = 0.01
 
 cfg.gpu = '0, 1, 2, 3'
 cfg.gpu_nums = len(cfg.gpu.split(','))

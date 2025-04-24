@@ -1,4 +1,5 @@
 import datetime
+import os
 import shutil
 import time
 
@@ -42,8 +43,8 @@ def train(train_data, model, criterion, optimizer, mask, model_save_path):
         np.save(cfg.root_path + f'Losses/loss_{cfg.model_name}.npy', train_loss)
         torch.distributed.destroy_process_group()
         save_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH
-        if cfg.DELETE_OLD_MODEL and os.path.exists(save_path):
-            shutil.rmtree(save_path)
+        if cfg.DELETE_OLD_MODEL and os.path.exists(model_save_path):
+            os.remove(model_save_path)
         # model_save_path = os.path.join(save_path, 'models')
         log_save_path = os.path.join(save_path, 'logs')
         if not os.path.exists(save_path):

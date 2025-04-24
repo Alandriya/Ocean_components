@@ -24,6 +24,7 @@ if __name__ == '__main__':
     # logs_file = open(logs_filename, 'w')
     # logs_file.write(f'CUDA {torch.cuda.is_available()}')
     print(f'CUDA is availiable: {torch.cuda.is_available()}')
+    weights = [1, cfg.A_coeff_weight, cfg.B_coeff_weight]
 
     LR = cfg.LR
     parser = argparse.ArgumentParser()
@@ -72,8 +73,8 @@ if __name__ == '__main__':
     # create train and test dataloaders, train from 01.01.1979 to 01.01.2024, test from 01.01.2024 to 28.11.2024
     days_delta1 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
     days_delta2 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
-    train_data = Data(cfg, 0, days_delta1)
-    test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2)
+    train_data = Data(cfg, 0, days_delta1, weights)
+    test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2, weights)
     test(test_data, model, mask)
 
     # logs_file.close()

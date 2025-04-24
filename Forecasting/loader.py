@@ -57,7 +57,7 @@ def load_mask(files_path_prefix):
 
 
 class Data(Dataset):
-    def __init__(self, cfg, start_idx, end_idx):
+    def __init__(self, cfg, start_idx, end_idx, weights):
         super().__init__()
         self.features_amount = cfg.features_amount
         self.in_len = cfg.in_len
@@ -66,11 +66,13 @@ class Data(Dataset):
         self.width = cfg.width
         self.start_idx = start_idx
         self.end_idx = end_idx
+        self.weights = weights
 
         self.flux_array = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_grouped_diff.npy')[start_idx:end_idx]
         # self.sst_array = np.load(cfg.root_path + f'DATA/SST_1979-2025_grouped_diff.npy')[start_idx:end_idx]
         # self.press_array = np.load(cfg.root_path + f'DATA/PRESS_1979-2025_grouped_diff.npy')[start_idx:end_idx]
         np.nan_to_num(self.flux_array, copy=False)
+        self.flux_array *= self.weights[0]
         # np.nan_to_num(self.sst_array, copy=False)
         # np.nan_to_num(self.press_array, copy=False)
 
@@ -99,45 +101,10 @@ class Data(Dataset):
 
         self.A_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_a_coeff.npy')[start_idx:end_idx]
         np.nan_to_num(self.A_flux, copy=False)
+        self.A_flux *= self.weights[1]
         self.B_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_b_coeff.npy')[start_idx:end_idx]
         np.nan_to_num(self.B_flux, copy=False)
-
-        if cfg.features_amount >= 6:
-            self.A_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_a_coeff.npy')[start_idx:end_idx]
-            self.A_sst = np.load(cfg.root_path + f'DATA/SST_1979-2025_a_coeff.npy')[start_idx:end_idx]
-            self.A_press = np.load(cfg.root_path + f'DATA/PRESS_1979-2025_a_coeff.npy')[start_idx:end_idx]
-
-            np.nan_to_num(self.A_flux, copy=False)
-            np.nan_to_num(self.A_sst, copy=False)
-            np.nan_to_num(self.A_press, copy=False)
-
-        if self.features_amount == 9:
-            self.B_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_b_coeff.npy')[start_idx:end_idx]
-            self.B_sst = np.load(cfg.root_path + f'DATA/SST_1979-2025_b_coeff.npy')[start_idx:end_idx]
-            self.B_press = np.load(cfg.root_path + f'DATA/PRESS_1979-2025_b_coeff.npy')[start_idx:end_idx]
-
-            np.nan_to_num(self.B_flux, copy=False)
-            np.nan_to_num(self.B_sst, copy=False)
-            np.nan_to_num(self.B_press, copy=False)
-
-        if cfg.features_amount >= 12:
-            self.eigen_flux = np.load(cfg.root_path + f'DATA/FLUX_FLUX_1979-2025_eigen0.npy')[start_idx:end_idx]
-            self.eigen_sst = np.load(cfg.root_path + f'DATA/SST_SST_1979-2025_eigen0.npy')[start_idx:end_idx]
-            self.eigen_press = np.load(cfg.root_path + f'DATA/PRESS_PRESS_1979-2025_eigen0.npy')[start_idx:end_idx]
-
-            np.nan_to_num(self.eigen_flux, copy=False)
-            np.nan_to_num(self.eigen_sst, copy=False)
-            np.nan_to_num(self.eigen_press, copy=False)
-
-            self.eigen_flux_sst = np.load(cfg.root_path + f'DATA/FLUX_SST_1979-2025_eigen0.npy')[start_idx:end_idx]
-            self.eigen_flux_press = np.load(cfg.root_path + f'DATA/FLUX_PRESS_1979-2025_eigen0.npy')[start_idx:end_idx]
-            self.eigen_sst_press = np.load(cfg.root_path + f'DATA/SST_PRESS_1979-2025_eigen0.npy')[start_idx:end_idx]
-
-            np.nan_to_num(self.eigen_flux_sst, copy=False)
-            np.nan_to_num(self.eigen_flux_press, copy=False)
-            np.nan_to_num(self.eigen_sst_press, copy=False)
-        if self.features_amount >= 18:
-            self.eigenvalues = np.load(cfg.root_path + f'DATA/EIGENVALUES_1979-2025.npy')
+        self.B_flux *= self.weights[2]
 
     def __getitem__(self, index):
         sample = np.zeros((self.in_len + self.out_len, self.features_amount, self.height, self.width), dtype=float)
