@@ -1,12 +1,13 @@
 import numpy as np
 from scipy import stats
+from sklearn.mixture import GaussianMixture
 
 HIST_LEN = 30
 PROBS_MAX = 5
 CORR_LENGTH = 10
-WEIGHT_TRESHOLD = 0.5
+WEIGHT_TRESHOLD = 0.2
 WEIGHT_COEFF = 0.3
-import inspect
+NEIGH_COUNT = 8
 
 
 def count_weight(x_array, y_array):
@@ -82,7 +83,7 @@ class Graph:
                         else:
                             self.vertices[i].neighbours[get_idx(shift_x, shift_y)] = self.vertices[new_x * width + new_y]
 
-        self.weights = np.zeros((height * width, 8), dtype=float)
+        self.weights = np.zeros((height * width, NEIGH_COUNT), dtype=float)
         self.clusters = list()
 
     def fill_prev(self, array):
@@ -111,6 +112,7 @@ class Graph:
                         neighbour = self.vertices[i].neighbours[get_idx(shift_x, shift_y)]
                         if not isinstance(neighbour, Vertice):
                             continue
+                        self.weights[i, get_idx(shift_x, shift_y)] = count_weight(self.vertices[i].prev, neighbour.prev)
 
     def show_timestep(self, t):
         array = np.zeros((self.height, self.width), dtype=float)
@@ -120,36 +122,42 @@ class Graph:
                 array[x, y] = self.vertices[x * self.width + y].prev[t]
         return array
 
-    def update_forecast(self):
-        forecast = np.zeros((self.height, self.width))
-        for x in range(self.height):
-            for y in range(self.width):
-                i = x * self.width + y
-                if self.vertices[i].water:
-                    forecast[x, y] = self.vertices[i].forecast #fill
-                    all_weights = 1.0
-                    # update
-                    for shift_x in [-1, 0, 1]:
-                        for shift_y in [-1, 0, 1]:
-                            new_x = self.vertices[i].x + shift_x
-                            new_y = self.vertices[i].y + shift_y
-                            if not (shift_x == 0 and shift_y == 0) and (0 <= new_x < self.height) and \
-                                    (0 <= new_y < self.width) and self.mask[new_x, new_y]:
-                                idx = get_idx(shift_x, shift_y)
-                                weight = self.weights[i, idx]
-                                if weight > WEIGHT_TRESHOLD:
-                                    all_weights += weight * WEIGHT_COEFF
-                                    forecast[x, y] += weight * WEIGHT_COEFF * self.vertices[i].neighbours[idx].forecast
-
-                    forecast[x, y] /= all_weights
-                else:
-                    forecast[x, y] = np.nan
-
     def extract_cluster(self, remaining_weights):
         label = len(self.clusters)
         new_weights = np.copy(remaining_weights)
         vertices = list()
-        #TODO
+        if (new_weights[new_weights > 0].any()):
+            start = np.argmax(new_weights)
+        else:
+            start = np.argmax(np.abs(new_weights))
+
+        i_idx = start // NEIGH_COUNT
+        # delete vertice
+        new_weights[i_idx] = 0
+        for shift_x in [-1, 0, 1]:
+            for shift_y in [-1, 0, 1]:
+                new_x = self.vertices[i_idx].x + shift_x
+                new_y = self.vertices[i_idx].y + shift_y
+                if not (shift_x == 0 and shift_y == 0) and (0 <= new_x < self.height) and (0 <= new_y < self.width):
+                    new_weights[new_x * self.width + new_y, get_idx(-shift_x, -shift_y)] = 0
+
+        vertices.append(self.vertices[i_idx])
+        while new_weights[i_idx].any() and max(new_weights[i_idx]) > WEIGHT_TRESHOLD: #есть куда идти и связи достаточно сильные
+            n_idx = np.argmax(new_weights[i_idx])
+
+            # delete vertice
+            new_weights[i_idx] = 0
+            for shift_x in [-1, 0, 1]:
+                for shift_y in [-1, 0, 1]:
+                    new_x = self.vertices[i_idx].x + shift_x
+                    new_y = self.vertices[i_idx].y + shift_y
+                    if not (shift_x == 0 and shift_y == 0) and (0 <= new_x < self.height) and (0 <= new_y < self.width):
+                        new_weights[new_x * self.width + new_y, get_idx(-shift_x, -shift_y)] = 0
+
+            neighbour = self.vertices[i_idx].neighbours[n_idx]
+            vertices.append(neighbour)
+            i_idx = neighbour.x * self.width + neighbour.y
+
         cluster = Cluster(self.height, self.width, self.mask, vertices, label)
         return cluster, new_weights
 
@@ -157,19 +165,52 @@ class Graph:
         remaining_weights = np.copy(self.weights)
         while remaining_weights.any():
             cluster, remaining_weights = self.extract_cluster(remaining_weights)
+            # print(np.sum(remaining_weights))
             self.clusters.append(cluster)
-        #TODO check if lost not connected
+            # print(cluster.label)
+        return
 
     def color_clusters(self):
-        colored = np.zeros_like(self.mask)
-        colored[np.logical_not(self.mask)] = np.nan
+        colored = np.zeros_like(self.mask, dtype=int)
+        colored[np.logical_not(self.mask)] = -1
         for c in range(len(self.clusters)):
             label = self.clusters[c].label
             x_arr = np.array(self.clusters[c].x_list)
             y_arr = np.array(self.clusters[c].y_list)
-            colored[x_arr, y_arr] = label #TODO check
+            colored[x_arr, y_arr] = label
         return colored
 
-    def count_probs(self):
-        #TODO
-        pass
+    def count_probs(self, n_components):
+        for c in range(len(self.clusters)):
+            cluster = self.clusters[c]
+            all_prev = list()
+            for v in cluster.vertices:
+                all_prev += list(v.prev)
+
+            print(f'Cluster {c}, vertices = {len(cluster.vertices)}, len = {len(all_prev)}')
+            gm = GaussianMixture(n_components=n_components,
+                                 tol=1e-4,
+                                 covariance_type='spherical',
+                                 max_iter=500,
+                                 init_params='random',
+                                 n_init=5
+                                 ).fit(np.array(all_prev).reshape(-1, 1))
+
+            means = gm.means_.flatten()
+            # sigmas_squared = gm.covariances_.flatten()
+            weights = gm.weights_.flatten()
+            weights /= sum(weights)
+            argmax = np.argmax(weights)
+
+            for v in range(len(cluster.vertices)):
+                self.clusters[c].vertices[v].forecast = means[argmax]
+        return
+
+    def get_forecast(self):
+        forecast = np.zeros((self.height, self.width))
+        forecast[np.logical_not(self.mask)] = np.nan
+        for i in range(len(self.vertices)):
+            x = self.vertices[i].x
+            y = self.vertices[i].y
+            forecast[x, y] = self.vertices[i].forecast
+        return forecast

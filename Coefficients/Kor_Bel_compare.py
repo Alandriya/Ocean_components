@@ -1,4 +1,4 @@
-from data_processing import scale_to_bins
+from Data_processing.data_processing import scale_to_bins
 
 from EM_hybrid import *
 from Plotting.plot_compare import *
