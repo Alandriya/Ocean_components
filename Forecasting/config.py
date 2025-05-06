@@ -1,5 +1,5 @@
-files_path_prefix = '/home/aosipova/EM_ocean/'
-# files_path_prefix = 'D:/Nastya/Data/OceanFull/'
+# files_path_prefix = '/home/aosipova/EM_ocean/'
+files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 # files_path_prefix = ''
 
 

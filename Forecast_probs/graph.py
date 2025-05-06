@@ -2,11 +2,9 @@ import numpy as np
 from scipy import stats
 from sklearn.mixture import GaussianMixture
 
-HIST_LEN = 30
-PROBS_MAX = 5
-CORR_LENGTH = 10
-WEIGHT_TRESHOLD = 0.2
-WEIGHT_COEFF = 0.3
+HIST_LEN = 20
+CORR_LENGTH = 14
+WEIGHT_TRESHOLD = 0.7
 NEIGH_COUNT = 8
 
 
@@ -40,8 +38,7 @@ class Vertice:
         self.y = y
         self.water = water_flag
         self.prev = np.zeros(HIST_LEN, dtype=float)
-        self.neighbours = [None for _ in range(8)]
-        self.probs = np.zeros(PROBS_MAX, dtype=float)
+        self.neighbours = [None for _ in range(NEIGH_COUNT)]
         self.forecast = 0.0
 
     def update_prev(self, value):
@@ -132,15 +129,6 @@ class Graph:
             start = np.argmax(np.abs(new_weights))
 
         i_idx = start // NEIGH_COUNT
-        # delete vertice
-        new_weights[i_idx] = 0
-        for shift_x in [-1, 0, 1]:
-            for shift_y in [-1, 0, 1]:
-                new_x = self.vertices[i_idx].x + shift_x
-                new_y = self.vertices[i_idx].y + shift_y
-                if not (shift_x == 0 and shift_y == 0) and (0 <= new_x < self.height) and (0 <= new_y < self.width):
-                    new_weights[new_x * self.width + new_y, get_idx(-shift_x, -shift_y)] = 0
-
         vertices.append(self.vertices[i_idx])
         while new_weights[i_idx].any() and max(new_weights[i_idx]) > WEIGHT_TRESHOLD: #есть куда идти и связи достаточно сильные
             n_idx = np.argmax(new_weights[i_idx])
@@ -157,6 +145,16 @@ class Graph:
             neighbour = self.vertices[i_idx].neighbours[n_idx]
             vertices.append(neighbour)
             i_idx = neighbour.x * self.width + neighbour.y
+
+        if len(vertices) == 1:
+            # delete vertice
+            new_weights[i_idx] = 0
+            for shift_x in [-1, 0, 1]:
+                for shift_y in [-1, 0, 1]:
+                    new_x = self.vertices[i_idx].x + shift_x
+                    new_y = self.vertices[i_idx].y + shift_y
+                    if not (shift_x == 0 and shift_y == 0) and (0 <= new_x < self.height) and (0 <= new_y < self.width):
+                        new_weights[new_x * self.width + new_y, get_idx(-shift_x, -shift_y)] = 0
 
         cluster = Cluster(self.height, self.width, self.mask, vertices, label)
         return cluster, new_weights
@@ -187,11 +185,11 @@ class Graph:
             for v in cluster.vertices:
                 all_prev += list(v.prev)
 
-            print(f'Cluster {c}, vertices = {len(cluster.vertices)}, len = {len(all_prev)}')
+            # print(f'Cluster {c}, vertices = {len(cluster.vertices)}, len = {len(all_prev)}')
             gm = GaussianMixture(n_components=n_components,
-                                 tol=1e-4,
+                                 tol=1e-3,
                                  covariance_type='spherical',
-                                 max_iter=500,
+                                 max_iter=400,
                                  init_params='random',
                                  n_init=5
                                  ).fit(np.array(all_prev).reshape(-1, 1))
