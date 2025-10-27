@@ -2,7 +2,7 @@ import datetime
 
 import numpy as np
 
-from Forecast_probs.graph import Graph, HIST_LEN
+from Forecast_probs.graph import Graph, HIST_LEN, n_components
 import random
 from struct import unpack
 from Plotting.nn_plotter import plot_predictions
@@ -21,13 +21,12 @@ def load_mask(files_path_prefix):
     return mask
 
 
-
 forecast_steps = 3
 
 if __name__ == '__main__':
     random.seed(2025)
     np.random.seed(2025)
-    n_components = 3
+
 
     mask = load_mask(files_path_prefix)
     graph = Graph(mask.shape[0], mask.shape[1], mask)
@@ -47,21 +46,22 @@ if __name__ == '__main__':
     graph.fill_prev(prev_array)
     # print(graph.show_timestep(-1))
 
-    graph.count_weights()
+    # graph.count_weights()
     # print(graph.weights)
-    graph.weights = np.nan_to_num(graph.weights)
+    # graph.weights = np.nan_to_num(graph.weights)
 
-    graph.get_clusters()
+    # graph.get_clusters()
     # print(graph.color_clusters())
-    print(f'Clusters amount = {len(graph.clusters)}')
-
 
     forecast = np.zeros((forecast_steps, 1, mask.shape[0], mask.shape[1]))
     for t in range(forecast_steps):
+        graph.count_weights()
+        graph.weights = np.nan_to_num(graph.weights)
+        graph.get_clusters()
+        print(f'Clusters amount = {len(graph.clusters)}')
         graph.count_probs(n_components)
-        forecast[t, 0] = graph.get_forecast()
+        forecast[t, 0] = -graph.get_forecast() * 10
         graph.update(forecast[t, 0])
-
 
     yreal = flux_diff[-forecast_steps-1:]
     yreal = yreal.reshape((yreal.shape[0], 1, yreal.shape[1], yreal.shape[2]))

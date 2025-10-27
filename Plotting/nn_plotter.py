@@ -111,10 +111,14 @@ def plot_predictions(files_path_prefix: str,
 
     cmap_flux = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'],
                                     [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
+
+    cmap_flux2 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'],
+                                    [0, (1.0 - np.nanmin(Y_predict[:, 0])) / (np.nanmax(Y_predict[:, 0]) - np.nanmin(Y_predict[:, 0])), 1])
     # cmap_flux = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
     # cmap_flux = plt.get_cmap('Blues').copy()
     # cmap_flux = plt.get_cmap('plasma').copy()
     cmap_flux.set_bad('lightgreen', 1.0)
+    cmap_flux2.set_bad('lightgreen', 1.0)
     # cmap_sst = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
     # cmap_sst = plt.get_cmap('Oranges').copy()
     # cmap_sst = plt.get_cmap('Blues').copy()
@@ -146,7 +150,8 @@ def plot_predictions(files_path_prefix: str,
         img = [[None for _ in range(days_prediction)] for _ in range(3)]
         cax = [[None for _ in range(days_prediction)] for _ in range(3)]
         if k == 0:
-            cmap_test = cmap_pred = copy.deepcopy(cmap_flux)
+            cmap_test = copy.deepcopy(cmap_flux)
+            cmap_pred = copy.deepcopy(cmap_flux2)
             # test_min = pred_min = flux_min
             # test_max = pred_max = flux_max
             test_min = np.nanmin(Y_test[:, 0])
