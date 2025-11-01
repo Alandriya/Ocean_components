@@ -28,7 +28,8 @@ def test(test_data, model, mask):
                 input = test_batch[:, :cfg.in_len, :cfg.channels].clone()
                 test_batch = test_batch.cuda()
                 input = input.cuda()
-                test_pred_values = model(input)
+                # test_pred_values = model(input)
+                test_pred_values, sigma2_seq = model(input)
 
                 test_batch_scaled = test_batch.clone().detach()
                 truth = test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len].detach().clone()

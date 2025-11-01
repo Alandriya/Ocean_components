@@ -26,9 +26,11 @@ def train(train_data, model, criterion, optimizer, mask, model_save_path):
             input = train_batch[:, :cfg.in_len, :cfg.channels].clone()
             train_batch = train_batch.cuda()
             input = input.cuda()
-            train_pred = model(input)
-            loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
-                             train_pred[:, :, :cfg.channels], mask)
+            # train_pred = model(input)
+            mu_seq, sigma2_seq = model(input)
+            loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels], mu_seq, sigma2_seq)
+            # loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
+            #                  train_pred[:, :, :cfg.channels], mask)
 
             loss.backward()
             optimizer.step()

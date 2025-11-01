@@ -47,13 +47,13 @@ def normalize_data(batch, min_vals, max_vals):
     for channel in range(cfg.channels):
         batch[:, :cfg.in_len + cfg.out_len, channel] = (batch[:, :cfg.in_len + cfg.out_len, channel] -
                                                         min_vals[channel]) / (max_vals[channel] - min_vals[channel])
-        # normalize A
-        batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels] = (batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels] -
-                                                            min_vals[channel]) / (max_vals[channel] - min_vals[channel])
-
-        # normalize B
-        batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels*2] = (batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels*2] -
-                                                        (min_vals[channel])) / ((max_vals[channel] - min_vals[channel]))
+        # # normalize A
+        # batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels] = (batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels] -
+        #                                                     min_vals[channel]) / (max_vals[channel] - min_vals[channel])
+        #
+        # # normalize B
+        # batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels*2] = (batch[:, :cfg.in_len + cfg.out_len, channel + cfg.channels*2] -
+        #                                                 (min_vals[channel])) / ((max_vals[channel] - min_vals[channel]))
 
         #
         # # normalize eigenvalues

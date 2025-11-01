@@ -7,7 +7,8 @@ from Forecasting.config import cfg
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 # from models.encoder_decoder import Encoder_Decoder
 from Forecasting.models.attetion_unet import AttU_Net
-from Forecasting.loss import Loss_MSE
+from Forecasting.models.SDE_HNN import SDEHNN
+from Forecasting.loss import Loss_MSE, GaussianNLLLoss
 from Forecasting.loader import Data
 import argparse
 from collections import OrderedDict
@@ -33,7 +34,8 @@ if __name__ == '__main__':
     torch.distributed.init_process_group(backend="gloo")
     # threads = cfg.dataloader_thread
 
-    model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
+    # model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
+    model = SDEHNN(cfg.out_len)
 
     # optimizer
     if cfg.optimizer == 'SGD':
@@ -45,6 +47,7 @@ if __name__ == '__main__':
 
     # loss
     criterion = Loss_MSE().cuda()
+    # criterion = GaussianNLLLoss().cuda()
 
     model_load_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH + f'/models/days_{cfg.out_len}_features_{cfg.features_amount}.pth'
     model_save_path = model_load_path

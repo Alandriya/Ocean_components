@@ -7,7 +7,8 @@ from Forecasting.config import cfg
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 # from models.encoder_decoder import Encoder_Decoder
 from Forecasting.models.attetion_unet import AttU_Net
-from Forecasting.loss import Loss_MSE
+from Forecasting.models.SDE_HNN import SDEHNN
+from Forecasting.loss import Loss_MSE, GaussianNLLLoss
 from Forecasting.loader import Data
 import argparse
 from collections import OrderedDict
@@ -16,7 +17,7 @@ from Forecasting.train import train
 
 
 if __name__ == '__main__':
-    fix_random(2024)
+    fix_random(2025)
 
     mask = load_mask(cfg.root_path)
     print(f'CUDA is availiable: {torch.cuda.is_available()}')
@@ -29,18 +30,22 @@ if __name__ == '__main__':
     torch.distributed.init_process_group(backend="gloo")
     # threads = cfg.dataloader_thread
 
-    model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
+    # model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
+    model = SDEHNN(cfg.out_len)
 
-    # optimizer
-    if cfg.optimizer == 'SGD':
-        optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9)
-    elif cfg.optimizer == 'Adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-    else:
-        optimizer = None
+    # # optimizer
+    # if cfg.optimizer == 'SGD':
+    #     optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9)
+    # elif cfg.optimizer == 'Adam':
+    #     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    # else:
+    #     optimizer = None
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-3)
 
     # loss
-    criterion = Loss_MSE().cuda()
+    # criterion = Loss_MSE().cuda()
+    criterion = GaussianNLLLoss().cuda()
 
     model_load_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH + f'/models/days_{cfg.out_len}_features_{cfg.features_amount}.pth'
     model_save_path = model_load_path

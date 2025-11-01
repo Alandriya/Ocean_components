@@ -1,9 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
-
 from Forecasting.config import cfg
-
 
 class Loss(nn.Module):
     def __init__(self):
@@ -168,3 +166,26 @@ class Loss_MSE_informed(nn.Module):
         mse = torch.sum(tmp, (2, 3, 4))  # b s
         mse = torch.mean(mse)  # 1
         return mse
+
+
+# ----- Gaussian Negative Log-Likelihood loss -----
+class GaussianNLLLoss(nn.Module):
+    """
+    Implements the Gaussian Negative Log-Likelihood loss:
+        L = 0.5 * log(sigma^2) + 0.5 * ((y - mu)^2 / sigma^2)
+    Supports multidimensional tensors such as (batch, time, channel, height, width).
+    """
+    def __init__(self):
+        super().__init__()
+        pass
+
+    def forward(self, y_true, mu, sigma2):
+        eps = 1e-6
+
+        # Ensure numerical stability
+        sigma2 = sigma2 + eps
+
+        # Core NLL formula
+        loss = 0.5 * torch.log(sigma2) + 0.5 * (y_true - mu)**2 / sigma2
+        return loss.mean()
+
