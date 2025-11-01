@@ -183,3 +183,42 @@ class Data(Dataset):
 
     def __len__(self):
         return self.flux_array.shape[0] - self.in_len - self.out_len
+
+class Data_1d(Dataset):
+    def __init__(self, cfg, start_idx, end_idx, point):
+        super().__init__()
+        self.point = point
+        self.features_amount = cfg.features_amount
+        self.in_len = cfg.in_len
+        self.out_len = cfg.out_len
+        self.height = cfg.height
+        self.width = cfg.width
+        self.start_idx = start_idx
+        self.end_idx = end_idx
+
+        self.flux_array = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_grouped_diff.npy')[start_idx:end_idx, point[0], point[1]]
+        np.nan_to_num(self.flux_array, copy=False)
+
+
+        self.flux_quantiles = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_diff_quantiles.npy')
+
+        # self.flux_mean_year = np.load(cfg.root_path + f'DATA/FLUX_mean_year_diff.npy')
+        # np.nan_to_num(self.flux_mean_year, copy=False)
+        # self.flux_scaled = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_grouped_diff_scaled.npy')[start_idx:end_idx]
+
+        self.eigen_flux = None
+
+
+        self.A_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_a_coeff.npy')[start_idx:end_idx, point[0], point[1]]
+        np.nan_to_num(self.A_flux, copy=False)
+        self.B_flux = np.load(cfg.root_path + f'DATA/FLUX_1979-2025_b_coeff.npy')[start_idx:end_idx, point[0], point[1]]
+        np.nan_to_num(self.B_flux, copy=False)
+
+    def __getitem__(self, index):
+        sample = np.zeros((self.in_len + self.out_len, self.features_amount), dtype=float)
+        for day in range(self.in_len + self.out_len):
+            sample[day, 0] = self.flux_array[index + day]
+        return torch.from_numpy(sample).float()  # S*C
+
+    def __len__(self):
+        return self.flux_array.shape[0] - self.in_len - self.out_len

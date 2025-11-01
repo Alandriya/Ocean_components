@@ -250,7 +250,7 @@ def plot_1d_predictions(files_path_prefix: str,
                         cluster_idx: int,
                         point_idx: int,
                         ):
-    fig = plt.figure(figsize=(10, 5))
+    fig = plt.figure(figsize=(20, 5))
     days_prediction = len(y_test)
     days_str = [(start_day + datetime.timedelta(days=d)).strftime('%d.%m.%Y') for d in range(days_prediction)]
     plt.plot(days_str, y_test, c='r', label='Test values')
@@ -264,7 +264,7 @@ def plot_1d_predictions(files_path_prefix: str,
         os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}')
     if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}'):
         os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}')
-    plt.savefig(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}/{point_idx}-cluster_{cluster_idx}.png')
+    plt.savefig(files_path_prefix + f'videos/Forecast/1d/{model_name}/batch_{cluster_idx}_{point_idx}.png')
     plt.close(fig)
     return
 

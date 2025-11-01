@@ -1,11 +1,12 @@
 import datetime
 import time
 
+import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from Forecasting.utils import *
-from Plotting.nn_plotter import plot_predictions
+from Plotting.nn_plotter import plot_predictions, plot_1d_predictions
 from Forecasting.SSIM import get_SSIM
 
 
@@ -21,6 +22,7 @@ def test(test_data, model, mask):
             mse_flux = 0.0
             time_start = time.time()
             amount = 0
+
             for idx, test_batch in enumerate(test_loader):
                 print(f'Epoch {idx}')
                 print(f'time elapsed: {int((time.time() - time_start)/60)} minutes')
@@ -30,6 +32,8 @@ def test(test_data, model, mask):
                 input = input.cuda()
                 # test_pred_values = model(input)
                 test_pred_values, sigma2_seq = model(input)
+                print(test_pred_values.shape)
+                test_pred_values = test_pred_values[:, :cfg.out_len]
 
                 test_batch_scaled = test_batch.clone().detach()
                 truth = test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len].detach().clone()
@@ -37,13 +41,14 @@ def test(test_data, model, mask):
                 truth = truth.cpu().numpy()
                 prediction = prediction.cpu().numpy()
 
-                ssim = get_SSIM(prediction, truth[:, :, :cfg.channels], mask)
-                ssim_arr = np.mean(ssim, axis=(0, 1))
-                ssim_flux += ssim_arr[0]
+                # ssim = get_SSIM(prediction, truth[:, :, :cfg.channels], mask)
+                # ssim_arr = np.mean(ssim, axis=(0, 1))
+                # ssim_flux += ssim_arr[0]
 
                 mse_arr = (prediction - truth[:, :, :cfg.channels]) ** 2  # b s c h w
-                mse_arr = np.sum(mse_arr, axis=(0, 1, 3, 4))
-                mse_flux += mse_arr[0]
+                # mse_arr = np.sum(mse_arr, axis=(0, 1, 3, 4))
+                # mse_flux += mse_arr[0]
+                mse_flux = np.sum(mse_arr)
 
                 amount += 1
 
@@ -55,27 +60,33 @@ def test(test_data, model, mask):
                     test_pred_values[:, :, channel] *= (cfg.max_vals[channel] - cfg.min_vals[channel])
                     test_pred_values[:, :, channel] += cfg.min_vals[channel]
 
-                print(cfg.min_vals)
-                print(cfg.max_vals)
-                print(tuple(torch.amin(test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
-                                       dim=(0, 1, 3, 4))))
-                print(tuple(torch.amax(test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
-                                       dim=(0, 1, 3, 4))))
-                print(tuple(torch.amin(test_pred_values[:, :, :cfg.channels], dim=(0, 1, 3, 4))))
-                print(tuple(torch.amax(test_pred_values[:, :, :cfg.channels], dim=(0, 1, 3, 4))))
+                # print(cfg.min_vals)
+                # print(cfg.max_vals)
+                # print(tuple(torch.amin(test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
+                #                        dim=(0, 1, 3, 4))))
+                # print(tuple(torch.amax(test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
+                #                        dim=(0, 1, 3, 4))))
+                # print(tuple(torch.amin(test_pred_values[:, :, :cfg.channels], dim=(0, 1, 3, 4))))
+                # print(tuple(torch.amax(test_pred_values[:, :, :cfg.channels], dim=(0, 1, 3, 4))))
 
                 differ = test_batch_scaled[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels] - test_pred_values
-                loss_divided = torch.mean(torch.sum(differ ** 2, (3, 4)), (0, 1))
+                # loss_divided = torch.mean(torch.sum(differ ** 2, (3, 4)), (0, 1))
 
-                if idx == 0:
-                    for i in range(cfg.batch):
-                        day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=days_delta1 + idx + i)
-                        test_batch_numpy = test_batch_scaled[i, :, :cfg.channels].cpu().numpy()
-                        test_pred_numpy = test_pred_values[i, :, :cfg.channels].cpu().numpy()
-                        plot_predictions(cfg.root_path, test_batch_numpy[cfg.in_len:cfg.in_len + cfg.out_len],
-                                         test_pred_numpy, cfg.model_name,
-                                         cfg.features_amount, day, mask, cfg, postfix_simple=True)
-                    break
-        print(f'SSIM flux = {ssim_flux / amount:.4f}')
+                test_batch_list = []
+                test_pred_list = []
+                for i in range(test_batch_scaled.shape[0]):
+                    day = datetime.datetime(1979, 1, 1) + datetime.timedelta(days=days_delta1 + idx + i)
+                    test_batch_numpy = test_batch_scaled[i, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels].cpu().numpy()
+                    test_pred_numpy = test_pred_values[i, :, :cfg.channels].cpu().numpy()
+                    # plot_predictions(cfg.root_path, test_batch_numpy[cfg.in_len:cfg.in_len + cfg.out_len],
+                    #                  test_pred_numpy, cfg.model_name,
+                    #                  cfg.features_amount, day, mask, cfg, postfix_simple=True)
+                    test_batch_list += list(test_batch_numpy.flatten())
+                    test_pred_list += list(test_pred_numpy.flatten())
+
+                plot_1d_predictions(cfg.root_path, np.array(test_batch_list),
+                                     np.array(test_pred_list), cfg.model_name,  day, idx, 40*81 + 40,)
+
+        # print(f'SSIM flux = {ssim_flux / amount:.4f}')
         print(f'MSE flux = {mse_flux / amount:.4f}')
         return

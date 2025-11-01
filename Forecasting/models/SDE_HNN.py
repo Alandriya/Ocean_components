@@ -66,3 +66,65 @@ class SDEHNN(nn.Module):
         mu_seq = torch.stack(preds_mu, dim=1)        # (B, S, 1, H, W)
         sigma2_seq = torch.stack(preds_sigma2, dim=1)
         return mu_seq, sigma2_seq
+
+
+class SDEBlock(nn.Module):
+    def __init__(self, hidden_dim=64, step_size=0.5, num_steps=3, dropout_p=0.1):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.dt = step_size
+        self.num_steps = num_steps
+        self.dropout_p = dropout_p
+
+        # Drift network f(I_t): models deterministic dynamics (predictive mean)
+        self.drift_net = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim)
+        )
+
+        # Diffusion network g(I_t): models stochastic perturbations (predictive variance)
+        self.diff_net = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Softplus()   # ensures positive diffusion
+        )
+
+        # Optional dropout for variance stabilization (as in the paper)
+        self.dropout = nn.Dropout(p=dropout_p)
+
+    def forward(self, I0):
+        """Evolve hidden state through Euler–Maruyama integration."""
+        I_t = I0
+        for _ in range(self.num_steps):
+            f_t = self.drift_net(I_t)
+            g_t = self.diff_net(I_t)
+            g_t = self.dropout(g_t)  # stochastic Bernoulli uncertainty
+
+            # Brownian noise term: ε ~ N(0, 1)
+            epsilon = torch.randn_like(I_t)
+
+            # Euler–Maruyama update
+            I_t = I_t + f_t * self.dt + g_t * torch.sqrt(torch.tensor(self.dt)) * epsilon
+
+        return I_t
+
+
+class SDEHNN_1d(nn.Module):
+    def __init__(self, input_dim, hidden_dim=64):
+        super().__init__()
+        self.init_layer = nn.Linear(input_dim, hidden_dim)
+        self.sde_block = SDEBlock(hidden_dim)
+        self.mean_head = nn.Linear(hidden_dim, 1)
+        self.var_head = nn.Sequential(
+            nn.Linear(hidden_dim, 1),
+            nn.Softplus()  # variance must be positive
+        )
+
+    def forward(self, x):
+        h0 = F.relu(self.init_layer(x))
+        hT = self.sde_block(h0)
+        mu = self.mean_head(hT)
+        sigma2 = self.var_head(hT)
+        return mu, sigma2

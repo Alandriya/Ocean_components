@@ -28,7 +28,9 @@ def train(train_data, model, criterion, optimizer, mask, model_save_path):
             input = input.cuda()
             # train_pred = model(input)
             mu_seq, sigma2_seq = model(input)
-            loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels], mu_seq, sigma2_seq)
+            # print(mu_seq.shape)
+            loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
+                             mu_seq[:, :cfg.out_len], sigma2_seq[:, :cfg.out_len])
             # loss = criterion(train_batch[:, cfg.in_len:cfg.in_len + cfg.out_len, :cfg.channels],
             #                  train_pred[:, :, :cfg.channels], mask)
 

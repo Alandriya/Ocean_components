@@ -7,9 +7,9 @@ from Forecasting.config import cfg
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 # from models.encoder_decoder import Encoder_Decoder
 from Forecasting.models.attetion_unet import AttU_Net
-from Forecasting.models.SDE_HNN import SDEHNN
+from Forecasting.models.SDE_HNN import SDEHNN, SDEHNN_1d
 from Forecasting.loss import Loss_MSE, GaussianNLLLoss
-from Forecasting.loader import Data
+from Forecasting.loader import Data, Data_1d
 import argparse
 from collections import OrderedDict
 from Forecasting.utils import *
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     # threads = cfg.dataloader_thread
 
     # model = AttU_Net(cfg.in_len * cfg.channels, cfg.out_len * cfg.channels, (cfg.batch, cfg.height, cfg.width), 3, 1, 0)
-    model = SDEHNN(cfg.out_len)
+    model = SDEHNN_1d(1)
 
     # optimizer
     if cfg.optimizer == 'SGD':
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # reading model weights if save exists
     print(f'Trying to read {model_load_path},\n exists = {os.path.exists(model_load_path)}\n')
     # logs_file.write(f'Trying to read {model_load_path},\n exists = {os.path.exists(model_load_path)}\n')
-    if cfg.LOAD_MODEL and os.path.exists(model_load_path) and cfg.nn_mode == 'test':
+    if os.path.exists(model_load_path):
         print('Loading model')
         # logs_file.write('Loading model')
         # original saved file with DataParallel
@@ -76,8 +76,10 @@ if __name__ == '__main__':
     # create train and test dataloaders, train from 01.01.1979 to 01.01.2024, test from 01.01.2024 to 28.11.2024
     days_delta1 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
     days_delta2 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
-    train_data = Data(cfg, 0, days_delta1, weights)
-    test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2, weights)
+    # train_data = Data(cfg, 0, days_delta1, weights)
+    # test_data = Data(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2, weights)
+    train_data = Data_1d(cfg, 0, days_delta1, (40, 40))
+    test_data = Data_1d(cfg, days_delta1, days_delta1 - cfg.in_len - cfg.out_len + days_delta2, (40, 40))
     test(test_data, model, mask)
 
     # logs_file.close()

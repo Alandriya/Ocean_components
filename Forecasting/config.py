@@ -47,7 +47,7 @@ cfg = OrderedEasyDict()
 cfg.features_amount = 1
 # ConvLSTM  MS-LSTM  Att-Unet Transformer
 # cfg.model_name = 'Attention U-net'
-cfg.model_name = 'SDE_HNN'
+cfg.model_name = 'SDE_HNN_1d'
 cfg.nn_mode = 'train'
 
 cfg.bins = 100
@@ -67,9 +67,9 @@ cfg.batch = 64
 
 cfg.width = 91
 cfg.height = 81
-cfg.in_len = 14
+cfg.in_len = 30
 cfg.out_len = 3
-cfg.epoch = 10
+cfg.epoch = 50
 flux_quantiles = np.load(files_path_prefix + f'DATA/FLUX_1979-2025_diff_quantiles.npy')
 sst_quantiles = np.load(files_path_prefix + f'DATA/SST_1979-2025_diff_quantiles.npy')
 press_quantiles = np.load(files_path_prefix + f'DATA/PRESS_1979-2025_diff_quantiles.npy')
