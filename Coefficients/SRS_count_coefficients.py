@@ -2,7 +2,7 @@ import datetime
 import os
 from multiprocessing import Pool
 from struct import unpack
-
+import tqdm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from EM_hybrid import *

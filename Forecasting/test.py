@@ -52,13 +52,12 @@ def test(test_data, model, mask):
 
                 amount += 1
 
-                for channel in range(cfg.channels):
-                    test_batch_scaled[:, :cfg.in_len + cfg.out_len, channel] *= (
-                                cfg.max_vals[channel] - cfg.min_vals[channel])
-                    test_batch_scaled[:, :cfg.in_len + cfg.out_len, channel] += cfg.min_vals[channel]
-
-                    test_pred_values[:, :, channel] *= (cfg.max_vals[channel] - cfg.min_vals[channel])
-                    test_pred_values[:, :, channel] += cfg.min_vals[channel]
+                # for channel in range(cfg.channels):
+                #     test_batch_scaled[:, :cfg.in_len + cfg.out_len, channel] *= (cfg.max_vals[channel] - cfg.min_vals[channel])
+                #     test_batch_scaled[:, :cfg.in_len + cfg.out_len, channel] += cfg.min_vals[channel]
+                #
+                #     test_pred_values[:, :, channel] *= (cfg.max_vals[channel] - cfg.min_vals[channel])
+                #     test_pred_values[:, :, channel] += cfg.min_vals[channel]
 
                 # print(cfg.min_vals)
                 # print(cfg.max_vals)

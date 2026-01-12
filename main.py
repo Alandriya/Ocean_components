@@ -1,5 +1,9 @@
+import datetime
 from struct import unpack
 
+import numpy as np
+
+from Data_processing.data_processing import *
 # from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
 # from Plotting.plot_extreme import *
 # from extreme_evolution import *
@@ -9,21 +13,19 @@ from Eigenvalues.eigenvalues import *
 # from SRS_count_coefficients import *
 # from Plotting.mean_year import *
 from Plotting.video import *
-
+from Coefficients.Kor_Bel_compare import *
+from Forecasting.utils import fix_random
 # files_path_prefix = '/home/aosipova/EM_ocean/'
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
-# files_path_prefix = 'D://Data/OceanFull/'
 
-# timesteps = 7320
-timesteps = 1829
 width = 181
 height = 161
-
+fix_random(2025)
 
 if __name__ == '__main__':
     # ---------------------------------------------------------------------------------------
     # Mask
-    maskfile = open(files_path_prefix + "mask", "rb")
+    maskfile = open(files_path_prefix + "DATA/mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
@@ -36,15 +38,15 @@ if __name__ == '__main__':
     days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
     days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
     days_delta5 = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
+    days_delta6 = (datetime.datetime(2025, 11, 1, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
+    # days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    # days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    start_year = 2019
-    end_year = 2025
-    bins_amount = 1000
-    days_delta = days_delta5 + days_delta7
-    current_shift = 0
-
+    # start_year = 2019
+    # end_year = 2026
+    # bins_amount = 1000
+    # days_delta = days_delta5 + days_delta6
+    # current_shift = 0
     # # normalizing and collecting to bins
     # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
     #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
@@ -134,9 +136,9 @@ if __name__ == '__main__':
     # collect SST and PRESS to 10 years arrays 3d
 
     # start_year = 2019
-    # end_year = 2025
-    # # bins_amount = 1000
-    # days_delta = days_delta7 + days_delta5
+    # end_year = 2026
+    # bins_amount = 1000
+    # days_delta = days_delta5 + days_delta6
 
     # current_shift = 0
     # sst_array = np.zeros((height * width, days_delta * 4))
@@ -156,10 +158,11 @@ if __name__ == '__main__':
     # np.save(files_path_prefix + f'SST/SST_{start_year}-{end_year}.npy', sst_array)
     # np.save(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}.npy', press_array)
 
+
     # current_shift = 0
     # sensible_array = np.zeros((height * width, days_delta * 4))
     # latent_array = np.zeros_like(sensible_array)
-    # for year in ['2019-2023', 2023, 2024]:
+    # for year in ['2019-2023', 2023, 2024, 2025]:
     #     print(year)
     #     sensible_year = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{year}.npy')
     #     print(sensible_year.shape)
@@ -173,14 +176,15 @@ if __name__ == '__main__':
     #
     # np.save(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy', sensible_array)
     # np.save(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy', latent_array)
-    #
+    # raise ValueError
     # # get sum fluxes
     # sensible_array = np.load(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy')
     # latent_array = np.load(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}.npy')
     #
     # flux_array = sensible_array + latent_array
     # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}.npy', flux_array)
-    #
+
+
     # # Grouping by 1 day
     # sst_array, press_array = load_prepare_fluxes(f'SST/SST_{start_year}-{end_year}.npy',
     #                                              f'Pressure/PRESS_{start_year}-{end_year}.npy',
@@ -198,6 +202,13 @@ if __name__ == '__main__':
     # print(flux_array.shape)
     # np.save(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy', flux_array)
 
+    # sensible_array, latent_array = load_prepare_fluxes(f'Fluxes/SENSIBLE_{start_year}-{end_year}.npy',
+    #                                     f'Fluxes/LATENT_{start_year}-{end_year}.npy',
+    #                                     files_path_prefix,
+    #                                     prepare=False)
+    # print(sensible_array.shape)
+    # np.save(files_path_prefix + f'Fluxes/SENSIBLE_{start_year}-{end_year}_grouped.npy', sensible_array)
+    # np.save(files_path_prefix + f'Fluxes/LATENT_{start_year}-{end_year}_grouped.npy', latent_array)
     # # normalizing and collecting to bins
     # if not os.path.exists(files_path_prefix + 'Scaling_df.xlsx'):
     #     df = pd.DataFrame(columns=['name', 'start_year', 'min', 'max'])
@@ -241,9 +252,9 @@ if __name__ == '__main__':
     # df.to_excel(files_path_prefix + 'Scaling_df.xlsx', index=False)
     #-------------------------------------------------------------------------------------
     # count eigenvalues
-    flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
-    SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
-    press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
+    # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_2019-2025_grouped.npy')
+    # SST_array = np.load(files_path_prefix + f'SST/SST_2019-2025_grouped.npy')
+    # press_array = np.load(files_path_prefix + f'Pressure/PRESS_2019-2025_grouped.npy')
 
     # flux_array = np.load(files_path_prefix + f'Fluxes/FLUX_1979-1989_grouped.npy')
     # SST_array = np.load(files_path_prefix + f'SST/SST_1979-1989_grouped.npy')
@@ -252,9 +263,9 @@ if __name__ == '__main__':
     # t = 0
     # cpu_amount = 4
     #
-    n_bins = 100
-    # # offset = 0
-    offset = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
+    # n_bins = 100
+    # # # offset = 0
+    # offset = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5
     #
     # flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
     # SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
@@ -264,13 +275,13 @@ if __name__ == '__main__':
     # np.save(files_path_prefix + f'Eigenvalues\quantiles_press_{n_bins}.npy', quantiles_press)
     #
     # print('Counting eigen')
-    print(offset  + days_delta7)
-    # raise ValueError
-    count_eigenvalues_triplets(files_path_prefix,
-                               0, flux_array, SST_array, press_array, mask,
-                               offset, n_bins)
-    for pair_name in ['Flux-Flux', 'Flux-SST', 'Flux-Pressure', 'SST-SST', 'Pressure-Pressure', 'SST-Pressure']:
-        create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvectors', start=offset)
+    # print(offset  + days_delta6)
+    # # raise ValueError
+    # count_eigenvalues_triplets(files_path_prefix,
+    #                            0, flux_array, SST_array, press_array, mask,
+    #                            offset, n_bins)
+    # for pair_name in ['Flux-Flux', 'Flux-SST', 'Flux-Pressure', 'SST-SST', 'Pressure-Pressure', 'SST-Pressure']:
+    #     create_video(files_path_prefix, f'videos/Eigenvalues/{pair_name}/', f'Lambdas_', f'{pair_name}_eigenvectors', start=offset)
 
     # t_start = 0
     # t_end = days_delta1 + days_delta2 + days_delta3 + days_delta4 + days_delta5 + days_delta7
@@ -523,3 +534,59 @@ if __name__ == '__main__':
     #                     start_date=datetime.datetime(start_year, 1, 1, 0, 0),
     #                     start_pic_num=offset)
 
+    # create_synthetic_data_2d(files_path_prefix, 100, 100, 0, 1000)
+
+
+
+    # Creating synthetic flux and counting Bel and Kor methods for it and plotting the difference
+    # create_synthetic_data_1d(files_path_prefix, time_start=0, time_end=100)
+    flux = np.load(f'{files_path_prefix}Synthetic/flux_full.npy')
+    a_array = np.load(f'{files_path_prefix}Synthetic/A_full.npy')
+    b_array = np.load(f'{files_path_prefix}Synthetic/B_full.npy')
+    # # plot_synthetic_flux(files_path_prefix, flux, 0, 5, a_array, b_array)
+
+    quantiles = np.array([200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500])
+    rmse_a_bel = np.zeros(len(quantiles), dtype=float)
+    rmse_b_bel = np.zeros(len(quantiles), dtype=float)
+    rmse_a_kor = np.zeros(len(quantiles), dtype=float)
+    rmse_b_kor = np.zeros(len(quantiles), dtype=float)
+    for q in range(len(quantiles)):
+        quantiles_amount = quantiles[q]
+        count_1d_Bel(files_path_prefix, flux, 0, 100, 'Synthetic/', quantiles_amount)
+        count_1d_Korolev(files_path_prefix, flux, 0, 100, 'Synthetic/', quantiles_amount,)
+
+        rmse_Bel = [0.0, 0.0]
+        rmse_Kor = [0.0, 0.0]
+        points_j_amount = 10
+        points_i_amount = 10
+        for point in tqdm.tqdm([(i, j) for i in range(points_i_amount) for j in range(points_j_amount)]):
+            collect_point(files_path_prefix, 1, 100, point, 'Synthetic/', 'Bel')
+            collect_point(files_path_prefix, 1, 100, point, 'Synthetic/', 'Kor')
+            # count_Bel_Kor_difference(files_path_prefix, 1, 100, point, '')
+            # plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'A')
+            # plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'B')
+
+            a_Bel = np.load(files_path_prefix + 'Synthetic/' + f'Bel/points/point_({point[0]}, {point[1]})-A.npy')
+            b_Bel = np.load(files_path_prefix + 'Synthetic/' + f'Bel/points/point_({point[0]}, {point[1]})-B.npy')
+            a_Kor = np.load(files_path_prefix + 'Synthetic/' + f'Kor/points/point_({point[0]}, {point[1]})-A.npy')
+            b_Kor = np.load(files_path_prefix + 'Synthetic/' + f'Kor/points/point_({point[0]}, {point[1]})-B.npy')
+            # count rmse
+            rmse_Bel[0] += math.sqrt(sum((a_Bel - a_array[:, point[0], point[1]]) ** 2))
+            rmse_Bel[1] += math.sqrt(sum((b_Bel - b_array[:, point[0], point[1]]) ** 2))
+            rmse_Kor[0] += math.sqrt(sum((a_Kor - a_array[:, point[0], point[1]]) ** 2))
+            rmse_Kor[1] += math.sqrt(sum((b_Kor - b_array[:, point[0], point[1]]) ** 2))
+
+        points_amount = points_i_amount * points_j_amount
+        print(f'RMSE Bel: {rmse_Bel[0]/points_amount:.4f}, {rmse_Bel[1]/points_amount:.4f}, quantiles = {quantiles_amount}')
+        print(f'RMSE Kor: {rmse_Kor[0] / points_amount:.4f}, {rmse_Kor[1] / points_amount:.4f}, quantiles = {quantiles_amount}')
+        rmse_a_bel[q] = rmse_Bel[0] / points_amount
+        rmse_b_bel[q] = rmse_Bel[1] / points_amount
+        rmse_a_kor[q] = rmse_Kor[0] / points_amount
+        rmse_b_kor[q] = rmse_Kor[1] / points_amount
+    np.save(files_path_prefix + 'Synthetic/' + 'rmse_A_bel.npy', rmse_a_bel)
+    np.save(files_path_prefix + 'Synthetic/' + 'rmse_B_bel.npy', rmse_b_bel)
+    np.save(files_path_prefix + 'Synthetic/' + 'rmse_A_kor.npy', rmse_a_kor)
+    np.save(files_path_prefix + 'Synthetic/' + 'rmse_B_kor.npy', rmse_b_kor)
+
+    plot_quantiles_amount_compare(files_path_prefix, 'A', quantiles)
+    plot_quantiles_amount_compare(files_path_prefix, 'B', quantiles)

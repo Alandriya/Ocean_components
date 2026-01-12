@@ -89,10 +89,13 @@ def plot_difference_1d_synthetic(files_path_prefix: str,
     :param coeff_type: 'A' or 'B' or 'F'
     :return:
     """
-    Bel = np.load(files_path_prefix + f'Synthetic/Bel/point_({point[0]}, {point[1]})-{coeff_type}.npy')[
+    if not os.path.exists(files_path_prefix + f'Synthetic/Plots/Difference'):
+        os.mkdir(files_path_prefix + f'Synthetic/Plots/Difference')
+
+    Bel = np.load(files_path_prefix + f'Synthetic/Bel/points/point_({point[0]}, {point[1]})-{coeff_type}.npy')[
           time_start:time_end]
-    Kor = np.load(files_path_prefix + f'Synthetic/coeff_Kor/Components/{coeff_type}_map.npy')[time_start:time_end,
-          point[0], point[1]]
+    Kor = np.load(files_path_prefix + f'Synthetic/Kor/points/point_({point[0]}, {point[1]})-{coeff_type}.npy')[
+          time_start:time_end]
     Kor = np.nan_to_num(Kor)
 
     if coeff_type == 'A':
@@ -192,6 +195,8 @@ def plot_synthetic_flux(files_path_prefix: str,
     :param b_array: np.array with generated B coefficient data with shape [time_steps, height, width]
     :return:
     """
+    if not os.path.exists(files_path_prefix + 'Synthetic/Plots'):
+        os.mkdir(files_path_prefix + 'Synthetic/Plots')
     if not os.path.exists(files_path_prefix + 'Synthetic/Plots/Flux'):
         os.mkdir(files_path_prefix + 'Synthetic/Plots/Flux')
 
@@ -539,4 +544,34 @@ def plot_synthetic_difference_compare(files_path_prefix: str,
 
         fig.tight_layout()
         fig.savefig(files_path_prefix + f'Synthetic/Plots/{coeff_type}/difference_{t}.png')
+    return
+
+def plot_quantiles_amount_compare(files_path_prefix:str,
+                                  coeff_type: str,
+                                  quantiles: np.array):
+    if not os.path.exists(files_path_prefix + f'Synthetic/Plots'):
+        os.mkdir(files_path_prefix + f'Synthetic/Plots')
+    if not os.path.exists(files_path_prefix + f'Synthetic/Plots/Quantiles'):
+        os.mkdir(files_path_prefix + f'Synthetic/Plots/Quantiles')
+
+    fig, axs = plt.subplots(1, 1, figsize=(10, 5))
+    # print(f' {coeff_type} RMSE\n')
+    fig.suptitle(f'{coeff_type} RMSE', fontsize=20, fontweight='bold')
+
+    plt.xlabel('Quantiles amount', fontsize=16)
+    plt.ylabel('RMSE', fontsize=16)
+    Bel = np.load(files_path_prefix + 'Synthetic/' + f'rmse_{coeff_type}_bel.npy')
+    Kor = np.load(files_path_prefix + 'Synthetic/' + f'rmse_{coeff_type}_kor.npy')
+    # axs.plot(quantiles, Bel, '-o', c='b', label='NP')
+    axs.plot(quantiles, Kor, '-o', c='r', label='SP')
+    x_label_list = quantiles
+    xticks = quantiles
+    axs.set_xticks(xticks)
+    axs.set_xticklabels(x_label_list)
+    axs.legend(fontsize="16")
+    fig.tight_layout()
+
+    fig.savefig(
+        files_path_prefix + f'Synthetic/Plots/Quantiles/{coeff_type}_Kor.png')
+    plt.close(fig)
     return

@@ -670,11 +670,11 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------
     # collect SST and PRESS to 10 years arrays 3d
 
-    start_year = 2019
-    end_year = 2025
-    bins_amount = 1000
-    days_delta = days_delta5 + days_delta6
-    current_shift = 0
+    # start_year = 2019
+    # end_year = 2025
+    # bins_amount = 1000
+    # days_delta = days_delta5 + days_delta6
+    # current_shift = 0
     # sst_array = np.zeros((height * width, days_delta * 4))
     # press_array = np.zeros_like(sst_array)
     # for year in range(start_year, end_year):

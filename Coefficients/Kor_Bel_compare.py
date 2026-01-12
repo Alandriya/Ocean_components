@@ -1,14 +1,17 @@
+import os.path
+
 from Data_processing.data_processing import scale_to_bins
 
-from EM_hybrid import *
+from Coefficients.EM_hybrid import *
 from Plotting.plot_compare import *
 
 
-def collect_Bel_point(files_path_prefix: str,
+def collect_point(files_path_prefix: str,
                       time_start: int,
                       time_end: int,
                       point: tuple,
                       path: str = 'Synthetic/',
+                      method: str = 'Bel',
                       ):
     """
     Collects ar array for a specific point for Bel method from existing maps. Requires maps estimates at
@@ -21,25 +24,25 @@ def collect_Bel_point(files_path_prefix: str,
     'Components/latent/'
     :return:
     """
-    if not os.path.exists(files_path_prefix + path + 'Bel/points'):
-        os.mkdir(files_path_prefix + path + 'Bel/points')
+    if not os.path.exists(files_path_prefix + path + f'{method}/points'):
+        os.mkdir(files_path_prefix + path + f'{method}/points')
 
-    if not os.path.exists(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-A.npy'):
-        a_Bel = np.zeros(time_end - time_start)
-        for t in range(time_start, time_end):
-            a_arr = np.load(files_path_prefix + path + f'maps/A_{t}.npy')
-            a_Bel[t - time_start] = a_arr[point[0], point[1]]
-            del a_arr
 
-        np.save(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-A.npy', a_Bel)
+    a_Bel = np.zeros(time_end - time_start)
+    for t in range(time_start, time_end):
+        a_arr = np.load(files_path_prefix + path + f'{method}/daily/A_{t}.npy')
+        a_Bel[t - time_start] = a_arr[point[0], point[1]]
+        del a_arr
 
-        b_Bel = np.zeros(time_end - time_start)
-        for t in range(time_start, time_end):
-            b_arr = np.load(files_path_prefix + path + f'maps/B_{t}.npy')
-            b_Bel[t - time_start] = b_arr[point[0], point[1]]
-            del b_arr
+    np.save(files_path_prefix + path + f'{method}/points/point_({point[0]}, {point[1]})-A.npy', a_Bel)
 
-        np.save(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-B.npy', b_Bel)
+    b_Bel = np.zeros(time_end - time_start)
+    for t in range(time_start, time_end):
+        b_arr = np.load(files_path_prefix + path + f'{method}/daily/B_{t}.npy')
+        b_Bel[t - time_start] = b_arr[point[0], point[1]]
+        del b_arr
+
+    np.save(files_path_prefix + path + f'{method}/points/point_({point[0]}, {point[1]})-B.npy', b_Bel)
     return
 
 
@@ -82,9 +85,11 @@ def create_synthetic_data_1d(files_path_prefix: str,
 
         X[t] = X[t - 1] + dX
 
-    np.save(f'{files_path_prefix}/Synthetic/flux_full.npy', X)
-    np.save(f'{files_path_prefix}/Synthetic/B_full.npy', b)
-    np.save(f'{files_path_prefix}/Synthetic/A_full.npy', a)
+    if not os.path.exists(f'{files_path_prefix}Synthetic'):
+        os.mkdir(f'{files_path_prefix}Synthetic')
+    np.save(f'{files_path_prefix}Synthetic/flux_full.npy', X)
+    np.save(f'{files_path_prefix}Synthetic/B_full.npy', b)
+    np.save(f'{files_path_prefix}Synthetic/A_full.npy', a)
     return
 
 
@@ -171,8 +176,8 @@ def count_1d_Bel(files_path_prefix: str,
 
     a = np.zeros((height, width), dtype=float)
     b = np.zeros((height, width), dtype=float)
-    a[mask] = np.NaN
-    b[mask] = np.NaN
+    a[mask] = np.nan
+    b[mask] = np.nan
 
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
         set_0 = np.unique(flux[t - 1])
@@ -280,3 +285,4 @@ def count_1d_Korolev(files_path_prefix: str,
         # print(f'Iteration {t}: {(time.time() - start_time):.1f} seconds')
         # start_time = time.time()
     return
+

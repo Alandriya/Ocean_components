@@ -246,7 +246,7 @@ def load_prepare_fluxes(sensible_filename: str,
                         latent_filename: str,
                         files_path_prefix: str = 'D://Data/OceanFull/',
                         prepare=True):
-    maskfile = open(files_path_prefix + "mask", "rb")
+    maskfile = open(files_path_prefix + "DATA/mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)

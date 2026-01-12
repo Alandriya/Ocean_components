@@ -262,8 +262,8 @@ def plot_1d_predictions(files_path_prefix: str,
         os.mkdir(files_path_prefix + f'videos/Forecast/1d')
     if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}'):
         os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}')
-    if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}'):
-        os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}')
+    # if not os.path.exists(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}'):
+    #     os.mkdir(files_path_prefix + f'videos/Forecast/1d/{model_name}/cluster_{cluster_idx}')
     plt.savefig(files_path_prefix + f'videos/Forecast/1d/{model_name}/batch_{cluster_idx}_{point_idx}.png')
     plt.close(fig)
     return

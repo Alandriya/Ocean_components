@@ -44,8 +44,8 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-3)
 
     # loss
-    # criterion = Loss_MSE().cuda()
-    criterion = GaussianNLLLoss().cuda()
+    criterion = Loss_MSE().cuda()
+    # criterion = GaussianNLLLoss().cuda()
 
     model_load_path = cfg.GLOBAL.MODEL_LOG_SAVE_PATH + f'/models/days_{cfg.out_len}_features_{cfg.features_amount}.pth'
     model_save_path = model_load_path

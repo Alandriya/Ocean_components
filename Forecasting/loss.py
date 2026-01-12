@@ -65,12 +65,15 @@ class Loss_MSE(nn.Module):
         # print(truth.shape)
         # print(pred.shape)
         differ = truth - pred  # b s c h w
-        differ[:, :, :, np.where(mask == 0)[0], np.where(mask == 0)[1]] = 0
+        # differ[:, :, :, np.where(mask == 0)[0], np.where(mask == 0)[1]] = 0
         #TODO delete if forecasting not only flux
         # differ[:, :, 1:] = 0
 
-        mse = torch.sum(differ ** 2, (2, 3, 4))  # b s
+        # mse = torch.sum(differ ** 2, (2, 3, 4))  # b s
+        mse = torch.sum(differ**2, (2))
+        print(mse.shape)
         mse = torch.mean(mse)  # 1
+        print(mse)
         return mse
 
 
