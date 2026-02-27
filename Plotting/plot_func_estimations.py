@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.cm
 from numpy.polynomial import Polynomial
 import datetime
-
+import math
+import scipy
+import seaborn as sns
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
@@ -234,36 +236,75 @@ def plot_estimate_a_flux(files_path_prefix: str,
     return sens_fit, lat_fit, sens_ss_poly, lat_ss_poly
 
 
+def func_sin(x, a, b, c,):
+    return a * np.sin(b * x + c)
+
 def plot_ab_functional(files_path_prefix: str,
                        quantiles: np.ndarray,
-                       a: np.ndarray,
-                       b: np.ndarray,
+                       a: list,
+                       b: list,
                        data_name: str,
+                       x_full: list,
+                       a_full: list,
+                       b_full: list,
                        ):
     fig, axs = plt.subplots(2, 1, figsize=(25, 10))
-    part = len(quantiles) // 5
-    x = quantiles[part:-part]
+    x = np.linspace(min(x_full), max(x_full), 100)
+    # sns.set_style('whitegrid')
 
-    a_lin_fit = Polynomial.fit(x, a[part:-part], 1, )
-    # b_lin_fit = Polynomial.fit(quantiles[part:-part], b[part:-part], 1)
-    a_poly_fit = Polynomial.fit(x, a[part:-part], 3, )
-    b_poly_fit = Polynomial.fit(x, b[part:-part], 3, )
+    if data_name in ['sensible', 'pressure']:
+        a_coeff_fit = np.polyfit(x_full, a, 1)
+        b_coeff_fit = np.polyfit(x_full, b, 3)
+    else: # latent
+        a_coeff_fit = np.polyfit(x_full, a_full, 1)
+        b_coeff_fit = np.polyfit(x_full, b_full, 2)
+
+    a_poly_fit = np.poly1d(a_coeff_fit)
+    b_poly_fit = np.poly1d(b_coeff_fit)
+
+    # b_params_guess = [1, 0.005, 3*math.pi/2]
+    # b_popt, b_pcov = scipy.optimize.curve_fit(func_sin, x_full, b, p0=b_params_guess, maxfev=10000)
 
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
-    axs[0].plot(x, a[part:-part], c='blue', label='dependence')
-    axs[0].plot(x, a_lin_fit(x), c='red', label=a_lin_fit.convert())
-    axs[0].plot(x, a_poly_fit(x), c='cyan', label=a_poly_fit.convert())
+    # axs[0].plot(quantiles, a, c='blue', label='dependence')
+    axs[0].scatter(x_full, a_full, c='blue', label='dependence')
+    # axs[0].plot(x, a_lin_fit(x), c='red', label=a_lin_fit.convert())
+    axs[0].plot(x, a_poly_fit(x), c='cyan', label=a_poly_fit)
     axs[0].set_xlabel(data_name + ' values', fontsize=20)
     axs[0].set_ylabel('A', fontsize=20)
     axs[0].legend()
 
 
-    axs[1].plot(x, b[part:-part], c='blue', label='dependence')
-    # axs[1].plot(x, b_lin_fit(x), c='red', label='linear fit')
-    axs[1].plot(x, b_poly_fit(x), c='cyan', label=b_poly_fit.convert())
+    # axs[1].plot(quantiles, b, c='blue', label='dependence')
+    axs[1].scatter(x_full, b_full, c='blue', label='dependence')
+    axs[1].plot(x, b_poly_fit(x), c='cyan', label=b_poly_fit)
+    # axs[1].plot(x, func_sin(x, *b_popt), c='cyan', label='sin fit')
     axs[1].set_xlabel(data_name + ' values', fontsize=20)
     axs[1].set_ylabel('B', fontsize=20)
     axs[1].legend()
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_scattered.png')
+    # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}.png')
     return
+
+def plot_prob_1d(files_path_prefix: str,
+                 data_name: str,
+                 prob,
+                 x):
+    sns.set_style("whitegrid")
+    fig, axs = plt.subplots(1, 1, figsize=(10, 5))
+    # plt.xlabel('Значения явного потока тепла', fontsize=14)
+    # plt.xlabel('Значения атмосферного давления', fontsize=14)
+    plt.xlabel('Значения скрытого потока тепла', fontsize=14)
+    plt.ylabel('Плотность стационарного распределения', fontsize=14)
+    y = [prob(x0) for x0 in x]
+    axs.plot(x, y)
+    # mode = -12.2 # sensible
+    # mode = 89300 # pressure
+    mode = -120
+    axs.axvline(x=mode, color='gray', linestyle='--', linewidth=2, label=f'x={mode}')
+    axs.legend()
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
+    return
+
