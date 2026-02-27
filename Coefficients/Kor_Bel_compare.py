@@ -63,10 +63,16 @@ def create_synthetic_data_1d(files_path_prefix: str,
     """
     wiener = np.zeros((height, width), dtype=float)
     X_start = np.random.normal(1, 1, size=(height, width))
-    alpha = -0.3
-    beta = 0.01
-    omega = [math.pi / 2, math.pi * 2 / 3, math.pi * 4 / 3, math.pi * 2]
-    weights = [0.4, 0.3, 0.2, 0.1]
+    # alpha = -0.3
+    # beta = 0.01
+    # omega = [math.pi / 2, math.pi * 2 / 3, math.pi * 4 / 3, math.pi * 2]
+    # weights = [0.4, 0.3, 0.2, 0.1]
+    alpha = -0.1
+    beta = 0.001
+
+    omega = [math.pi / 2, math.pi * 2 / 3, math.pi * 4 / 3, math.pi * 2, math.pi/6, math.pi/7]
+    weights = [0.35, 0.2, 0.05, 0.1, 0.1, 0.1, 0.1]
+    # print(sum(weights))
 
     X = np.zeros((time_end - time_start, height, width), dtype=float)
     X[0] = X_start
@@ -179,7 +185,8 @@ def count_1d_Bel(files_path_prefix: str,
     a[mask] = np.nan
     b[mask] = np.nan
 
-    for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    # for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    for t in range(time_start + 1, time_end):
         set_0 = np.unique(flux[t - 1])
         for val_t0 in set_0:
             if not np.isnan(val_t0):
@@ -227,6 +234,7 @@ def count_1d_Korolev(files_path_prefix: str,
     :param start_index: offset index when saving maps
     :return:
     """
+    # print(n_components)
     if not os.path.exists(files_path_prefix + path):
         os.mkdir(files_path_prefix + path)
 
@@ -241,7 +249,8 @@ def count_1d_Korolev(files_path_prefix: str,
     a_map[np.isnan(flux[0])] = np.nan
     b_map[np.isnan(flux[0])] = np.nan
     # start_time = time.time()
-    for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    # for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    for t in range(time_start + 1, time_end):
         # print(f't = {t}')
         flux_array, quantiles = scale_to_bins(flux[t - 1], quantiles_amount)
         flux_set = list(set(flux_array[np.logical_not(np.isnan(flux_array))].flat))
@@ -279,7 +288,10 @@ def count_1d_Korolev(files_path_prefix: str,
 
             a_map[np.where(flux_array == value_t0)] = a_sum
             b_map[np.where(flux_array == value_t0)] = b_sum
+            # if t == 1:
+            #     print(a_sum)
 
+        # print('\n\n', flush=True)
         np.save(files_path_prefix + path + f'Kor/daily/A_{t+start_index}.npy', a_map)
         np.save(files_path_prefix + path + f'Kor/daily/B_{t+start_index}.npy', b_map)
         # print(f'Iteration {t}: {(time.time() - start_time):.1f} seconds')
