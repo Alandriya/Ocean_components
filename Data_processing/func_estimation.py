@@ -1,7 +1,7 @@
 import datetime
 import os
 import pandas as pd
-import scipy.stats
+
 import tqdm
 # from VarGamma import fit_ml, pdf, cdf
 from numpy.polynomial import Polynomial
@@ -21,7 +21,9 @@ font = {'size': 14}
 matplotlib.rc('font', **font)
 
 def func_sin(x, a, b, c, d, f, g, h):
-    return a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
+    # return a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
+    return a * np.sin(b * x + c)
+
 
 
 def fourier_series(x, f, n=10):
@@ -130,7 +132,11 @@ def estimate_A_B(files_path_prefix: str,
     quantiles = np.unique(x_grouped)
     a_grouped = np.zeros(len(quantiles))
     b_grouped = np.zeros(len(quantiles))
-    for g in tqdm.tqdm(range(len(quantiles))):
+    a_full = list()
+    b_full = list()
+    x_full = list()
+    # part = len(quantiles) // 10
+    for g in tqdm.tqdm(range(len(quantiles) )):
         quantile = quantiles[g]
         # data = x[x_grouped == quantile]
         if not np.isnan(quantile):
@@ -138,5 +144,8 @@ def estimate_A_B(files_path_prefix: str,
             # print(np.sum((x_grouped==quantile)))
             a_grouped[g] = np.mean(a[x_grouped == quantile])
             b_grouped[g] = np.mean(b[x_grouped == quantile])
+            a_full += list(a[x_grouped == quantile].flatten())
+            b_full += list(b[x_grouped == quantile].flatten())
+            x_full += list(x[x_grouped == quantile].flatten())
 
-    return quantiles, a_grouped, b_grouped
+    return quantiles, a_grouped, b_grouped, x_full, a_full, b_full
