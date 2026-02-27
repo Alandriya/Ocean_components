@@ -6,6 +6,7 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
+import seaborn as sns
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from Plotting.video import get_continuous_cmap
@@ -372,27 +373,24 @@ def plot_synthetic_flux(files_path_prefix: str,
 
 
 def plot_methods_compare(files_path_prefix: str,
-                         time_start: int,
-                         time_end: int,
+                         coeff_Bel: np.ndarray,
+                         coeff_Kor: np.ndarray,
                          flux_type: str,
                          coeff_type: str,
                          start_index: int = 0):
     """
-    Plots maps for real data coefficients estimates for time steps in (time_start, time_end) with offset start_index
+    Plots maps for real data coefficients estimates with offset start_index
     for both Korolev and Belyaev methods for coeff_type
     :param files_path_prefix: path to the working directory
-    :param time_start: int counter of start day
-    :param time_end: int counter of end day
-    :param flux_type: 'sensible' or 'latent'
+    :param coeff_Bel: calculated map-type coefficient
+    :param coeff_Kor: calculated map-type coefficient
+    :param flux_type: 'sensible' or 'latent' or 'pressure'
     :param coeff_type: 'A' or 'B' or 'F'
     :param start_index: offset index when saving plots
     :return:
     """
 
-    if not os.path.exists(files_path_prefix + f'Components/Plots/{coeff_type}_{flux_type}'):
-        os.mkdir(files_path_prefix + f'Components/Plots/{coeff_type}_{flux_type}')
-
-    fig, axs = plt.subplots(1, 2, figsize=(20, 10))
+    fig, axs = plt.subplots(1, 2, figsize=(15, 8))
     img = [None for _ in range(2)]
 
     cax = list()
@@ -400,55 +398,40 @@ def plot_methods_compare(files_path_prefix: str,
         divider = make_axes_locatable(axs[i])
         cax.append(divider.append_axes('right', size='5%', pad=0.3))
 
-    if not os.path.exists(files_path_prefix + f'Components/{flux_type}/{coeff_type}_map.npy'):
-        raise FileNotFoundError('No Korolev map!')
+    coeff_max = max(np.nanmax(coeff_Kor), np.nanmax(coeff_Kor))
+    coeff_min = min(np.nanmin(coeff_Kor), np.nanmin(coeff_Bel))
+
+    # fig.suptitle(f'{coeff_type} {flux_type}\n day {start_index}', fontsize=30)
+
+    # coeff_Bel[coeff_Bel == 0] = np.nan
+    if coeff_type == 'B':
+        cmap = get_continuous_cmap(['#ffffff', '#ff0000'],
+                                   [0, 1])
     else:
-        coeff_Kor = np.load(files_path_prefix + f'Components/{flux_type}/{coeff_type}_map.npy')
-
-    coeff_max = np.nanmax(coeff_Kor)
-    coeff_min = np.nanmin(coeff_Kor)
-
-    for t in tqdm.tqdm(range(time_start + 1, time_end)):
-        coeff_string = f'{coeff_type}_{t}.npy'
-        if not os.path.exists(files_path_prefix + f'Components/Bel/maps/{coeff_string}'):
-            raise FileNotFoundError(f'No Belyaev map step {t}!')
-        else:
-            coeff_Bel = np.load(files_path_prefix + f'Components/Bel/maps/{coeff_string}')
-
-        fig.suptitle(f'{coeff_type} {flux_type}\n day {t}', fontsize=30)
-
-        coeff_Bel[coeff_Bel == 0] = np.nan
-        coeff_max = np.nanmax((coeff_max, np.nanmax(coeff_Bel)))
-        coeff_min = np.nanmin((coeff_min, np.nanmin(coeff_Bel)))
-
         cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'],
                                    [0, (1.0 - coeff_min) / (coeff_max - coeff_min), 1])
-        cmap.set_bad('darkgreen', 1.0)
 
-        if img[0] is None:
-            img[0] = axs[0].imshow(coeff_Bel,
-                                   interpolation='none',
-                                   cmap=cmap,
-                                   vmin=coeff_min,
-                                   vmax=coeff_max)
-        else:
-            img[0].set_data(coeff_Bel)
+    cmap.set_bad('darkgreen', 1.0)
 
-        if img[1] is None:
-            img[1] = axs[1].imshow(coeff_Kor[t],
-                                   interpolation='none',
-                                   cmap=cmap,
-                                   vmin=coeff_min,
-                                   vmax=coeff_max)
-        else:
-            img[1].set_data(coeff_Kor[t])
+    img[0] = axs[0].imshow(coeff_Bel,
+                           interpolation='none',
+                           cmap=cmap,
+                           vmin=coeff_min,
+                           vmax=coeff_max)
 
-        axs[0].set_title(f'Pointwise', fontsize=20)
-        axs[1].set_title(f'EM', fontsize=20)
-        for i in range(2):
-            fig.colorbar(img[i], cax=cax[i], orientation='vertical')
 
-        fig.savefig(files_path_prefix + f'Components/Plots/{coeff_type}_{flux_type}/{t + start_index}.png')
+    img[1] = axs[1].imshow(coeff_Kor,
+                           interpolation='none',
+                           cmap=cmap,
+                           vmin=coeff_min,
+                           vmax=coeff_max)
+
+    axs[0].set_title(f'Непараметрический метод', fontsize=16)
+    axs[1].set_title(f'Полупараметрический метод', fontsize=16)
+    for i in range(2):
+        fig.colorbar(img[i], cax=cax[i], orientation='vertical')
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Compare/{coeff_type}_{flux_type}_{start_index}.png')
     return
 
 
@@ -548,22 +531,26 @@ def plot_synthetic_difference_compare(files_path_prefix: str,
 
 def plot_quantiles_amount_compare(files_path_prefix:str,
                                   coeff_type: str,
-                                  quantiles: np.array):
+                                  quantiles: np.array,
+                                  list_types: list):
     if not os.path.exists(files_path_prefix + f'Synthetic/Plots'):
         os.mkdir(files_path_prefix + f'Synthetic/Plots')
     if not os.path.exists(files_path_prefix + f'Synthetic/Plots/Quantiles'):
         os.mkdir(files_path_prefix + f'Synthetic/Plots/Quantiles')
-
+    sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
     # print(f' {coeff_type} RMSE\n')
-    fig.suptitle(f'{coeff_type} RMSE', fontsize=20, fontweight='bold')
+    # fig.suptitle(f'{coeff_type} RMSE', fontsize=20, fontweight='bold')
 
-    plt.xlabel('Quantiles amount', fontsize=16)
-    plt.ylabel('RMSE', fontsize=16)
+    # plt.xlabel('Quantiles amount', fontsize=14)
+    plt.xlabel('Количество квантилей', fontsize=14)
+    plt.ylabel('RMSE', fontsize=14)
     Bel = np.load(files_path_prefix + 'Synthetic/' + f'rmse_{coeff_type}_bel.npy')
     Kor = np.load(files_path_prefix + 'Synthetic/' + f'rmse_{coeff_type}_kor.npy')
-    # axs.plot(quantiles, Bel, '-o', c='b', label='NP')
-    axs.plot(quantiles, Kor, '-o', c='r', label='SP')
+    if 'Bel' in list_types:
+        axs.plot(quantiles, Bel, '-o', c='b', label='NP')
+    if 'Kor' in list_types:
+        axs.plot(quantiles, Kor, '-o', c='r', label='SP')
     x_label_list = quantiles
     xticks = quantiles
     axs.set_xticks(xticks)
@@ -572,6 +559,6 @@ def plot_quantiles_amount_compare(files_path_prefix:str,
     fig.tight_layout()
 
     fig.savefig(
-        files_path_prefix + f'Synthetic/Plots/Quantiles/{coeff_type}_Kor.png')
+        files_path_prefix + f'Synthetic/Plots/Quantiles/{coeff_type}_{list_types}.png')
     plt.close(fig)
     return
