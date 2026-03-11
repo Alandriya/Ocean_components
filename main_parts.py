@@ -1738,3 +1738,198 @@ if __name__ == '__main__':
     #
     # plot_quantiles_amount_compare(files_path_prefix, 'A', quantiles)
     # plot_quantiles_amount_compare(files_path_prefix, 'B', quantiles)
+    # checking different amount of components in EM
+    # flux = np.load(f'{files_path_prefix}Synthetic/flux_full.npy')
+    # a_array = np.load(f'{files_path_prefix}Synthetic/A_full.npy')
+    # b_array = np.load(f'{files_path_prefix}Synthetic/B_full.npy')
+    # rmse_a_kor = np.zeros(6, dtype=float)
+    # rmse_b_kor = np.zeros(6, dtype=float)
+    # points_j_amount = 1
+    # points_i_amount = 1
+    # points_amount = points_i_amount * points_j_amount
+    # for n in range(2, 6):
+    #     count_1d_Korolev(files_path_prefix, flux, 0, 10, 'Synthetic/', 100, n_components=n)
+    #     rmse_Kor = [0.0, 0.0]
+    #     for point in tqdm.tqdm([(i, j) for i in range(points_i_amount) for j in range(points_j_amount)]):
+    #         collect_point(files_path_prefix, 1, 10, point, 'Synthetic/', 'Kor')
+    #         a_Kor = np.load(files_path_prefix + 'Synthetic/' + f'Kor/points/point_({point[0]}, {point[1]})-A.npy')
+    #         b_Kor = np.load(files_path_prefix + 'Synthetic/' + f'Kor/points/point_({point[0]}, {point[1]})-B.npy')
+    #
+    #         # count rmse
+    #         rmse_Kor[0] += math.sqrt(sum((a_Kor - a_array[1:10, point[0], point[1]]) ** 2))
+    #         rmse_Kor[1] += math.sqrt(sum((b_Kor - b_array[1:10, point[0], point[1]]) ** 2))
+    #
+    #     print(f'RMSE Kor: {rmse_Kor[0] / points_amount:.4f}, {rmse_Kor[1] / points_amount:.4f}, n = {n}')
+    #     rmse_a_kor[n-1] = rmse_Kor[0] / points_amount
+    #     rmse_b_kor[n-1] = rmse_Kor[1] / points_amount
+    #
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_A_kor.npy', rmse_a_kor)
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_B_kor.npy', rmse_b_kor)
+    # # ----------------------------------------------------------------------------------------------
+    # # mann whitneyu test
+    # # quantiles_amount = 50
+    # # data_name = 'pressure'
+    # # data_name = 'sensible'
+    # data_name = 'latent'
+    #
+    # # data_array = np.load(files_path_prefix + f'Pressure/PRESS_{1979}-{1989}_grouped.npy')
+    # # data_array = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{1979}-{1989}.npy')
+    # data_array = np.load(files_path_prefix + f'Fluxes/latent_grouped_{1979}-{1989}.npy')
+    # data_array = data_array.transpose()
+    # data_array = data_array.reshape((-1, height, width))
+    # # path = 'Components/pressure/'
+    # # path = 'Components/sensible/'
+    # path = 'Components/latent/'
+    #
+    # # data_array = np.load(f'{files_path_prefix}Synthetic/flux_full.npy')
+    # # path = 'Synthetic'
+    # print(data_array.shape)
+    #
+    # points_j_amount = 10
+    # points_i_amount = 10
+    # amount = points_i_amount * points_j_amount
+    # mask = mask.reshape((height, width))
+    # # mask = np.ones((points_i_amount, points_j_amount))
+    # for quantiles_amount in [50, 100, 150, 200, 250, 300, 350]:
+    #     count_1d_Bel(files_path_prefix, data_array, 0, 100,  path, 0, quantiles_amount)
+    #     count_1d_Korolev(files_path_prefix, data_array, 0, 100, path, quantiles_amount, )
+    #     a_results = 0
+    #     b_results = 0
+    #     pvalues_a = list()
+    #     pvalues_b = list()
+    #     for point in [(i, j) for i in range(80, 80 + points_i_amount) for j in range(80, 80 + points_j_amount)]:
+    #     # for point in [(i, j) for i in range(points_i_amount) for j in range(points_j_amount)]:
+    #         i, j = point
+    #         if not mask[i, j]:
+    #             print('Minus 1 point')
+    #             amount -= 1
+    #             continue
+    #         collect_point(files_path_prefix, 1, 100, point, path, 'Bel')
+    #         collect_point(files_path_prefix, 1, 100, point, path, 'Kor')
+    #
+    #         a_Bel = np.load(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-A.npy')
+    #         b_Bel = np.load(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-B.npy')
+    #         a_Kor = np.load(files_path_prefix + path + f'Kor/points/point_({point[0]}, {point[1]})-A.npy')
+    #         b_Kor = np.load(files_path_prefix + path + f'Kor/points/point_({point[0]}, {point[1]})-B.npy')
+    #
+    #         # print(f'Point {point}')
+    #         # print(f'A test: {mannwhitneyu(a_Bel, a_Kor)}')
+    #         # print(f'B test: {mannwhitneyu(b_Bel, b_Kor)}')
+    #         i, j = point
+    #         U1, pa = mannwhitneyu(a_Bel, a_Kor)
+    #         pvalues_a.append(pa)
+    #         if pa < 0.05:
+    #             a_results += 1
+    #             # print(pa)
+    #         U1, pb = mannwhitneyu(b_Bel, b_Kor)
+    #         pvalues_b.append(pb)
+    #         if pb < 0.05:
+    #             b_results += 1
+    #
+    #
+    #     reject, pvals_corrected_a, _, _ = multipletests(pvalues_a, 0.05, 'holm')
+    #     reject, pvals_corrected_b, _, _ = multipletests(pvalues_b, 0.05, 'holm')
+    #
+    #     a_results_corrected = sum([1 if p < 0.05 else 0 for p in pvals_corrected_a])
+    #     b_results_corrected = sum([1 if p < 0.05 else 0 for p in pvals_corrected_b])
+    #
+    #     print(quantiles_amount)
+    #     print(f'A result: {a_results * 1.0/amount}')
+    #     print(f'B result: {b_results * 1.0/amount}')
+    #     print(f'A FWER: {a_results_corrected * 1.0/amount}')
+    #     print(f'B FWER: {b_results_corrected * 1.0 / amount}')
+    #     print('\n')
+    # ----------------------------------------------------------------------------------------------
+    # # plot Bel and Kor on real data
+    # path = 'Components/pressure/'
+    # data_name = 'pressure'
+    # data_array = np.load(files_path_prefix + f'Pressure/PRESS_{1979}-{1989}_grouped.npy')
+    # # data_array = np.load(files_path_prefix + f'Fluxes/latent_grouped_{1979}-{1989}.npy')
+    # data_array = data_array.transpose()
+    # data_array = data_array.reshape((-1, height, width))
+    # quantiles_amount = 250
+    #
+    #
+    # t = 1
+    # for quantiles_amount in [50, 100, 150, 200, 250, 300, 350]:
+    #     count_1d_Bel(files_path_prefix, data_array, 0, 3, path, 0, quantiles_amount)
+    #     count_1d_Korolev(files_path_prefix, data_array, 0, 3, path, quantiles_amount, )
+    #     print(quantiles_amount)
+    #     for coeff_type in ['A', 'B']:
+    #         bel = np.load(files_path_prefix + path + f'Bel/daily/{coeff_type}_{t}.npy')
+    #         kor = np.load(files_path_prefix + path + f'Kor/daily/{coeff_type}_{t}.npy')
+    #         # plot_methods_compare(files_path_prefix, bel, kor, data_name, coeff_type, t)
+    #         data_min = min(np.nanmin(bel), np.nanmin(kor))
+    #         data_max = max(np.nanmax(bel), np.nanmax(kor))
+    #         bel = np.nan_to_num(bel)
+    #         kor = np.nan_to_num(kor)
+    #         print(f'Data type {data_name}, {coeff_type} SSIM: {ssim(bel, kor, data_range=data_max-data_min):.3f}')
+    # ----------------------------------------------------------------------------------------------
+    # # Creating synthetic flux and counting Bel and Kor methods for it and plotting the difference
+    # create_synthetic_data_1d(files_path_prefix, time_start=0, time_end=1000)
+    # data_array = np.load(f'{files_path_prefix}Synthetic/flux_full.npy')
+    # a_array = np.load(f'{files_path_prefix}Synthetic/A_full.npy')
+    # b_array = np.load(f'{files_path_prefix}Synthetic/B_full.npy')
+    # plot_synthetic_flux(files_path_prefix, data_array, 0, 5, a_array, b_array)
+    # raise ValueError
+    # path = 'Synthetic'
+    #
+    # # quantiles = [1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50]
+    # quantiles = [50, 100, 150, 200, 250, 300, 350, 400, 500]
+    # rmse_a_bel = np.zeros(len(quantiles), dtype=float)
+    # rmse_b_bel = np.zeros(len(quantiles), dtype=float)
+    # rmse_a_kor = np.zeros(len(quantiles), dtype=float)
+    # rmse_b_kor = np.zeros(len(quantiles), dtype=float)
+    # points_j_amount = 10
+    # points_i_amount = 10
+    # points_amount = points_i_amount * points_j_amount
+    # for q in range(len(quantiles)):
+    #     quantiles_amount = quantiles[q]
+    #     print(quantiles_amount)
+    #     count_1d_Bel(files_path_prefix, data_array, 0, 100,  path, 0, quantiles_amount)
+    #     count_1d_Korolev(files_path_prefix, data_array, 0, 100, path, quantiles_amount, )
+
+    #     rmse_Bel = [0.0, 0.0]
+    #     rmse_Kor = [0.0, 0.0]
+    #     a_results = 0
+    #     b_results = 0
+    #
+    #     for point in [(i, j) for i in range(points_i_amount) for j in range(points_j_amount)]:
+    #         collect_point(files_path_prefix, 1, 100, point, path, 'Bel')
+    #         collect_point(files_path_prefix, 1, 100, point, path, 'Kor')
+    #         # count_Bel_Kor_difference(files_path_prefix, 1, 100, point, '')
+    #         # plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'A')
+    #         # plot_difference_1d_synthetic(files_path_prefix, point, 3, 1, 99, 'B')
+    #
+    #         a_Bel = np.load(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-A.npy')
+    #         b_Bel = np.load(files_path_prefix + path + f'Bel/points/point_({point[0]}, {point[1]})-B.npy')
+    #         a_Kor = np.load(files_path_prefix + path + f'Kor/points/point_({point[0]}, {point[1]})-A.npy')
+    #         b_Kor = np.load(files_path_prefix + path + f'Kor/points/point_({point[0]}, {point[1]})-B.npy')
+    #         # count rmse
+    #         rmse_Bel[0] += math.sqrt(sum((a_Bel - a_array[1:100, point[0], point[1]]) ** 2))
+    #         rmse_Bel[1] += math.sqrt(sum((b_Bel - b_array[1:100, point[0], point[1]]) ** 2))
+    #         rmse_Kor[0] += math.sqrt(sum((a_Kor - a_array[1:100, point[0], point[1]]) ** 2))
+    #         rmse_Kor[1] += math.sqrt(sum((b_Kor - b_array[1:100, point[0], point[1]]) ** 2))
+    #
+    #     print(f'RMSE Bel: {rmse_Bel[0]/points_amount:.4f}, {rmse_Bel[1]/points_amount:.4f}, quantiles = {quantiles_amount}')
+    #     print(f'RMSE Kor: {rmse_Kor[0] / points_amount:.4f}, {rmse_Kor[1] / points_amount:.4f}, quantiles = {quantiles_amount}')
+    #     print('\n')
+    #     rmse_a_bel[q] = rmse_Bel[0] / points_amount
+    #     rmse_b_bel[q] = rmse_Bel[1] / points_amount
+    #     rmse_a_kor[q] = rmse_Kor[0] / points_amount
+    #     rmse_b_kor[q] = rmse_Kor[1] / points_amount
+    #
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_A_bel.npy', rmse_a_bel)
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_B_bel.npy', rmse_b_bel)
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_A_kor.npy', rmse_a_kor)
+    # np.save(files_path_prefix + 'Synthetic/' + 'rmse_B_kor.npy', rmse_b_kor)
+    #
+    # quantiles = np.array(quantiles)
+    # plot_quantiles_amount_compare(files_path_prefix, 'A', quantiles, ['Kor'])
+    # plot_quantiles_amount_compare(files_path_prefix, 'A', quantiles, ['Bel'])
+    # plot_quantiles_amount_compare(files_path_prefix, 'A', quantiles, ['Kor', 'Bel'])
+    #
+    # plot_quantiles_amount_compare(files_path_prefix, 'B', quantiles, ['Kor'])
+    # plot_quantiles_amount_compare(files_path_prefix, 'B', quantiles, ['Bel'])
+    # plot_quantiles_amount_compare(files_path_prefix, 'B', quantiles, ['Kor', 'Bel'])
+    # ----------------------------------------------------------------------------------------------

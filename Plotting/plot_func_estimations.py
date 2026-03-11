@@ -248,37 +248,37 @@ def plot_ab_functional(files_path_prefix: str,
                        a_full: list,
                        b_full: list,
                        ):
-    fig, axs = plt.subplots(2, 1, figsize=(25, 10))
-    x = np.linspace(min(x_full), max(x_full), 100)
-    # sns.set_style('whitegrid')
+    sns.set_style('whitegrid')
+    fig, axs = plt.subplots(2, 1, figsize=(15, 15))
+    x = np.linspace(min(quantiles), max(quantiles), 500)
 
-    if data_name in ['sensible', 'pressure']:
-        a_coeff_fit = np.polyfit(x_full, a, 1)
-        b_coeff_fit = np.polyfit(x_full, b, 3)
-    else: # latent
-        a_coeff_fit = np.polyfit(x_full, a_full, 1)
-        b_coeff_fit = np.polyfit(x_full, b_full, 2)
+    a_coeff_fit = np.polyfit(x_full, a_full, 1)
+    b_coeff_fit = np.polyfit(x_full, b_full, 3)
 
     a_poly_fit = np.poly1d(a_coeff_fit)
     b_poly_fit = np.poly1d(b_coeff_fit)
+
+    a_string = f'{a_coeff_fit[0]:.3e} * x + {a_coeff_fit[1]:.3e}'
+    b_string = f'{b_coeff_fit[0]:.3e} * x^3 + {b_coeff_fit[1]:.3e} * x^2 + {b_coeff_fit[2]:.3e} * x + {b_coeff_fit[3]:.3e}'
 
     # b_params_guess = [1, 0.005, 3*math.pi/2]
     # b_popt, b_pcov = scipy.optimize.curve_fit(func_sin, x_full, b, p0=b_params_guess, maxfev=10000)
 
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
-    # axs[0].plot(quantiles, a, c='blue', label='dependence')
-    axs[0].scatter(x_full, a_full, c='blue', label='dependence')
+
+    axs[0].scatter(x_full, a_full, c='blue')
+    axs[0].plot(quantiles, a, c='cyan', label='mean')
     # axs[0].plot(x, a_lin_fit(x), c='red', label=a_lin_fit.convert())
-    axs[0].plot(x, a_poly_fit(x), c='cyan', label=a_poly_fit)
+    axs[0].plot(x, a_poly_fit(x), c='red', label=a_string)
     axs[0].set_xlabel(data_name + ' values', fontsize=20)
     axs[0].set_ylabel('A', fontsize=20)
     axs[0].legend()
 
 
-    # axs[1].plot(quantiles, b, c='blue', label='dependence')
-    axs[1].scatter(x_full, b_full, c='blue', label='dependence')
-    axs[1].plot(x, b_poly_fit(x), c='cyan', label=b_poly_fit)
+    axs[1].scatter(x_full, b_full, c='blue')
+    axs[1].plot(quantiles, b, c='cyan', label='mean')
+    axs[1].plot(x, b_poly_fit(x), c='red', label=b_string)
     # axs[1].plot(x, func_sin(x, *b_popt), c='cyan', label='sin fit')
     axs[1].set_xlabel(data_name + ' values', fontsize=20)
     axs[1].set_ylabel('B', fontsize=20)

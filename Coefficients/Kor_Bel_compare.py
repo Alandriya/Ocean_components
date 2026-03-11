@@ -1,5 +1,7 @@
 import os.path
 
+import numpy as np
+
 from Data_processing.data_processing import scale_to_bins
 
 from Coefficients.EM_hybrid import *
@@ -249,9 +251,12 @@ def count_1d_Korolev(files_path_prefix: str,
     a_map[np.isnan(flux[0])] = np.nan
     b_map[np.isnan(flux[0])] = np.nan
     # start_time = time.time()
-    # for t in tqdm.tqdm(range(time_start + 1, time_end)):
-    for t in range(time_start + 1, time_end):
+    for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    # for t in range(time_start + 1, time_end):
         # print(f't = {t}')
+        if os.path.exists(files_path_prefix + path + f'Kor/daily/A_{t+start_index}.npy'):
+            continue
+    
         flux_array, quantiles = scale_to_bins(flux[t - 1], quantiles_amount)
         flux_set = list(set(flux_array[np.logical_not(np.isnan(flux_array))].flat))
         for group in range(len(flux_set)):
@@ -271,12 +276,13 @@ def count_1d_Korolev(files_path_prefix: str,
             #                      init_params='random',
             #                      n_init=30
             #                      ).fit(window.reshape(-1, 1))
+
             gm = GaussianMixture(n_components=n_components,
                                  tol=1e-4,
                                  covariance_type='spherical',
                                  max_iter=1000,
                                  init_params='random',
-                                 n_init=5
+                                 n_init=10
                                  ).fit(window.reshape(-1, 1))
             means = gm.means_.flatten()
             sigmas_squared = gm.covariances_.flatten()

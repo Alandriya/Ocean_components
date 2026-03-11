@@ -130,13 +130,21 @@ def estimate_A_B(files_path_prefix: str,
                  quantiles_amount: int = 250):
     x_grouped, _ = scale_to_bins(x, quantiles_amount)
     quantiles = np.unique(x_grouped)
+    quantiles = quantiles[np.logical_not(np.isnan(quantiles))]
+    quantiles = quantiles[quantiles != 0] #hotfix
+    # quantiles = np.sort(quantiles)
+
+    part = len(quantiles) // 20
+    quantiles = quantiles[part:-part]
+
     a_grouped = np.zeros(len(quantiles))
     b_grouped = np.zeros(len(quantiles))
     a_full = list()
     b_full = list()
     x_full = list()
-    # part = len(quantiles) // 10
-    for g in tqdm.tqdm(range(len(quantiles) )):
+
+    print(len(quantiles))
+    for g in tqdm.tqdm(range(len(quantiles))):
         quantile = quantiles[g]
         # data = x[x_grouped == quantile]
         if not np.isnan(quantile):
