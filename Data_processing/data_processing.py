@@ -229,16 +229,15 @@ def load_ABCFE(files_path_prefix: str,
 
 def scale_to_bins(arr, bins=100):
     quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
+    # quantiles = sorted(quantiles)
 
     arr_scaled = np.zeros_like(arr)
     arr_scaled[np.isnan(arr)] = np.nan
+    quantiles += [np.nanmax(arr)]
     # for j in tqdm.tqdm(range(bins - 1)):
-    for j in range(bins - 1):
+    for j in range(bins):
         arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
             (quantiles[j] + quantiles[j + 1]) / 2
-
-    quantiles += [np.nanmax(arr)]
-
     return arr_scaled, quantiles
 
 
