@@ -8,7 +8,7 @@ import numpy as np
 import scipy
 import seaborn as sns
 import tqdm
-from VarGamma import fit_ml, pdf, cdf
+# from VarGamma import fit_ml, pdf, cdf
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from Plotting.video import get_continuous_cmap
@@ -437,12 +437,12 @@ def plot_estimate_ab_distributions(files_path_prefix: str,
     lat_t = scipy.stats.t.fit(a_lat_sample[:part])
     lat_t_pval = scipy.stats.kstest(a_lat_sample[part:], scipy.stats.t.cdf, lat_t)[1]
 
-    sens_vargamma = fit_ml(a_sens_sample[:part])
-    sens_vg_pval = scipy.stats.kstest(a_sens_sample[part:], cdf, sens_vargamma)[1]
-    lat_vargamma = fit_ml(a_lat_sample[:part])
-    lat_vg_pval = scipy.stats.kstest(a_lat_sample[part:], cdf, lat_vargamma)[1]
-    print(f'Sensible parameters: {sens_vargamma}')
-    print(f'Latent parameters: {lat_vargamma}')
+    # sens_vargamma = fit_ml(a_sens_sample[:part])
+    # sens_vg_pval = scipy.stats.kstest(a_sens_sample[part:], cdf, sens_vargamma)[1]
+    # lat_vargamma = fit_ml(a_lat_sample[:part])
+    # lat_vg_pval = scipy.stats.kstest(a_lat_sample[part:], cdf, lat_vargamma)[1]
+    # print(f'Sensible parameters: {sens_vargamma}')
+    # print(f'Latent parameters: {lat_vargamma}')
 
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(1, 2, figsize=(15, 8))
@@ -464,12 +464,12 @@ def plot_estimate_ab_distributions(files_path_prefix: str,
     mu, sigma = sens_norm
     axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal', c='y')
     axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t), label=f'Fitted t, p_value = {sens_t_pval:.5f}', c='orange')
-    axs[0].plot(x, pdf(x, *sens_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
-                                                 f'{sens_vargamma[0]:.1f}; '
-                                                 f'{chr(946)}={sens_vargamma[1]:.1f}; '
-                                                 f'{chr(955)}={sens_vargamma[2]:.1f}; '
-                                                 f'{chr(947)}={sens_vargamma[3]:.1f}\n'
-                                                 f'p_value = {sens_vg_pval:.5f}', c='g')
+    # axs[0].plot(x, pdf(x, *sens_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+    #                                              f'{sens_vargamma[0]:.1f}; '
+    #                                              f'{chr(946)}={sens_vargamma[1]:.1f}; '
+    #                                              f'{chr(955)}={sens_vargamma[2]:.1f}; '
+    #                                              f'{chr(947)}={sens_vargamma[3]:.1f}\n'
+    #                                              f'p_value = {sens_vg_pval:.5f}', c='g')
     axs[0].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")
 
     data = a_lat_sample
@@ -478,12 +478,12 @@ def plot_estimate_ab_distributions(files_path_prefix: str,
     axs[1].set_title(f'a2', fontsize=16)
     mu, sigma = lat_norm
     axs[1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal', c='y')
-    axs[1].plot(x, pdf(x, *lat_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
-                                                f'{lat_vargamma[0]:.1f}; '
-                                                f'{chr(946)}={lat_vargamma[1]:.1f}; '
-                                                f'{chr(955)}={lat_vargamma[2]:.1f}; '
-                                                f'{chr(947)}={lat_vargamma[3]:.1f}\n'
-                                                f'p_value = {lat_vg_pval:.5f}', c='g')
+    # axs[1].plot(x, pdf(x, *lat_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+    #                                             f'{lat_vargamma[0]:.1f}; '
+    #                                             f'{chr(946)}={lat_vargamma[1]:.1f}; '
+    #                                             f'{chr(955)}={lat_vargamma[2]:.1f}; '
+    #                                             f'{chr(947)}={lat_vargamma[3]:.1f}\n'
+    #                                             f'p_value = {lat_vg_pval:.5f}', c='g')
     axs[1].plot(x, scipy.stats.t.pdf(x, *lat_t), label=f'Fitted t, p_value = {lat_t_pval:.5f}', c='orange')
     axs[1].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")
 
