@@ -20,7 +20,7 @@ from Plotting.plot_func_estimations import plot_ab_functional
 # from SRS_count_coefficients import *
 # from Plotting.mean_year import *
 from Plotting.video import *
-from Coefficients.Kor_Bel_compare import *
+from Coefficients.semiparametric import *
 from Forecasting.utils import fix_random
 from Plotting.plot_func_estimations import *
 from statsmodels.stats.multitest import multipletests

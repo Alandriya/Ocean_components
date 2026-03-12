@@ -1,10 +1,13 @@
 from math import exp, pi, sqrt
 
 import matplotlib.pyplot as plt
+import numpy
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
+
+from Plotting.plot_compare import plot_difference_1d
 
 
 def l2_to_PSO(params, x, hist, n_components):
@@ -301,4 +304,103 @@ def plot_a_sigma(df: pd.DataFrame, n_components, point: tuple, files_path_prefix
     fig.tight_layout()
     fig.savefig(files_path_prefix + path + '/a-sigma' + postfix + '.png')
     plt.close(fig)
+    return
+
+
+def process_points(files_path_prefix: str,
+                   time_info: list,
+                   points_info: list,
+                   samples: np.ndarray,
+                   flux_type: str,
+                   coeff_type: str,
+                   window_width: int,
+                   step_ticks: int,
+                   ticks_by_day: int,
+                   radius: int,
+                   n_components: int = 3,
+                   draw: bool = False):
+    print('My process id:', os.getpid())
+    points_amount = len(points_info)
+    time_start, time_end, timedelta = time_info
+    for p_idx in range(points_amount):
+        point, point_bigger, point_size = points_info[p_idx]
+        sample = samples[p_idx]
+
+        if not os.path.exists(files_path_prefix + f'Components/{flux_type}/raw'):
+            os.mkdir(files_path_prefix + f'Components/{flux_type}/raw')
+
+        if not os.path.exists(files_path_prefix + f'Components/{flux_type}/plots'):
+            os.mkdir(files_path_prefix + f'Components/{flux_type}/plots')
+
+        if not os.path.exists(files_path_prefix + f'Components/{flux_type}/components-xlsx'):
+            os.mkdir(files_path_prefix + f'Components/{flux_type}/components-xlsx')
+
+        if True or not os.path.exists(
+                files_path_prefix + f'Components/{flux_type}/raw/point_({point[0]}, {point[1]}).xlsx'):
+            # apply EM
+            point_df = hybrid(sample, window_width * point_size, n_components, EM_steps=1, step=step_ticks * point_size)
+            point_df.to_excel(files_path_prefix + f'Components/{flux_type}/raw/point_({point[0]}, {point[1]}).xlsx',
+                              index=False)
+
+            df = pd.read_excel(files_path_prefix + f'Components/{flux_type}/raw/point_({point[0]}, {point[1]}).xlsx')
+            new_df, new_n_components = cluster_components(df,
+                                                          n_components,
+                                                          files_path_prefix,
+                                                          draw,
+                                                          path=f'Components/{flux_type}/plots/',
+                                                          postfix=f'_point_({point[0]}, {point[1]})-{coeff_type}')
+
+            new_df.to_excel(
+                files_path_prefix + f'Components/{flux_type}/components-xlsx/point_({point[0]}, {point[1]}).xlsx',
+                index=False)
+
+            Kor_df = new_df
+            Kor_df.fillna(0, inplace=True)
+            a_sum = np.zeros(len(Kor_df))
+            b_sum = np.zeros(len(Kor_df))
+
+            for i in range(1, n_components + 1):
+                a_sum += Kor_df[f'mean_{i}'] * Kor_df[f'weight_{i}']
+
+            for i in range(1, n_components + 1):
+                b_sum += Kor_df[f'weight_{i}'] * (np.square(Kor_df[f'mean_{i}']) + np.square(Kor_df[f'sigma_{i}']))
+
+            b_sum = np.sqrt(b_sum - np.square(a_sum))
+
+            a_sum = np.array(a_sum[:len(a_sum) - len(a_sum) % (ticks_by_day // step_ticks)])
+            a_sum = np.mean(a_sum.reshape(-1, (ticks_by_day // step_ticks)), axis=1)
+            b_sum = np.array(b_sum[:len(b_sum) - len(b_sum) % (ticks_by_day // step_ticks)])
+            b_sum = np.mean(b_sum.reshape(-1, (ticks_by_day // step_ticks)), axis=1)
+
+            np.save(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]})-A.npy', a_sum)
+            np.save(files_path_prefix + f'Components/{flux_type}/Sum/point_({point[0]}, {point[1]})-B.npy', b_sum)
+            if draw:
+                plot_components(new_df,
+                                new_n_components,
+                                point,
+                                files_path_prefix,
+                                path=f'Components/{flux_type}/plots/',
+                                postfix=f'_point_({point[0]}, {point[1]})-{coeff_type}')
+
+                plot_a_sigma(df,
+                             n_components,
+                             point,
+                             files_path_prefix,
+                             path=f'Components/{flux_type}/plots/',
+                             postfix=f'_point_({point[0]}, {point[1]})-{coeff_type}')
+
+        if True or draw:
+            plot_difference_1d(files_path_prefix,
+                               time_start,
+                               time_end,
+                               point,
+                               window_width,
+                               radius,
+                               ticks_by_day,
+                               step_ticks,
+                               n_components,
+                               flux_type,
+                               coeff_type)
+
+    print(f'Process {os.getpid()} finished')
     return

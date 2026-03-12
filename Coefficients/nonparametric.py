@@ -6,7 +6,7 @@ from struct import unpack
 
 import numpy as np
 import tqdm
-from data_processing import scale_to_bins
+from Data_processing.data_processing import scale_to_bins
 from numpy.linalg import norm
 from scipy.linalg import sqrtm
 from scipy.linalg.interpolative import estimate_spectral_norm
@@ -522,3 +522,64 @@ def count_AE(files_path_prefix: str,
         np.save(files_path_prefix + f'Coeff_data_3d/{int(t_absolute + offset)}_B_squared.npy', b_squared_matrix)
     return
 
+def count_1d_nonparam(files_path_prefix: str,
+                      flux: np.ndarray,
+                      time_start: int,
+                      time_end: int,
+                      path: str = 'Synthetic/',
+                      start_index: int = 0,
+                      quantiles_amount: int = 100,
+                      mask: np.ndarray = None):
+    """
+    Counts A and B estimates for flux array by Belyaev method
+    :param files_path_prefix: path to the working directory
+    :param flux: np.array with shape [time_steps, height, width]
+    :param time_start: int counter of start day
+    :param time_end: int counter of end day
+    :param path: additional path to the folder from files_path_prefix, like 'Synthetic/', 'Components/sensible/',
+    'Components/latent/'
+    :param start_index: offset index when saving maps
+    :param quantiles_amount: how many quantiles to use (for all data)
+    :return:
+    """
+    if not os.path.exists(files_path_prefix + path):
+        os.mkdir(files_path_prefix + path)
+
+    if not os.path.exists(files_path_prefix + path + 'Bel'):
+        os.mkdir(files_path_prefix + path + 'Bel')
+
+    if not os.path.exists(files_path_prefix + path + 'Bel/daily'):
+        os.mkdir(files_path_prefix + path + 'Bel/daily')
+
+    flux, flux_quantiles = scale_to_bins(flux, quantiles_amount)
+    height, width = flux.shape[1], flux.shape[2]
+
+    a = np.zeros((height, width), dtype=float)
+    b = np.zeros((height, width), dtype=float)
+    a[mask] = np.nan
+    b[mask] = np.nan
+
+    # for t in tqdm.tqdm(range(time_start + 1, time_end)):
+    for t in range(time_start + 1, time_end):
+        set_0 = np.unique(flux[t - 1])
+        for val_t0 in set_0:
+            if not np.isnan(val_t0):
+                points = np.where(flux[t - 1] == val_t0)
+                amount_t0 = len(points[0])
+
+                set_t1 = np.unique(flux[t][points])
+                probabilities = list()
+                for val_t1 in set_t1:
+                    prob = len(np.where(flux[t][points] == val_t1)[0]) * 1.0 / amount_t0
+                    probabilities.append(prob)
+
+                a_part = sum([(list(set_t1)[i] - val_t0) * probabilities[i] for i in range(len(probabilities))])
+                b_squared = sum(
+                    [(list(set_t1)[i] - val_t0) ** 2 * probabilities[i] for i in
+                     range(len(probabilities))]) - a_part ** 2
+                a[points] = a_part
+                b[points] = np.sqrt(b_squared)
+
+        np.save(files_path_prefix + path + f'Bel/daily/A_{t + start_index}', a)
+        np.save(files_path_prefix + path + f'Bel/daily/B_{t + start_index}', b)
+    return
