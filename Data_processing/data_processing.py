@@ -147,30 +147,28 @@ def load_ABCFE(files_path_prefix: str,
     e_max = [0, 0, 0, 0]
     e_min = [0, 0, 0, 0]
 
-    maskfile = open(files_path_prefix + "mask", "rb")
+    maskfile = open(files_path_prefix + "DATA/mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
 
-    sst_coeff = 37.95727539 / (0.8980015822683038 + 0.8980015822683038)
-    flux_coeff = 2558.356628 / (0.8544676970659135 + 0.8544676970659135)
-    press_coeff = 17950.53906 / (0.8447768941044158 + 0.8447768941044158)
-
-    coeff_1 = 1
-    coeff_2 = 1
+    # sst_coeff = 37.95727539 / (0.8980015822683038 + 0.8980015822683038)
+    # flux_coeff = 2558.356628 / (0.8544676970659135 + 0.8544676970659135)
+    # press_coeff = 17950.53906 / (0.8447768941044158 + 0.8447768941044158)
 
     if verbose:
         print('Loading ABC data')
     for t in range(time_start, time_end):
         if load_a:
             try:
-                a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
-                a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
+                # a_sens = np.load(files_path_prefix + f'{path_local}/{t}_A_sens.npy')
+                # a_lat = np.load(files_path_prefix + f'{path_local}/{t}_A_lat.npy')
+                a = np.load(files_path_prefix + f'{path_local}/A_{t}.npy')
+                a = a.reshape((height, width, 2))
+                a_sens = a[:, :, 0]
+                a_lat = a[:, :, 1]
                 a_timelist.append([a_sens, a_lat])
-
-                a_sens *= coeff_1
-                a_lat *= coeff_2
 
                 a1_max = max(a1_max, np.nanmax(a_sens))
                 a1_min = min(a1_min, np.nanmin(a_sens))
@@ -183,11 +181,9 @@ def load_ABCFE(files_path_prefix: str,
 
         if load_b:
             try:
-                b_matrix = np.load(files_path_prefix + f'{path_local}/{t}_B.npy')
-                b_matrix[0] *= coeff_1
-                b_matrix[3] *= coeff_2
-                b_matrix[1] *= math.sqrt(coeff_1 * coeff_2)
-                b_matrix[2] *= math.sqrt(coeff_1 * coeff_2)
+                b_matrix = np.load(files_path_prefix + f'{path_local}/B_{t}.npy')
+                b_matrix = b_matrix.transpose()
+                b_matrix = b_matrix.reshape((4, height, width))
                 for i in range(4):
                     np.nan_to_num(b_matrix[i], False, -10)
                     b_matrix[i][np.logical_not(mask.reshape((height, width)))] = np.nan
