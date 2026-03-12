@@ -40,7 +40,7 @@ if __name__ == '__main__':
     maskfile.close()
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
-
+    mask = mask.reshape((height, width))
     # ---------------------------------------------------------------------------------------
     # Days deltas
     days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
@@ -92,8 +92,8 @@ if __name__ == '__main__':
     # # mean season
     # mean_year = np.load(files_path_prefix + f'Mean_year/Bel/press_B_1979-2023.npy')
     # mean_season = np.zeros((4, 161, 181))
-    spring_start = (datetime.datetime(year=2026, month=3, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
-    spring_end = (datetime.datetime(year=2026, month=6, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
+    # spring_start = (datetime.datetime(year=2026, month=3, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
+    # spring_end = (datetime.datetime(year=2026, month=6, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
     # mean_season[1] = np.mean(mean_year[spring_start:spring_end], axis=0)
     # summer_start = (datetime.datetime(year=2026, month=6, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
     # summer_end = (datetime.datetime(year=2026, month=9, day=1) - datetime.datetime(year=2026, month=1, day=1)).days
@@ -181,22 +181,22 @@ if __name__ == '__main__':
     # raise ValueError
     # ----------------------------------------------------------------------------------------------
     # # estimate the functional a(X) and b(X) from data
-    data_name = 'pressure'
-    start = 0
-    end = 364
-    start_index = 0
-    for data_name in ['sensible', 'latent', 'flux', 'pressure']:
-        data_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}.npy')[start:end]
-        a_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}_A.npy')[start:end]
-        b_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}_B.npy')[start:end]
-        # print(a_array.shape)
-        mask = mask.reshape((height, width))
-        data_array[:, np.logical_not(mask)] = np.nan
-        a_array[:, np.logical_not(mask)] = np.nan
-        b_array[:, np.logical_not(mask)] = np.nan
+    # data_name = 'pressure'
+    # start = 0
+    # end = 364
+    # start_index = 0
+    # for data_name in ['sensible', 'latent', 'flux', 'pressure']:
+    #     data_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}.npy')[start:end]
+    #     a_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}_A.npy')[start:end]
+    #     b_array = np.load(files_path_prefix + f'Mean_year/mean_{data_name}_B.npy')[start:end]
+    #     # print(a_array.shape)
+    #     mask = mask.reshape((height, width))
+    #     data_array[:, np.logical_not(mask)] = np.nan
+    #     a_array[:, np.logical_not(mask)] = np.nan
+    #     b_array[:, np.logical_not(mask)] = np.nan
         # print(a_array.shape)
         # print(data_array.shape)
-        quantiles, a_grouped, b_grouped, x_full, a_full, b_full = estimate_A_B(files_path_prefix, data_array, a_array, b_array)
+        # quantiles, a_grouped, b_grouped, x_full, a_full, b_full = estimate_A_B(files_path_prefix, data_array, a_array, b_array)
 
         # print(max(x_full))
         # print(min(x_full))
@@ -205,21 +205,21 @@ if __name__ == '__main__':
         # print(b_grouped)
         # rng = np.random.default_rng()
         # random_indexes_unique = rng.choice(len(a_full), size=10000, replace=False)
-        idxes = np.argsort(x_full)
-        idxes = idxes[::1000]
-        print(len(idxes))
+        # idxes = np.argsort(x_full)
+        # idxes = idxes[::1000]
+        # print(len(idxes))
 
-        a_full = np.array(a_full)
-        a_full = a_full[idxes]
-        b_full = np.array(b_full)
-        b_full = b_full[idxes]
-        x_full = np.array(x_full)
-        x_full = x_full[idxes]
+        # a_full = np.array(a_full)
+        # a_full = a_full[idxes]
+        # b_full = np.array(b_full)
+        # b_full = b_full[idxes]
+        # x_full = np.array(x_full)
+        # x_full = x_full[idxes]
         # print(len(quantiles))
         # print(len(a_grouped))
         # print(len(b_grouped))
         # print(len(x_full))
-        plot_ab_functional(files_path_prefix, quantiles, a_grouped, b_grouped, data_name, x_full, a_full, b_full)
+        # plot_ab_functional(files_path_prefix, quantiles, a_grouped, b_grouped, data_name, x_full, a_full, b_full)
     # # ----------------------------------------------------------------------------------------------
 
     # plot stationary distribution 1d
@@ -254,3 +254,13 @@ if __name__ == '__main__':
     #
     # raise ValueError
     # ----------------------------------------------------------------------------------------------
+    # Generate a 2D array (e.g., 3 rows, 4 columns)
+    arr = np.zeros((10, height, width, 2))
+    for t in range(10):
+        s1 = np.random.normal(0, 1, size=(height, width))
+        s2 = np.random.normal(2, 3, size=(height, width))
+        arr[t, :, :, 0] = s1
+        arr[t, :, :, 1] = s2
+    arr[:, np.logical_not(mask), :] = np.nan
+
+    count_semi_2d_AB(files_path_prefix, arr, 0, 9, mask)
