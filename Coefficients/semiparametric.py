@@ -215,12 +215,11 @@ def count_semi_2d_AB(files_path_prefix: str,
                     continue
 
                 if window.shape[0] == 1:
-                    print('Oops')
+                    # print('Oops')
                     a_sum[0] = np.mean(window[:, 0])
                     a_sum[1] = np.mean(window[:, 1])
                     a_map[place] = a_sum
                     continue
-                    #todo think what to do with b
 
                 # gm = GaussianMixture(n_components=n_components,
                 #                      tol=1e-6,

@@ -23,6 +23,7 @@ from Plotting.video import *
 from Coefficients.semiparametric import *
 from Forecasting.utils import fix_random
 from Plotting.plot_func_estimations import *
+from Plotting.plot_coefficients import *
 from statsmodels.stats.multitest import multipletests
 
 # files_path_prefix = '/home/aosipova/EM_ocean/'
@@ -254,13 +255,53 @@ if __name__ == '__main__':
     #
     # raise ValueError
     # ----------------------------------------------------------------------------------------------
-    # Generate a 2D array (e.g., 3 rows, 4 columns)
-    arr = np.zeros((10, height, width, 2))
-    for t in range(10):
-        s1 = np.random.normal(0, 1, size=(height, width))
-        s2 = np.random.normal(2, 3, size=(height, width))
-        arr[t, :, :, 0] = s1
-        arr[t, :, :, 1] = s2
+    # count 2d semiparametric
+    # for start_year in [1979, 1989, 1999, 2009, 2019]:
+    #     if start_year == 2019:
+    #         end_year = 2026
+    #     else:
+    #         end_year = start_year + 10
+    #
+    #     if start_year == 1979:
+    #         start_index = 0
+    #     elif start_year == 1989:
+    #         start_index = days_delta1
+    #     elif start_year == 1999:
+    #         start_index = days_delta1 + days_delta2
+    #     elif start_year == 2009:
+    #         start_index = days_delta1 + days_delta2 + days_delta3
+    #     else:
+    #         start_index = days_delta1 + days_delta2 + days_delta3 + 1870
+
+    start_year = 1979
+    end_year = 1989
+    start_index = 0
+    sensible = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
+    sensible = sensible.transpose()
+    sensible = sensible.reshape((-1, height, width))
+    latent = np.load(files_path_prefix + f'Fluxes/latent_grouped_{start_year}-{end_year}.npy')
+    latent = latent.transpose()
+    latent = latent.reshape((-1, height, width))
+
+    arr = np.zeros((sensible.shape[0], height, width, 2))
+    arr[:, :, :, 0]  = sensible
+    arr[:, :, :, 1] = latent
     arr[:, np.logical_not(mask), :] = np.nan
 
-    count_semi_2d_AB(files_path_prefix, arr, 0, 9, mask)
+    count_semi_2d_AB(files_path_prefix, arr, 0, 1000, mask, quantiles_amount=15,
+                     start_index=start_index, path='Components/sensible-latent')
+        # raise ValueError
+    # ----------------------------------------------------------------------------------------------
+    # plot 2d semiparametric
+    # time_start = 0
+    # time_end = 10
+    #
+    # if not os.path.exists(files_path_prefix + 'videos/Semi_2d'):
+    #     os.mkdir(files_path_prefix + 'videos/Semi_2d')
+    # if not os.path.exists(files_path_prefix + 'videos/Semi_2d/sensible-latent'):
+    #     os.mkdir(files_path_prefix + 'videos/Semi_2d/sensible-latent')
+    #
+    # a_timelist, b_timelist, _, _, _, _, borders = load_ABCFE(files_path_prefix, time_start, time_end,
+    #                                                          load_a=True, load_b=True, path_local='Synthetic/Semi_2d/daily')
+    # plot_ab_coefficients(files_path_prefix, a_timelist, b_timelist, borders, time_start, time_end-2, 1,
+    #                          1, path_local='Semi_2d/sensible-latent/')
