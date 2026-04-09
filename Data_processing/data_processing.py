@@ -296,23 +296,47 @@ def find_lost_pictures(files_path_prefix, type_prefix):
     print(sum_lost)
 
 
-def init_directory(files_path_prefix: str, flux_type: str):
-    """
-    Creates (or re-creates) subdirectories for saving pictures and video
-
-    :param files_path_prefix: path to the working directory
-    :param flux_type: string of the flux type: 'sensible' or 'latent'
-    :return:
-    """
-    if not os.path.exists(files_path_prefix + f'videos/{flux_type}'):
-        os.mkdir(files_path_prefix + f'videos/{flux_type}')
-
-    if not os.path.exists(files_path_prefix + f'tmp_arrays/{flux_type}'):
-        os.mkdir(files_path_prefix + f'tmp_arrays/{flux_type}')
-
-    if os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
-        shutil.rmtree(files_path_prefix + f'videos/{flux_type}/tmp')
-
-    if not os.path.exists(files_path_prefix + f'videos/{flux_type}/tmp'):
-        os.mkdir(files_path_prefix + f'videos/{flux_type}/tmp')
+def collect_estimates(files_path_prefix: str,
+                      path_local: str,
+                      coeff_types: list,
+                      time_start: int,
+                      time_end: int,):
+    for coeff_type in coeff_types:
+        print(f'Collecting {coeff_type}')
+        first = np.load(files_path_prefix + path_local + f'daily/{coeff_type}_{time_start}.npy')
+        print(first.shape)
+        arr = np.zeros((time_end - time_start + 1, height, width, first.shape[1]))
+        for t in tqdm.tqdm(range(time_end-time_start)):
+            arr[t] = np.load(files_path_prefix + path_local + f'daily/{coeff_type}_{time_start + t}.npy').reshape((height, width, -1))
+        np.save(files_path_prefix + path_local + f'{coeff_type}_{time_start}-{time_end}.npy', arr)
     return
+
+
+def mean_blocks(data:np.ndarray,
+                mask: np.ndarray,
+                block_size: int = 5):
+    if len(data.shape) == 3:
+        data_small = np.zeros((data.shape[0], data.shape[1] // block_size, data.shape[2] // block_size))
+    else:
+        data_small = np.zeros((data.shape[0], data.shape[1] // block_size, data.shape[2] // block_size, data.shape[3]))
+    for i_block in range(0, data.shape[1] // block_size):
+        for j_block in range(data.shape[2] // block_size):
+            amount = 0
+            if len(data.shape) == 3:
+                tmp = np.zeros(data.shape[0])
+            else:
+                tmp = np.zeros((data.shape[0], data.shape[3]))
+            for i_shift in range(-(block_size - 1)//2, (block_size - 1) // 2):
+                for j_shift in range(-(block_size - 1) // 2, (block_size - 1) // 2):
+                    i = i_block * block_size + i_shift
+                    j = j_block * block_size + j_shift
+                    if i < 0 or i > data.shape[1]-1 or j < 0 or j > data.shape[2] - 1 or not mask[i, j]:
+                        continue
+                    amount += 1
+                    tmp += data[:, i, j]
+            if amount:
+                data_small[:, i_block, j_block] = tmp
+            else:
+                data_small[:, i_block, j_block] = np.nan
+
+    return data_small
