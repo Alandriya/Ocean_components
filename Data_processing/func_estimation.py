@@ -157,3 +157,82 @@ def estimate_A_B(files_path_prefix: str,
             x_full += list(x[x_grouped == quantile].flatten())
 
     return quantiles, a_grouped, b_grouped, x_full, a_full, b_full
+
+
+def get_values(arr_grouped):
+    quantiles = np.unique(arr_grouped)
+    quantiles = quantiles[np.logical_not(np.isnan(quantiles))]
+    quantiles = quantiles[quantiles != 0] #hotfix
+    return quantiles
+
+def estimate_A_B_2d(
+                 x1: np.ndarray,
+                x2: np.ndarray,
+                 a:np.ndarray,
+                 b:np.ndarray,
+                 quantiles_amount: int = 500):
+    little_q_amount = 40
+
+
+    # x1_grouped, _ = scale_to_bins(x1, little_q_amount)
+    # x2_grouped, _ = scale_to_bins(x2, little_q_amount)
+    # quantiles_little1 = get_values(x1_grouped)
+    # quantiles_little2 = get_values(x2_grouped)
+    # part = len(quantiles_little1) // 20
+    # quantiles_little1 = quantiles_little1[part:-part]
+    # quantiles_little2 = quantiles_little2[part:-part]
+    #
+    # b_hist = np.zeros((len(quantiles_little1), len(quantiles_little1)))
+    # # print(len(quantiles_little1))
+    # for q1 in range(len(quantiles_little1)):
+    #     quantile1 = quantiles_little1[q1]
+    #     for q2 in range(len(quantiles_little2)):
+    #         quantile2 = quantiles_little2[q2]
+    #         b_hist[q1, q2] = np.mean(b[:, :, :, 1][np.logical_and(x1_grouped == quantile1, x2_grouped == quantile2)])
+
+
+    x1_grouped, _ = scale_to_bins(x1, quantiles_amount)
+    x2_grouped, _ = scale_to_bins(x2, quantiles_amount)
+    quantiles1 = get_values(x1_grouped)
+    quantiles2 = get_values(x2_grouped)
+
+    part = len(quantiles1) // 20
+    # part = 5
+    quantiles1 = quantiles1[part:-part]
+    quantiles2 = quantiles2[part:-part]
+
+    a_grouped = np.zeros((2, len(quantiles1)))
+    b_grouped = np.zeros((2, len(quantiles1)))
+
+
+    a1_full = list()
+    a2_full = list()
+
+    b11_full = list()
+    b22_full = list()
+
+    x1_full = list()
+    x2_full = list()
+    # print(len(quantiles1))
+    for q1 in range(len(quantiles1)):
+        quantile1 = quantiles1[q1]
+        a_grouped[0, q1] = np.mean(a[:, :, :, 0][x1_grouped == quantile1])
+        b_grouped[0, q1] = np.mean(b[:, :, :, 0][x1_grouped == quantile1])
+
+        a1_full += list(a[:, :, :, 0][x1_grouped == quantile1].flatten())
+        b11_full += list(b[:, :, :, 0][x1_grouped == quantile1].flatten())
+        x1_full += list(x1[x1_grouped == quantile1].flatten())
+
+    for q2 in range(len(quantiles2)):
+        quantile2 = quantiles2[q2]
+        a_grouped[1, q2] = np.mean(a[:, :, :, 1][x2_grouped == quantile2])
+        b_grouped[1, q2] = np.mean(b[:, :, :, 3][x2_grouped == quantile2])
+
+        a2_full += list(a[:, :, :, 1][x2_grouped == quantile2].flatten())
+        b22_full += list(b[:, :, :, 3][x2_grouped == quantile2].flatten())
+        x2_full += list(x2[x2_grouped == quantile2].flatten())
+
+    return (quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full,)
+            # b_hist, quantiles_little1, quantiles_little2)
+
+

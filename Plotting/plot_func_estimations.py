@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import scipy.stats
 import matplotlib.pyplot as plt
@@ -7,12 +9,14 @@ import datetime
 import math
 import scipy
 import seaborn as sns
+from scipy.optimize import curve_fit
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
 
 font = {'size': 14}
 matplotlib.rc('font', **font)
+
 
 def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t, postfix='sin'):
     part = len(sens_res) // 3 * 2
@@ -41,7 +45,7 @@ def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t, post
     axs[0].cla()
     axs[0].hist(sens_res, bins=20, density=True)
     axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
-    axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t),  label='Fitted t')
+    axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t), label='Fitted t')
     # axs[0].plot(x, pdf(x, *sens_vargamma), label='Fitted VarGamma')
     axs[0].set_title(f'Residials for sensible \n Shapiro-Wiik test p-value = {shapiro_sens[1]:.5f}')
     axs[0].legend()
@@ -105,8 +109,8 @@ def plot_estimate_a_flux(files_path_prefix: str,
     step = 7
     sens_x, lat_x, sens_y, lat_y = list(), list(), list(), list()
     for t in range(time_start, time_end - time_window, step):
-        a_sens_mean = np.zeros_like(a_timelist[t-time_start][0])
-        a_lat_mean = np.zeros_like(a_timelist[t-time_start][1])
+        a_sens_mean = np.zeros_like(a_timelist[t - time_start][0])
+        a_lat_mean = np.zeros_like(a_timelist[t - time_start][1])
         for i in range(time_window):
             a_sens_mean += a_timelist[t - time_start + i][0]
             a_lat_mean += a_timelist[t - time_start + i][1]
@@ -161,9 +165,9 @@ def plot_estimate_a_flux(files_path_prefix: str,
     sens_fit = Polynomial.fit(sens_x, sens_y, 5)
     lat_fit = Polynomial.fit(lat_x, lat_y, 5)
     sens_residuals_poly = sens_y - sens_fit(sens_x)
-    sens_ss_poly = np.sum(sens_residuals_poly**2)
+    sens_ss_poly = np.sum(sens_residuals_poly ** 2)
     lat_residuals_poly = lat_y - lat_fit(lat_x)
-    lat_ss_poly = np.sum(lat_residuals_poly**2)
+    lat_ss_poly = np.sum(lat_residuals_poly ** 2)
 
     # # sin
     # # a * np.sin(b * x + c) + d + f * x + g * x**2 + h * x**3
@@ -236,8 +240,9 @@ def plot_estimate_a_flux(files_path_prefix: str,
     return sens_fit, lat_fit, sens_ss_poly, lat_ss_poly
 
 
-def func_sin(x, a, b, c,):
+def func_sin(x, a, b, c, ):
     return a * np.sin(b * x + c)
+
 
 def plot_ab_functional(files_path_prefix: str,
                        quantiles: np.ndarray,
@@ -275,7 +280,6 @@ def plot_ab_functional(files_path_prefix: str,
     axs[0].set_ylabel('A', fontsize=20)
     axs[0].legend()
 
-
     axs[1].scatter(x_full, b_full, c='blue')
     axs[1].plot(quantiles, b, c='cyan', label='mean')
     axs[1].plot(x, b_poly_fit(x), c='red', label=b_string)
@@ -287,24 +291,205 @@ def plot_ab_functional(files_path_prefix: str,
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}.png')
     return
 
+def get_rmse(fit_func, x, y):
+    return np.sqrt(np.sum((fit_func(x) - y)**2) *1.0/ len(x))
+
+
+import numpy, scipy.optimize
+#https://stackoverflow.com/questions/16716302/how-do-i-fit-a-sine-curve-to-my-data-with-pylab-and-numpy
+def fit_sin(tt, yy):
+    '''Fit sin to the input time sequence, and return fitting parameters "amp", "omega", "phase", "offset", "freq", "period" and "fitfunc"'''
+    tt = numpy.array(tt)
+    yy = numpy.array(yy)
+    ff = numpy.fft.fftfreq(len(tt), (tt[1]-tt[0]))   # assume uniform spacing
+    Fyy = abs(numpy.fft.fft(yy))
+    guess_freq = abs(ff[numpy.argmax(Fyy[1:])+1])   # excluding the zero frequency "peak", which is related to offset
+    guess_amp = numpy.std(yy) * 2.**0.5
+    guess_offset = numpy.mean(yy)
+    guess = numpy.array([guess_amp, 2.*numpy.pi*guess_freq, 0., guess_offset])
+
+    def sinfunc(t, A, w, p, c):  return A * numpy.sin(w*t + p) + c
+    popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess)
+    A, w, p, c = popt
+    f = w/(2.*numpy.pi)
+    fitfunc = lambda t: A * numpy.sin(w*t + p) + c
+    return {"amp": A, "omega": w, "phase": p, "offset": c, "freq": f, "period": 1./f, "fitfunc": fitfunc, "maxcov": numpy.max(pcov), "rawres": (guess,popt,pcov)}
+
+def fit_exp(x, c1, c2):
+    return np.sqrt(np.abs(x) * c1) + c2
+
+
+def plot_ab_functional_2d(files_path_prefix: str,
+                          data: list,
+                          data1_name: str,
+                          data2_name: str,
+                          season: str,
+                          year: int,
+                          scatter: bool = False,
+                          ):
+    quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full = data
+    sns.set_style('whitegrid')
+    fig, axs = plt.subplots(2, 2, figsize=(20, 15))
+    x1 = np.linspace(min(quantiles1), max(quantiles1), 500)
+    x2 = np.linspace(min(quantiles2), max(quantiles2), 500)
+
+    # a1_full = a_grouped[0]
+    # a2_full = a_grouped[1]
+    # x1_full = quantiles1
+    # x2_full = quantiles2
+    # b11_full = b_grouped[0]
+    # b22_full  = b_grouped[1]
+
+
+    if data1_name == 'sensible':
+        a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
+    else:
+        a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
+    a1_poly_fit = np.poly1d(a1_coeff_fit)
+    print(f'A1 rmse: {get_rmse(a1_poly_fit, quantiles1, a_grouped[0]): .2f}')
+    # print(f'A1 rmse: {get_rmse(a1_poly_fit, x1_full, a1_full): .2f}')
+    # b11_coeff_fit = np.polyfit(x1_full, b11_full, 1,)
+    # b11_poly_fit = np.poly1d(b11_coeff_fit)
+    # print(f'B11 rmse: {get_rmse(b11_poly_fit, quantiles1, b_grouped[0]): .2f}')
+    # print(f'B11 rmse: {get_rmse(b11_poly_fit, x1_full, b11_full): .2f}')
+
+    popt1, pcov = curve_fit(fit_exp, quantiles1, b_grouped[0])
+    c1_1, c2_1 = popt1
+
+
+    if data1_name == 'sensible':
+        # a1_string = f'{a1_coeff_fit[0]:.3e} * x + {a1_coeff_fit[1]:.3e}'
+        a1_string = f'{a1_coeff_fit[0]:.3e} * x^2 + {a1_coeff_fit[1]:.3e} * x + {a1_coeff_fit[2]:.3e}'
+    else:
+        a1_string = f'{a1_coeff_fit[0]:.3e} * x^2 + {a1_coeff_fit[1]:.3e} * x + {a1_coeff_fit[2]:.3e}'
+    # b11_string = f'{b11_coeff_fit[0]:.3e} * x^3 + {b11_coeff_fit[1]:.3e} * x^2 + {b11_coeff_fit[2]:.3e} * x + {b11_coeff_fit[3]:.3e}'
+    # b11_string = f'e^({b11_coeff_fit[0]:.3e} * x + {b11_coeff_fit[1]:.3e})'
+    b11_string = f'e^(sqrt({c1_1:.3e} * |x|) + {c2_1:.3e})'
+
+    if data2_name == 'latent':
+        a2_coeff_fit = np.polyfit(x2_full, a2_full, 2,)
+    else:
+        a2_coeff_fit = np.polyfit(x2_full, a2_full, 3)
+    a2_poly_fit = np.poly1d(a2_coeff_fit)
+    print(f'A2 rmse: {get_rmse(a2_poly_fit, quantiles2, a_grouped[1]): .2f}')
+    # print(f'A2 rmse: {get_rmse(a2_poly_fit, x2_full, a2_full): .2f}')
+
+    # if data2_name == 'latent':
+    #     b22_coeff_fit = np.polyfit(x2_full, b22_full, 1)
+    # else:
+    #     b22_coeff_fit = np.polyfit(x2_full, b22_full, 1)
+    # b22_poly_fit = np.poly1d(b22_coeff_fit)
+
+
+    # print(f'B22 rmse: {get_rmse(b22_poly_fit, quantiles2, b_grouped[1]): .2f}')
+    # print(f'B22 rmse: {get_rmse(b22_poly_fit, x2_full, b22_full): .2f}')
+
+    # res1 = fit_sin(x1_full, b11_full)
+    # res2 = fit_sin(x2_full, b22_full)
+
+
+    if data2_name == 'latent':
+        # a2_string = f'{a2_coeff_fit[0]:.3e} * x + {a2_coeff_fit[1]:.3e}'
+        a2_string = f'{a2_coeff_fit[0]:.3e} * x^2 + {a2_coeff_fit[1]:.3e} * x + {a2_coeff_fit[2]:.3e}'
+        # b22_string = f'{b22_coeff_fit[0]:.3e} * x^3 + {b22_coeff_fit[1]:.3e} * x^2 + {b22_coeff_fit[2]:.3e} * x + {b22_coeff_fit[3]:.3e}'
+        # b22_string = f'e^({b22_coeff_fit[0]:.3e} * x + {b22_coeff_fit[1]:.3e})'
+    else:
+        a2_string = f'{a2_coeff_fit[0]:.3e} * x^3 + {a2_coeff_fit[1]:.3e} * x^2 + {a2_coeff_fit[2]:.3e} * x + {a2_coeff_fit[3]:.3e}'
+        # b22_string = (f'{b22_coeff_fit[0]:.3e} * x^4 + {b22_coeff_fit[1]:.3e} * x^3 + {b22_coeff_fit[2]:.3e} * x^2 + '
+        #               f'{b22_coeff_fit[3]:.3e} * x + {b22_coeff_fit[4]:.3e}')
+    popt2, pcov = curve_fit(fit_exp, quantiles2, b_grouped[1])
+    c1_2, c2_2 = popt2
+
+    b22_string = f'e^(sqrt({c1_2:.3e} * |x|) + {c2_2:.3e})'
+
+    np.polynomial.set_default_printstyle('unicode')
+    np.set_printoptions(precision=2, suppress=True)
+
+    if scatter:
+        axs[0, 0].scatter(x1_full, a1_full, c='blue')
+        axs[0, 1].scatter(x2_full, a2_full, c='blue')
+        axs[1, 0].scatter(x1_full, b11_full, c='blue')
+        axs[1, 1].scatter(x2_full, b22_full, c='blue')
+
+    axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
+    axs[0, 0].plot(x1, a1_poly_fit(x1), c='red', label=a1_string)
+    axs[0, 0].set_xlabel(data1_name + ' values', fontsize=20)
+    axs[0, 0].set_ylabel('A', fontsize=20)
+    axs[0, 0].legend()
+
+    axs[0, 1].plot(quantiles2, a_grouped[1], c='cyan', label='mean')
+    axs[0, 1].plot(x2, a2_poly_fit(x2), c='red', label=a2_string)
+    axs[0, 1].set_xlabel(data2_name + ' values', fontsize=20)
+    axs[0, 1].set_ylabel('A', fontsize=20)
+    axs[0, 1].legend()
+
+    axs[1, 0].plot(quantiles1, b_grouped[0], c='cyan', label='mean')
+    # axs[1, 0].plot(x1, b11_poly_fit(x1), c='red', label=b11_string)
+    axs[1, 0].plot(x1, fit_exp(x1, *popt1), c='red', label=b11_string)
+    # axs[1, 0].plot(x1, res1["fitfunc"](x1), "r-", label="y fit curve", linewidth=2)
+    axs[1, 0].set_xlabel(data1_name + ' values', fontsize=20)
+    axs[1, 0].set_ylabel('B', fontsize=20)
+    axs[1, 0].legend()
+
+    axs[1, 1].plot(quantiles2, b_grouped[1], c='cyan', label='mean')
+    # axs[1, 1].plot(x2, b22_poly_fit(x2), c='red', label=b22_string)
+    axs[1, 1].plot(x2, fit_exp(x2, *popt2), c='red', label=b22_string)
+    # axs[1, 1].plot(x2, res2["fitfunc"](x2), "r-", label="y fit curve", linewidth=2)
+    axs[1, 1].set_xlabel(data2_name + ' values', fontsize=20)
+    axs[1, 1].set_ylabel('B', fontsize=20)
+    axs[1, 1].legend()
+
+    if not os.path.exists(files_path_prefix + f'videos/Functional/{season}'):
+        os.mkdir(files_path_prefix + f'videos/Functional/{season}')
+    if scatter:
+        fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_scattered_{year}.png')
+    else:
+        fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png')
+
+
+    return
+
+def plot_heatmap(files_path_prefix: str,
+                          data1_name: str,
+                          data2_name: str,
+                 quantiles1: np.ndarray,
+                 quantiles2: np.ndarray,
+        b_hist: np.array,):
+    fig, axs = plt.subplots(1, 1, figsize=(15, 15))
+    sns.heatmap(b_hist, xticklabels=quantiles1, yticklabels=quantiles2)
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Functional/{data1_name}-{data2_name}_heatmap.png')
+
+
 def plot_prob_1d(files_path_prefix: str,
                  data_name: str,
                  prob,
                  x):
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
-    # plt.xlabel('Значения явного потока тепла', fontsize=14)
-    # plt.xlabel('Значения атмосферного давления', fontsize=14)
-    plt.xlabel('Значения скрытого потока тепла', fontsize=14)
+    plt.xlabel(f'Значения {data_name}', fontsize=14)
     plt.ylabel('Плотность стационарного распределения', fontsize=14)
     y = [prob(x0) for x0 in x]
     axs.plot(x, y)
-    # mode = -12.2 # sensible
     # mode = 89300 # pressure
-    mode = -120
+    mode = -212 # sensible 1
+    # mode = 1245.30 # sensible 2
     axs.axvline(x=mode, color='gray', linestyle='--', linewidth=2, label=f'x={mode}')
     axs.legend()
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
     return
 
+
+def plot_hist(files_path_prefix: str,
+              data_name: str,
+              x:np.ndarray):
+    data = x[np.logical_not(np.isnan(x))].flatten()
+    sns.set_style("whitegrid")
+    fig, axs = plt.subplots(1, 1, figsize=(10, 5))
+    plt.xlabel(f'Значения {data_name}', fontsize=14)
+    axs.hist(data, bins=50)
+    axs.legend()
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_hist.png')
+    return
