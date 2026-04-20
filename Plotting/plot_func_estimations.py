@@ -294,29 +294,14 @@ def plot_ab_functional(files_path_prefix: str,
 def get_rmse(fit_func, x, y):
     return np.sqrt(np.sum((fit_func(x) - y)**2) *1.0/ len(x))
 
+def fit_exp_left(x, c1):
+    return c1 * np.abs(x)
 
-import numpy, scipy.optimize
-#https://stackoverflow.com/questions/16716302/how-do-i-fit-a-sine-curve-to-my-data-with-pylab-and-numpy
-def fit_sin(tt, yy):
-    '''Fit sin to the input time sequence, and return fitting parameters "amp", "omega", "phase", "offset", "freq", "period" and "fitfunc"'''
-    tt = numpy.array(tt)
-    yy = numpy.array(yy)
-    ff = numpy.fft.fftfreq(len(tt), (tt[1]-tt[0]))   # assume uniform spacing
-    Fyy = abs(numpy.fft.fft(yy))
-    guess_freq = abs(ff[numpy.argmax(Fyy[1:])+1])   # excluding the zero frequency "peak", which is related to offset
-    guess_amp = numpy.std(yy) * 2.**0.5
-    guess_offset = numpy.mean(yy)
-    guess = numpy.array([guess_amp, 2.*numpy.pi*guess_freq, 0., guess_offset])
+def fit_exp_center(x, c2, c3):
+    return c2 * np.sqrt(np.abs(x)) + c3
 
-    def sinfunc(t, A, w, p, c):  return A * numpy.sin(w*t + p) + c
-    popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess)
-    A, w, p, c = popt
-    f = w/(2.*numpy.pi)
-    fitfunc = lambda t: A * numpy.sin(w*t + p) + c
-    return {"amp": A, "omega": w, "phase": p, "offset": c, "freq": f, "period": 1./f, "fitfunc": fitfunc, "maxcov": numpy.max(pcov), "rawres": (guess,popt,pcov)}
-
-def fit_exp(x, c1, c2):
-    return np.sqrt(np.abs(x) * c1) + c2
+def fit_exp_right(x, c4):
+    return c4 * np.sqrt(np.abs(x))
 
 
 def plot_ab_functional_2d(files_path_prefix: str,
@@ -333,120 +318,158 @@ def plot_ab_functional_2d(files_path_prefix: str,
     x1 = np.linspace(min(quantiles1), max(quantiles1), 500)
     x2 = np.linspace(min(quantiles2), max(quantiles2), 500)
 
-    # a1_full = a_grouped[0]
-    # a2_full = a_grouped[1]
-    # x1_full = quantiles1
-    # x2_full = quantiles2
-    # b11_full = b_grouped[0]
-    # b22_full  = b_grouped[1]
-
-
-    if data1_name == 'sensible':
-        a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
-    else:
-        a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
+    # a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
+    a1_coeff_fit = np.polyfit(quantiles1, a_grouped[0], 4)
     a1_poly_fit = np.poly1d(a1_coeff_fit)
-    print(f'A1 rmse: {get_rmse(a1_poly_fit, quantiles1, a_grouped[0]): .2f}')
-    # print(f'A1 rmse: {get_rmse(a1_poly_fit, x1_full, a1_full): .2f}')
-    # b11_coeff_fit = np.polyfit(x1_full, b11_full, 1,)
-    # b11_poly_fit = np.poly1d(b11_coeff_fit)
-    # print(f'B11 rmse: {get_rmse(b11_poly_fit, quantiles1, b_grouped[0]): .2f}')
-    # print(f'B11 rmse: {get_rmse(b11_poly_fit, x1_full, b11_full): .2f}')
+    print(f'A1 rmse: {get_rmse(a1_poly_fit, quantiles1, a_grouped[0]): .3e}')
+    a1_string = (f'{a1_coeff_fit[0]:.3e} * x^4 + {a1_coeff_fit[1]:.3e} * x^3 + {a1_coeff_fit[2]:.3e} * x^2'
+                       f' +{a1_coeff_fit[3]:.3e} * x + {a1_coeff_fit[4]:.3e}')
+    print(a1_string)
 
-    popt1, pcov = curve_fit(fit_exp, quantiles1, b_grouped[0])
-    c1_1, c2_1 = popt1
+    # a1_sorted = a_grouped[0][u1.argsort()]
+    # u1 = np.sort(u1)
+    # a1_coeff_fit = np.polyfit(u1, a1_sorted, 5)
+    # a1_poly_fit = np.poly1d(a1_coeff_fit)
+    # print(f'A1 rmse: {get_rmse(a1_poly_fit, u1, a1_sorted): .3e}')
 
+    b1_argmin = quantiles1[b_grouped[0].argsort()][0]
+    b1_x1 = -250
+    print(b1_argmin)
+    quantiles1_left = quantiles1[quantiles1 < b1_x1]
+    b1_left = b_grouped[0][quantiles1 < b1_x1]
+    quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
+    b1_center = b_grouped[0][(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
+    quantiles1_right = quantiles1[quantiles1 >= b1_argmin]
+    b1_right = b_grouped[0][quantiles1 >= b1_argmin]
 
-    if data1_name == 'sensible':
-        # a1_string = f'{a1_coeff_fit[0]:.3e} * x + {a1_coeff_fit[1]:.3e}'
-        a1_string = f'{a1_coeff_fit[0]:.3e} * x^2 + {a1_coeff_fit[1]:.3e} * x + {a1_coeff_fit[2]:.3e}'
-    else:
-        a1_string = f'{a1_coeff_fit[0]:.3e} * x^2 + {a1_coeff_fit[1]:.3e} * x + {a1_coeff_fit[2]:.3e}'
-    # b11_string = f'{b11_coeff_fit[0]:.3e} * x^3 + {b11_coeff_fit[1]:.3e} * x^2 + {b11_coeff_fit[2]:.3e} * x + {b11_coeff_fit[3]:.3e}'
-    # b11_string = f'e^({b11_coeff_fit[0]:.3e} * x + {b11_coeff_fit[1]:.3e})'
-    b11_string = f'e^(sqrt({c1_1:.3e} * |x|) + {c2_1:.3e})'
+    popt1_center, _ = curve_fit(fit_exp_center, quantiles1_center, b1_center, maxfev=5000)
+    c2_1, c3_1 = popt1_center
+    popt1_left, _ = curve_fit(fit_exp_left, quantiles1_left, b1_left - c3_1, maxfev=5000)
+    c1_1 = popt1_left[0]
+    popt1_right, _ = curve_fit(fit_exp_right, quantiles1_right, b1_right - c3_1, maxfev=5000)
+    c4_1 = popt1_right[0]
 
-    if data2_name == 'latent':
-        a2_coeff_fit = np.polyfit(x2_full, a2_full, 2,)
-    else:
-        a2_coeff_fit = np.polyfit(x2_full, a2_full, 3)
+    left_error = np.sum(fit_exp_left(quantiles1_left, *popt1_left) - (b1_left - c3_1))**2
+    center_error = np.sum(fit_exp_center(quantiles1_center, *popt1_center) - b1_center)**2
+    right_error = np.sum(fit_exp_right(quantiles1_right, *popt1_right) - (b1_right - c3_1))**2
+    print(f'B11 rmse: {np.sqrt(left_error + + center_error + right_error) *1.0/ len(quantiles1): .3e}')
+    b11_left_string = f'{c1_1:.3e} * |x| + {c3_1:.3e}'
+    b11_center_string = f'{c2_1:.3e} * sqrt(|x|)  + {c3_1:.3e}'
+    b11_right_string = f'{c4_1:.3e} * sqrt(|x|) + {c3_1:.3e}'
+    print(b11_left_string)
+    print(b11_center_string)
+    print(b11_right_string)
+
+    a2_coeff_fit = np.polyfit(quantiles2, a_grouped[1], 4)
     a2_poly_fit = np.poly1d(a2_coeff_fit)
-    print(f'A2 rmse: {get_rmse(a2_poly_fit, quantiles2, a_grouped[1]): .2f}')
-    # print(f'A2 rmse: {get_rmse(a2_poly_fit, x2_full, a2_full): .2f}')
+    print(f'A2 rmse: {get_rmse(a2_poly_fit, quantiles2, a_grouped[1]): .3e}')
+    a2_string = (f'{a2_coeff_fit[0]:.3e} * x^4 + {a2_coeff_fit[1]:.3e} * x^3 + {a2_coeff_fit[2]:.3e} * x^2'
+                       f' +{a2_coeff_fit[3]:.3e} * x + {a2_coeff_fit[4]:.3e}')
+    print(a2_string)
 
-    # if data2_name == 'latent':
-    #     b22_coeff_fit = np.polyfit(x2_full, b22_full, 1)
-    # else:
-    #     b22_coeff_fit = np.polyfit(x2_full, b22_full, 1)
-    # b22_poly_fit = np.poly1d(b22_coeff_fit)
+    b2_x1 = -1500
+    b2_argmin = quantiles2[b_grouped[1].argsort()][0]
+    print(b2_argmin)
+
+    quantiles2_left = quantiles2[quantiles2 < b2_argmin]
+    b2_left = b_grouped[1][quantiles2 < b2_argmin]
+    quantiles2_center = quantiles2[(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
+    b2_center = b_grouped[1][(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
+    quantiles2_right = quantiles2[quantiles2 >= b2_argmin]
+    b2_right = b_grouped[1][quantiles2 >= b2_argmin]
+
+    popt2_center, _ = curve_fit(fit_exp_center, quantiles2_center, b2_center, maxfev=5000)
+    c2_2, c3_2 = popt2_center
+    popt2_left, _ = curve_fit(fit_exp_left, quantiles2_left, b2_left - c3_2, maxfev=5000)
+    c1_2 = popt2_left[0]
+    popt2_right, _ = curve_fit(fit_exp_right, quantiles2_right, b2_right - c3_2, maxfev=5000)
+    c4_2 = popt2_right[0]
+
+    left_error = np.sum(fit_exp_left(quantiles2_left, *popt2_left) - (b2_left - c3_2)) ** 2
+    center_error = np.sum(fit_exp_center(quantiles2_center, *popt2_center) - b2_center) ** 2
+    right_error = np.sum(fit_exp_right(quantiles2_right, *popt2_right) - (b2_right - c3_2)) ** 2
+    print(f'B22 rmse: {np.sqrt(left_error + + center_error + right_error) * 1.0 / len(quantiles2): .3e}')
+    b22_left_string = f'{c1_2:.3e} * |x| + {c3_2:.3e}'
+    b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {c3_2:.3e}'
+    b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {c3_2:.3e}'
+    print(b22_left_string)
+    print(b22_center_string)
+    print(b22_right_string)
 
 
-    # print(f'B22 rmse: {get_rmse(b22_poly_fit, quantiles2, b_grouped[1]): .2f}')
-    # print(f'B22 rmse: {get_rmse(b22_poly_fit, x2_full, b22_full): .2f}')
-
-    # res1 = fit_sin(x1_full, b11_full)
-    # res2 = fit_sin(x2_full, b22_full)
-
-
-    if data2_name == 'latent':
-        # a2_string = f'{a2_coeff_fit[0]:.3e} * x + {a2_coeff_fit[1]:.3e}'
-        a2_string = f'{a2_coeff_fit[0]:.3e} * x^2 + {a2_coeff_fit[1]:.3e} * x + {a2_coeff_fit[2]:.3e}'
-        # b22_string = f'{b22_coeff_fit[0]:.3e} * x^3 + {b22_coeff_fit[1]:.3e} * x^2 + {b22_coeff_fit[2]:.3e} * x + {b22_coeff_fit[3]:.3e}'
-        # b22_string = f'e^({b22_coeff_fit[0]:.3e} * x + {b22_coeff_fit[1]:.3e})'
-    else:
-        a2_string = f'{a2_coeff_fit[0]:.3e} * x^3 + {a2_coeff_fit[1]:.3e} * x^2 + {a2_coeff_fit[2]:.3e} * x + {a2_coeff_fit[3]:.3e}'
-        # b22_string = (f'{b22_coeff_fit[0]:.3e} * x^4 + {b22_coeff_fit[1]:.3e} * x^3 + {b22_coeff_fit[2]:.3e} * x^2 + '
-        #               f'{b22_coeff_fit[3]:.3e} * x + {b22_coeff_fit[4]:.3e}')
-    popt2, pcov = curve_fit(fit_exp, quantiles2, b_grouped[1])
-    c1_2, c2_2 = popt2
-
-    b22_string = f'e^(sqrt({c1_2:.3e} * |x|) + {c2_2:.3e})'
+    # b22_left_coeff_fit = np.polyfit(quantiles2_left, b2_left, 4)
+    # b22_left_poly_fit = np.poly1d(b22_left_coeff_fit)
+    # b22_right_coeff_fit = np.polyfit(quantiles2_right, b2_right, 1)
+    # b22_right_poly_fit = np.poly1d(b22_right_coeff_fit)
+    #
+    # left_error = (np.sum(b22_left_poly_fit(quantiles2_left) - b2_left)**2)
+    # right_error = (np.sum(b22_right_poly_fit(quantiles2_right) - b2_right)**2)
+    # print(f'B22 rmse: {np.sqrt(left_error + right_error) *1.0/ len(quantiles2): .3e}')
+    #
+    # b22_left_string = (f'{b22_left_coeff_fit[0]:.3e} * x^4 + {b22_left_coeff_fit[1]:.3e} * x^3 + '
+    #                    f'{b22_left_coeff_fit[2]:.3e} * x^2 + {b22_left_coeff_fit[3]:.3e} * x + {b22_left_coeff_fit[4]:.3e}')
+    # b22_right_string = f'{b22_right_coeff_fit[0]:.3e} * x + {b22_right_coeff_fit[1]:.3e}'
 
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
 
+    x1_left = x1[x1 < b1_x1]
+    x1_center = x1[(x1 >= b1_x1) & (x1 < b1_argmin)]
+    x1_right = x1[x1 >= b1_argmin]
+
+    x2_left = x2[x2 < b2_x1]
+    x2_center = x2[(x2 >= b2_x1) & (x2 < b2_argmin)]
+    x2_right = x2[x2 >= b2_argmin]
+
     if scatter:
-        axs[0, 0].scatter(x1_full, a1_full, c='blue')
-        axs[0, 1].scatter(x2_full, a2_full, c='blue')
-        axs[1, 0].scatter(x1_full, b11_full, c='blue')
-        axs[1, 1].scatter(x2_full, b22_full, c='blue')
+        axs[0, 0].scatter(x1_full[::1000], a1_full[::1000], c='blue')
+        axs[0, 1].scatter(x2_full[::1000], a2_full[::1000], c='blue')
+        axs[1, 0].scatter(x1_full[::1000], b11_full[::1000], c='blue')
+        axs[1, 1].scatter(x2_full[::1000], b22_full[::1000], c='blue')
 
     axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
     axs[0, 0].plot(x1, a1_poly_fit(x1), c='red', label=a1_string)
     axs[0, 0].set_xlabel(data1_name + ' values', fontsize=20)
     axs[0, 0].set_ylabel('A', fontsize=20)
     axs[0, 0].legend()
+    sns.move_legend(axs[0, 0], loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
     axs[0, 1].plot(quantiles2, a_grouped[1], c='cyan', label='mean')
     axs[0, 1].plot(x2, a2_poly_fit(x2), c='red', label=a2_string)
     axs[0, 1].set_xlabel(data2_name + ' values', fontsize=20)
     axs[0, 1].set_ylabel('A', fontsize=20)
     axs[0, 1].legend()
+    sns.move_legend(axs[0, 1], loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
     axs[1, 0].plot(quantiles1, b_grouped[0], c='cyan', label='mean')
-    # axs[1, 0].plot(x1, b11_poly_fit(x1), c='red', label=b11_string)
-    axs[1, 0].plot(x1, fit_exp(x1, *popt1), c='red', label=b11_string)
-    # axs[1, 0].plot(x1, res1["fitfunc"](x1), "r-", label="y fit curve", linewidth=2)
+    axs[1, 0].plot(x1_left, fit_exp_left(x1_left, *popt1_left) + c3_1, c='purple', label=b11_left_string)
+    axs[1, 0].plot(x1_center, fit_exp_center(x1_left, *popt1_center) + c3_1, c='purple', label=b11_center_string)
+    axs[1, 0].plot(x1_right, fit_exp_right(x1_right, *popt1_right) + c3_1, c='red', label=b11_right_string)
+    # axs[1, 0].plot(x1_left, b11_left_poly_fit(x1_left), c='purple', label=b11_left_string)
+    # axs[1, 0].plot(x1_right, b11_right_poly_fit(x1_right), c='red', label=b11_right_string)
     axs[1, 0].set_xlabel(data1_name + ' values', fontsize=20)
-    axs[1, 0].set_ylabel('B', fontsize=20)
+    axs[1, 0].set_ylabel('log(B)', fontsize=20)
     axs[1, 0].legend()
+    sns.move_legend(axs[1, 0], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
     axs[1, 1].plot(quantiles2, b_grouped[1], c='cyan', label='mean')
-    # axs[1, 1].plot(x2, b22_poly_fit(x2), c='red', label=b22_string)
-    axs[1, 1].plot(x2, fit_exp(x2, *popt2), c='red', label=b22_string)
-    # axs[1, 1].plot(x2, res2["fitfunc"](x2), "r-", label="y fit curve", linewidth=2)
+    axs[1, 1].plot(x2_left, fit_exp_left(x2_left, *popt2_left) + c3_2, c='purple', label=b22_left_string)
+    axs[1, 1].plot(x2_center, fit_exp_center(x2_left, *popt2_center) + c3_2, c='purple', label=b22_center_string)
+    axs[1, 1].plot(x2_right, fit_exp_right(x2_right, *popt2_right) + c3_2, c='red', label=b22_right_string)
+    # axs[1, 1].plot(x2_left, b22_left_poly_fit(x2_left), c='purple', label=b22_left_string)
+    # axs[1, 1].plot(x2_right, b22_right_poly_fit(x2_right), c='red', label=b22_right_string)
     axs[1, 1].set_xlabel(data2_name + ' values', fontsize=20)
-    axs[1, 1].set_ylabel('B', fontsize=20)
+    axs[1, 1].set_ylabel('log(B)', fontsize=20)
     axs[1, 1].legend()
+    sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
+    plt.subplots_adjust(hspace=0.35)
     if not os.path.exists(files_path_prefix + f'videos/Functional/{season}'):
         os.mkdir(files_path_prefix + f'videos/Functional/{season}')
     if scatter:
         fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_scattered_{year}.png')
     else:
         fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png')
-
-
     return
 
 def plot_heatmap(files_path_prefix: str,
@@ -472,9 +495,9 @@ def plot_prob_1d(files_path_prefix: str,
     y = [prob(x0) for x0 in x]
     axs.plot(x, y)
     # mode = 89300 # pressure
-    mode = -212 # sensible 1
+    # mode = -212 # sensible 1
     # mode = 1245.30 # sensible 2
-    axs.axvline(x=mode, color='gray', linestyle='--', linewidth=2, label=f'x={mode}')
+    # axs.axvline(x=mode, color='gray', linestyle='--', linewidth=2, label=f'x={mode}')
     axs.legend()
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
@@ -487,8 +510,9 @@ def plot_hist(files_path_prefix: str,
     data = x[np.logical_not(np.isnan(x))].flatten()
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
-    plt.xlabel(f'Значения {data_name}', fontsize=14)
-    axs.hist(data, bins=50)
+    # plt.xlabel(f'Значения {data_name}', fontsize=14)
+    plt.xlabel(f'Differences of {data_name}', fontsize=14)
+    axs.hist(data, bins=100)
     axs.legend()
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_hist.png')

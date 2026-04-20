@@ -196,14 +196,16 @@ def estimate_A_B_2d(
     quantiles1 = get_values(x1_grouped)
     quantiles2 = get_values(x2_grouped)
 
-    part = len(quantiles1) // 20
-    # part = 5
-    quantiles1 = quantiles1[part:-part]
-    quantiles2 = quantiles2[part:-part]
+    # part = len(quantiles1) // 10
+    part = 15
+    # quantiles1 = quantiles1[part:-part]
+    # quantiles2 = quantiles2[part:-part]
+
+    quantiles1 = quantiles1[10:-10]
+    quantiles2 = quantiles2[10:-10]
 
     a_grouped = np.zeros((2, len(quantiles1)))
     b_grouped = np.zeros((2, len(quantiles1)))
-
 
     a1_full = list()
     a2_full = list()
@@ -219,6 +221,9 @@ def estimate_A_B_2d(
         a_grouped[0, q1] = np.mean(a[:, :, :, 0][x1_grouped == quantile1])
         b_grouped[0, q1] = np.mean(b[:, :, :, 0][x1_grouped == quantile1])
 
+        # a_grouped[0, q1] = np.median(a[:, :, :, 0][x1_grouped == quantile1])
+        # b_grouped[0, q1] = np.median(b[:, :, :, 0][x1_grouped == quantile1])
+
         a1_full += list(a[:, :, :, 0][x1_grouped == quantile1].flatten())
         b11_full += list(b[:, :, :, 0][x1_grouped == quantile1].flatten())
         x1_full += list(x1[x1_grouped == quantile1].flatten())
@@ -227,6 +232,9 @@ def estimate_A_B_2d(
         quantile2 = quantiles2[q2]
         a_grouped[1, q2] = np.mean(a[:, :, :, 1][x2_grouped == quantile2])
         b_grouped[1, q2] = np.mean(b[:, :, :, 3][x2_grouped == quantile2])
+
+        # a_grouped[1, q2] = np.median(a[:, :, :, 1][x2_grouped == quantile2])
+        # b_grouped[1, q2] = np.median(b[:, :, :, 3][x2_grouped == quantile2])
 
         a2_full += list(a[:, :, :, 1][x2_grouped == quantile2].flatten())
         b22_full += list(b[:, :, :, 3][x2_grouped == quantile2].flatten())
