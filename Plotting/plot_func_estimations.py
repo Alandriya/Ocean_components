@@ -291,6 +291,7 @@ def plot_ab_functional(files_path_prefix: str,
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}.png')
     return
 
+
 def get_rmse(fit_func, x, y):
     return np.sqrt(np.sum((fit_func(x) - y)**2) *1.0/ len(x))
 
@@ -315,8 +316,8 @@ def plot_ab_functional_2d(files_path_prefix: str,
     quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full = data
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(2, 2, figsize=(20, 15))
-    x1 = np.linspace(min(quantiles1), max(quantiles1), 500)
-    x2 = np.linspace(min(quantiles2), max(quantiles2), 500)
+    x1_interval = np.linspace(min(quantiles1), max(quantiles1), 500)
+    x2_interval = np.linspace(min(quantiles2), max(quantiles2), 500)
 
     # a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
     a1_coeff_fit = np.polyfit(quantiles1, a_grouped[0], 4)
@@ -333,7 +334,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
     # print(f'A1 rmse: {get_rmse(a1_poly_fit, u1, a1_sorted): .3e}')
 
     b1_argmin = quantiles1[b_grouped[0].argsort()][0]
-    b1_x1 = -250
+    b1_x1 = -150
     print(b1_argmin)
     quantiles1_left = quantiles1[quantiles1 < b1_x1]
     b1_left = b_grouped[0][quantiles1 < b1_x1]
@@ -342,17 +343,17 @@ def plot_ab_functional_2d(files_path_prefix: str,
     quantiles1_right = quantiles1[quantiles1 >= b1_argmin]
     b1_right = b_grouped[0][quantiles1 >= b1_argmin]
 
-    popt1_center, _ = curve_fit(fit_exp_center, quantiles1_center, b1_center, maxfev=5000)
+    popt1_center, _ = curve_fit(fit_exp_center, quantiles1_center - b1_argmin, b1_center, maxfev=5000)
     c2_1, c3_1 = popt1_center
-    popt1_left, _ = curve_fit(fit_exp_left, quantiles1_left, b1_left - c3_1, maxfev=5000)
+    popt1_left, _ = curve_fit(fit_exp_left, quantiles1_left - b1_x1, b1_left - fit_exp_center(b1_x1, c2_1, c3_1), maxfev=5000)
     c1_1 = popt1_left[0]
-    popt1_right, _ = curve_fit(fit_exp_right, quantiles1_right, b1_right - c3_1, maxfev=5000)
+    popt1_right, _ = curve_fit(fit_exp_right, quantiles1_right - b1_argmin, b1_right - c3_1, maxfev=5000)
     c4_1 = popt1_right[0]
 
-    left_error = np.sum(fit_exp_left(quantiles1_left, *popt1_left) - (b1_left - c3_1))**2
-    center_error = np.sum(fit_exp_center(quantiles1_center, *popt1_center) - b1_center)**2
-    right_error = np.sum(fit_exp_right(quantiles1_right, *popt1_right) - (b1_right - c3_1))**2
-    print(f'B11 rmse: {np.sqrt(left_error + + center_error + right_error) *1.0/ len(quantiles1): .3e}')
+    # left_error = np.sum(fit_exp_left(quantiles1_left, *popt1_left) - (b1_left - fit_exp_center(b1_x1, c2_1, c3_1)))**2
+    # center_error = np.sum(fit_exp_center(quantiles1_center, *popt1_center) - b1_center)**2
+    # right_error = np.sum(fit_exp_right(quantiles1_right, *popt1_right) - (b1_right - c3_1))**2
+    # print(f'B11 rmse: {np.sqrt(left_error + + center_error + right_error) *1.0/ len(quantiles1): .3e}')
     b11_left_string = f'{c1_1:.3e} * |x| + {c3_1:.3e}'
     b11_center_string = f'{c2_1:.3e} * sqrt(|x|)  + {c3_1:.3e}'
     b11_right_string = f'{c4_1:.3e} * sqrt(|x|) + {c3_1:.3e}'
@@ -367,28 +368,28 @@ def plot_ab_functional_2d(files_path_prefix: str,
                        f' +{a2_coeff_fit[3]:.3e} * x + {a2_coeff_fit[4]:.3e}')
     print(a2_string)
 
-    b2_x1 = -1500
+    b2_x1 = -500
     b2_argmin = quantiles2[b_grouped[1].argsort()][0]
     print(b2_argmin)
 
-    quantiles2_left = quantiles2[quantiles2 < b2_argmin]
-    b2_left = b_grouped[1][quantiles2 < b2_argmin]
+    quantiles2_left = quantiles2[quantiles2 < b2_x1]
+    b2_left = b_grouped[1][quantiles2 < b2_x1]
     quantiles2_center = quantiles2[(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
     b2_center = b_grouped[1][(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
     quantiles2_right = quantiles2[quantiles2 >= b2_argmin]
     b2_right = b_grouped[1][quantiles2 >= b2_argmin]
 
-    popt2_center, _ = curve_fit(fit_exp_center, quantiles2_center, b2_center, maxfev=5000)
+    popt2_center, _ = curve_fit(fit_exp_center, quantiles2_center - b2_argmin, b2_center, maxfev=5000)
     c2_2, c3_2 = popt2_center
-    popt2_left, _ = curve_fit(fit_exp_left, quantiles2_left, b2_left - c3_2, maxfev=5000)
+    popt2_left, _ = curve_fit(fit_exp_left, quantiles2_left - b2_x1, b2_left - fit_exp_center(b2_x1, c2_2, c3_2), maxfev=5000)
     c1_2 = popt2_left[0]
-    popt2_right, _ = curve_fit(fit_exp_right, quantiles2_right, b2_right - c3_2, maxfev=5000)
+    popt2_right, _ = curve_fit(fit_exp_right, quantiles2_right - b2_argmin, b2_right - c3_2, maxfev=5000)
     c4_2 = popt2_right[0]
 
-    left_error = np.sum(fit_exp_left(quantiles2_left, *popt2_left) - (b2_left - c3_2)) ** 2
-    center_error = np.sum(fit_exp_center(quantiles2_center, *popt2_center) - b2_center) ** 2
-    right_error = np.sum(fit_exp_right(quantiles2_right, *popt2_right) - (b2_right - c3_2)) ** 2
-    print(f'B22 rmse: {np.sqrt(left_error + + center_error + right_error) * 1.0 / len(quantiles2): .3e}')
+    # left_error = np.sum(fit_exp_left(quantiles2_left, *popt2_left) - (b2_left - fit_exp_center(b2_x1, c2_2, c3_2))) ** 2
+    # center_error = np.sum(fit_exp_center(quantiles2_center, *popt2_center) - b2_center) ** 2
+    # right_error = np.sum(fit_exp_right(quantiles2_right, *popt2_right) - (b2_right - c3_2)) ** 2
+    # print(f'B22 rmse: {np.sqrt(left_error + + center_error + right_error) * 1.0 / len(quantiles2): .3e}')
     b22_left_string = f'{c1_2:.3e} * |x| + {c3_2:.3e}'
     b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {c3_2:.3e}'
     b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {c3_2:.3e}'
@@ -413,13 +414,13 @@ def plot_ab_functional_2d(files_path_prefix: str,
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
 
-    x1_left = x1[x1 < b1_x1]
-    x1_center = x1[(x1 >= b1_x1) & (x1 < b1_argmin)]
-    x1_right = x1[x1 >= b1_argmin]
+    x1_left = x1_interval[x1_interval < b1_x1]
+    x1_center = x1_interval[(x1_interval >= b1_x1) & (x1_interval < b1_argmin)]
+    x1_right = x1_interval[x1_interval >= b1_argmin]
 
-    x2_left = x2[x2 < b2_x1]
-    x2_center = x2[(x2 >= b2_x1) & (x2 < b2_argmin)]
-    x2_right = x2[x2 >= b2_argmin]
+    x2_left = x2_interval[x2_interval < b2_x1]
+    x2_center = x2_interval[(x2_interval >= b2_x1) & (x2_interval < b2_argmin)]
+    x2_right = x2_interval[x2_interval >= b2_argmin]
 
     if scatter:
         axs[0, 0].scatter(x1_full[::1000], a1_full[::1000], c='blue')
@@ -428,36 +429,32 @@ def plot_ab_functional_2d(files_path_prefix: str,
         axs[1, 1].scatter(x2_full[::1000], b22_full[::1000], c='blue')
 
     axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
-    axs[0, 0].plot(x1, a1_poly_fit(x1), c='red', label=a1_string)
+    axs[0, 0].plot(x1_interval, a1_poly_fit(x1_interval), c='red', label=a1_string)
     axs[0, 0].set_xlabel(data1_name + ' values', fontsize=20)
     axs[0, 0].set_ylabel('A', fontsize=20)
     axs[0, 0].legend()
     sns.move_legend(axs[0, 0], loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
     axs[0, 1].plot(quantiles2, a_grouped[1], c='cyan', label='mean')
-    axs[0, 1].plot(x2, a2_poly_fit(x2), c='red', label=a2_string)
+    axs[0, 1].plot(x2_interval, a2_poly_fit(x2_interval), c='red', label=a2_string)
     axs[0, 1].set_xlabel(data2_name + ' values', fontsize=20)
     axs[0, 1].set_ylabel('A', fontsize=20)
     axs[0, 1].legend()
     sns.move_legend(axs[0, 1], loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
     axs[1, 0].plot(quantiles1, b_grouped[0], c='cyan', label='mean')
-    axs[1, 0].plot(x1_left, fit_exp_left(x1_left, *popt1_left) + c3_1, c='purple', label=b11_left_string)
-    axs[1, 0].plot(x1_center, fit_exp_center(x1_left, *popt1_center) + c3_1, c='purple', label=b11_center_string)
-    axs[1, 0].plot(x1_right, fit_exp_right(x1_right, *popt1_right) + c3_1, c='red', label=b11_right_string)
-    # axs[1, 0].plot(x1_left, b11_left_poly_fit(x1_left), c='purple', label=b11_left_string)
-    # axs[1, 0].plot(x1_right, b11_right_poly_fit(x1_right), c='red', label=b11_right_string)
+    axs[1, 0].plot(x1_left, fit_exp_left(x1_left - b1_x1, *popt1_left) + fit_exp_center(b1_x1, c2_1, c3_1), c='orange', label=b11_left_string)
+    axs[1, 0].plot(x1_center, fit_exp_center(x1_center - b1_argmin, *popt1_center), c='purple', label=b11_center_string)
+    axs[1, 0].plot(x1_right, fit_exp_right(x1_right - b1_argmin, *popt1_right) + c3_1, c='red', label=b11_right_string)
     axs[1, 0].set_xlabel(data1_name + ' values', fontsize=20)
     axs[1, 0].set_ylabel('log(B)', fontsize=20)
     axs[1, 0].legend()
     sns.move_legend(axs[1, 0], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
     axs[1, 1].plot(quantiles2, b_grouped[1], c='cyan', label='mean')
-    axs[1, 1].plot(x2_left, fit_exp_left(x2_left, *popt2_left) + c3_2, c='purple', label=b22_left_string)
-    axs[1, 1].plot(x2_center, fit_exp_center(x2_left, *popt2_center) + c3_2, c='purple', label=b22_center_string)
-    axs[1, 1].plot(x2_right, fit_exp_right(x2_right, *popt2_right) + c3_2, c='red', label=b22_right_string)
-    # axs[1, 1].plot(x2_left, b22_left_poly_fit(x2_left), c='purple', label=b22_left_string)
-    # axs[1, 1].plot(x2_right, b22_right_poly_fit(x2_right), c='red', label=b22_right_string)
+    axs[1, 1].plot(x2_left, fit_exp_left(x2_left - b2_x1, *popt2_left) + fit_exp_center(b2_x1, c2_2, c3_2), c='orange', label=b22_left_string)
+    axs[1, 1].plot(x2_center, fit_exp_center(x2_center - b2_argmin, *popt2_center), c='purple', label=b22_center_string)
+    axs[1, 1].plot(x2_right, fit_exp_right(x2_right - b2_argmin, *popt2_right) + c3_2, c='red', label=b22_right_string)
     axs[1, 1].set_xlabel(data2_name + ' values', fontsize=20)
     axs[1, 1].set_ylabel('log(B)', fontsize=20)
     axs[1, 1].legend()
@@ -492,7 +489,7 @@ def plot_prob_1d(files_path_prefix: str,
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
     plt.xlabel(f'Значения {data_name}', fontsize=14)
     plt.ylabel('Плотность стационарного распределения', fontsize=14)
-    y = [prob(x0) for x0 in x]
+    y = [prob(t) for t in x]
     axs.plot(x, y)
     # mode = 89300 # pressure
     # mode = -212 # sensible 1

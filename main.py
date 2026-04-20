@@ -29,7 +29,7 @@ from Forecasting.utils import fix_random
 from Plotting.plot_func_estimations import *
 from Plotting.plot_coefficients import *
 from statsmodels.stats.multitest import multipletests
-from scipy.special import gammainc, gamma, erf, erfcx
+from scipy.special import gammainc, gamma, erf, erfcx, gammaincc
 # files_path_prefix = '/home/aosipova/EM_ocean/'
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
 
@@ -57,87 +57,87 @@ if __name__ == '__main__':
     # days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
     # days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
     # ----------------------------------------------------------------------------------------------
-    # estimate the functional a(X) and b(X) from data
-    data1_name = 'sensible'
-    data2_name = 'latent'
-    str_types = 'sensible-latent'
-
-    # data1_name = 'flux'
-    # data2_name = 'pressure'
-    # str_types = 'flux-pressure'
-    season = 'full_10_years'
-    start_year = 1979
-    end_year = start_year + 10
-    coef_start = 1
-    coef_end = 3653
-
-    if data1_name == 'sensible':
-        data1_array = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
-    else:
-        data1_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
-    data1_array = data1_array.transpose()
-    data1_array = data1_array.reshape((-1, height, width))
-    # data1_array = data1_array[1:]
-    # data1_array = np.diff(data1_array, axis=0)
-    plot_hist(files_path_prefix, data1_name + f'_{start_year}-{end_year}', data1_array)
-
-    if data2_name == 'latent':
-        data2_array = np.load(files_path_prefix + f'Fluxes/latent_grouped_{start_year}-{end_year}.npy')
-    else:
-        data2_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
-    data2_array = data2_array.transpose()
-    data2_array = data2_array.reshape((-1, height, width))
-    # data2_array = np.diff(data2_array, axis=0)
-    # data2_array = data2_array[1:]
-    plot_hist(files_path_prefix, data2_name + f'_{start_year}-{end_year}', data2_array)
-
-    a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
-    b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
-    b_array = b_array**2
-
-    mask = mask.reshape((height, width))
-    data1_array[:, np.logical_not(mask)] = np.nan
-    data2_array[:, np.logical_not(mask)] = np.nan
-    a_array[:, np.logical_not(mask)] = np.nan
-    b_array[:, np.logical_not(mask)] = np.nan
-
-
-    # for year in range(start_year, start_year + 10):
-    for year in [1979]:
-        print(year)
-        if season == 'year':
-            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1,
-                                                                                      day=1)).days
-            end = (datetime.datetime(year=year, month=12, day=31) - datetime.datetime(year=start_year, month=1,
-                                                                                      day=1)).days
-        elif season == 'spring':
-            start = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        elif season == 'summer':
-            start = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        elif season == 'autumn':
-            start = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=12, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        else:
-            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-
-
-        start = 0
-        end = 3650
-        data1_small = mean_blocks(data1_array[start:end], mask)
-        data2_small = mean_blocks(data2_array[start:end], mask)
-        a_small = mean_blocks(a_array[start:end], mask)
-        b_small = mean_blocks(b_array[start:end], mask)
-
-        quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
-            estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=370))
-
-        data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
-        # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
-        plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=False)
-    raise ValueError
+    # # estimate the functional a(X) and b(X) from data
+    # data1_name = 'sensible'
+    # data2_name = 'latent'
+    # str_types = 'sensible-latent'
+    #
+    # # data1_name = 'flux'
+    # # data2_name = 'pressure'
+    # # str_types = 'flux-pressure'
+    # season = 'full_10_years'
+    # start_year = 1979
+    # end_year = start_year + 10
+    # coef_start = 1
+    # coef_end = 3653
+    #
+    # if data1_name == 'sensible':
+    #     data1_array = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
+    # else:
+    #     data1_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
+    # data1_array = data1_array.transpose()
+    # data1_array = data1_array.reshape((-1, height, width))
+    # # data1_array = data1_array[1:]
+    # # data1_array = np.diff(data1_array, axis=0)
+    # plot_hist(files_path_prefix, data1_name + f'_{start_year}-{end_year}', data1_array)
+    #
+    # if data2_name == 'latent':
+    #     data2_array = np.load(files_path_prefix + f'Fluxes/latent_grouped_{start_year}-{end_year}.npy')
+    # else:
+    #     data2_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
+    # data2_array = data2_array.transpose()
+    # data2_array = data2_array.reshape((-1, height, width))
+    # # data2_array = np.diff(data2_array, axis=0)
+    # # data2_array = data2_array[1:]
+    # plot_hist(files_path_prefix, data2_name + f'_{start_year}-{end_year}', data2_array)
+    #
+    # a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
+    # b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
+    # b_array = b_array**2
+    #
+    # mask = mask.reshape((height, width))
+    # data1_array[:, np.logical_not(mask)] = np.nan
+    # data2_array[:, np.logical_not(mask)] = np.nan
+    # a_array[:, np.logical_not(mask)] = np.nan
+    # b_array[:, np.logical_not(mask)] = np.nan
+    #
+    #
+    # # for year in range(start_year, start_year + 10):
+    # for year in [1979]:
+    #     print(year)
+    #     if season == 'year':
+    #         start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1,
+    #                                                                                   day=1)).days
+    #         end = (datetime.datetime(year=year, month=12, day=31) - datetime.datetime(year=start_year, month=1,
+    #                                                                                   day=1)).days
+    #     elif season == 'spring':
+    #         start = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #         end = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #     elif season == 'summer':
+    #         start = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #         end = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #     elif season == 'autumn':
+    #         start = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #         end = (datetime.datetime(year=year, month=12, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #     else:
+    #         start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #         end = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+    #
+    #
+    #     start = 0
+    #     end = 3650
+    #     data1_small = mean_blocks(data1_array[start:end], mask)
+    #     data2_small = mean_blocks(data2_array[start:end], mask)
+    #     a_small = mean_blocks(a_array[start:end], mask)
+    #     b_small = mean_blocks(b_array[start:end], mask)
+    #
+    #     quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
+    #         estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=390))
+    #
+    #     data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
+    #     # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
+    #     plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=False)
+    # raise ValueError
 
     # b_hist = np.load(files_path_prefix + f'Mean_year/{data1_name}-{data2_name}_B_heatmap.npy')
     # # print(b_hist.shape)
@@ -154,154 +154,127 @@ if __name__ == '__main__':
     #         f.write(str(b_hist[i]))
     # ----------------------------------------------------------------------------------------------
     # # plot stationary distribution 1d
-    def G(n, z, a):
-        """Computes the nth generalized G function with given parameter a."""
-        if a <= 0:
-            raise ValueError(f"a must be positive, got {a}")
-        return gammainc(n + 1, a * z) * gamma(n+1) * (a ** -(n + 1))
-
-
-    # Define the F function with the new approach
-    def F(n, z, a, b):
-        """Computes the nth generalized F function with given parameters a, b."""
-        if b <= 0:
-            raise ValueError(f"b must be positive, got {b}")
-
+    def kl_coeff(x, n, l):
         if n == 0:
-            s = np.sqrt(b)
-            alpha = a / (2 * s)
-            beta = s * z
-            return np.sqrt(np.pi) / (2 * s) * (
-                    erfcx(alpha) - np.exp(-b * z ** 2 - a * z) * erfcx(alpha + beta)
-            )
+            return 1/l
         elif n == 1:
-            return (1 - np.exp(-b * z ** 2 - a * z)) / (2 * b) - (a / (2 * b)) * F(0, z, a, b)
+            return x/l - 1/(l**2)
+        elif n == 2:
+            return x**2 / l - (2*x)/(l**2) + 2/(l**3)
+        elif n==3:
+            return x**3 / l - (3 * x**2)/(l**2) + (6*x) / (l**3) - 6/(l**4)
+        elif n == 4:
+            return x**4 / l - (4*x**3)/(l**2) + (12 * x**2) / (l**3) - (24*x) / (l**4) + 24/(l**5)
         else:
-            return ((n - 1) * F(n - 2, z, a, b) - a * F(n - 1, z, a, b) - z ** (n - 1) * np.exp(
-                -b * z ** 2 - a * z)) / (2 * b)
+            return 0
 
+    def Phi(x, l):
+        return np.exp(l*x) * (k4 * kl_coeff(x, 4, l) + k3 * kl_coeff(x, 3, l) + k2 * kl_coeff(x, 2, l) + k1 * kl_coeff(x, 1, l) +
+                              k0 * kl_coeff(x, 0, l))
 
-    # Left branch with the full expression
-    def Phi_plus_left(x, a, b, d):
-        """Computes the right branch integral for x >= 0"""
-        z = np.sqrt(x)
-        return 4 * np.exp(-d) * (
-                k4 * F(9, z, a, b) + k3 * F(7, z, a, b) + k2 * F(5, z, a, b) +
-                k1 * F(3, z, a, b) + k0 * F(1, z, a, b)
-        )
+    def Psi_minus(x, c):
+        tmp = 0
+        for n in range(4):
+            tmp += (-1)**n * k[n] * c**(-2*n -2) * gammaincc(2*n + 2, c*np.sqrt(-x)) * gamma(2*n + 2)
+        return tmp * 2
 
+    def Psi_plus(x, c):
+        tmp = 0
+        for n in range(4):
+            tmp +=  k[n] * c**(-2*n -2) * gammaincc(2*n + 2, c*np.sqrt(x)) * gamma(2*n + 2)
+        return tmp * (-2)
 
-    # Left branch, for negative x
-    def Phi_minus_left(x, a, b, d):
-        """Computes the left branch integral for x <= 0"""
-        z = np.sqrt(-x)
-        return -4 * np.exp(-d) * (
-                k4 * F(9, z, a, b) - k3 * F(7, z, a, b) + k2 * F(5, z, a, b) -
-                k1 * F(3, z, a, b) + k0 * F(1, z, a, b)
-        )
-
-
-    def Phi_plus_right(x, c3, c4):
-        """Computes the right branch integral for x >= x0, simplified formula"""
-        z = np.sqrt(x)
-        return 4 * np.exp(-c3) * (
-                k4 * G(9, z, c4) + k3 * G(7, z, c4) + k2 * G(5, z, c4) +
-                k1 * G(3, z, c4) + k0 * G(1, z, c4)
-        )
-
-
-    def Phi_minus_right(x, c3, c4):
-        """Computes the right branch integral for x <= x0"""
-        z = np.sqrt(-x)
-        return -4 * np.exp(-c3) * (
-                k4 * G(9, z, c4) - k3 * G(7, z, c4) + k2 * G(5, z, c4) -
-                k1 * G(3, z, c4) + k0 * G(1, z, c4)
-        )
-
-    def I(x, x0):
-        """Computes the integral I(x) with respect to the branching point x0."""
-        if np.isclose(x0, 0.0):  # x0 == 0 case
-            if x < 0:
-                return Phi_minus_left(x, c1, c2, c3)
+    def I(x):
+        if x0 < 0:
+            if x < x1:
+                return 2 * np.exp(-c3) * Phi(x, c1) + const1
+            elif x1 <= x < x0:
+                return 2 * np.exp(-c3) * Psi_minus(x, c2) + const2
+            elif x0 < x <= 0:
+                return 2 * np.exp(-c3) * Psi_minus(x, c4) + const3
             else:
-                return Phi_plus_right(x, c3, c4)
-        elif x0 < 0:  # x0 < 0 case
-            if x < x0:
-                return Phi_minus_left(x, c1, c2, c3) - Phi_minus_left(x0, c1, c2, c3)
-            elif x0 <= x < 0:
-                return Phi_minus_right(x, c3, c4) - Phi_minus_right(x0, c3, c4)
+                return 2 * np.exp(-c3) * Psi_plus(x, c4) + const4
+        else:
+            if x < x1:
+                return 2 * np.exp(-c3) * Phi(x, c1) + const1
+            elif x1 <= x < 0:
+                return 2 * np.exp(-c3) * Psi_minus(x, c2) + const2
+            elif 0 < x <= x0:
+                return 2 * np.exp(-c3) * Psi_plus(x, c4) + const3
             else:
-                return -Phi_minus_right(x0, c3, c4) + Phi_plus_right(x, c3, c4)
-        else:  # x0 > 0 case
-            if x < 0:
-                return Phi_minus_left(x, c1, c2, c3) - Phi_plus_left(x0, c1, c2, c3)
-            elif 0 <= x < x0:
-                return Phi_plus_left(x, c1, c2, c3) - Phi_plus_left(x0, c1, c2, c3)
-            else:
-                return Phi_plus_right(x, c3, c4) - Phi_plus_right(x0, c3, c4)
+                return 2 * np.exp(-c3) * Psi_plus(x, c4) + const4
 
 
     def d(x):
         """Computes the diffusion coefficient d(x) based on the left and right branches."""
-        if x < x0:
-            return c1 * np.sqrt(abs(x)) + c2 * abs(x) + c3
+        if x < x1:
+            return c1 * abs(x) + c3
+        elif x1 <= x < x0:
+            return c2 * np.sqrt(abs(x)) + c3
         else:
             return c4 * np.sqrt(abs(x)) + c3
 
     def prob_stationary(x):
-            return (1/z) * np.exp(I(x, x0) - d(x))
+            return (1/z) * np.exp(I(x) - d(x))
 
+    x0 = 0.10840501051683304
+    x1 = -150
+    k4 = -3.045 * 10**(-10)
+    k3 = -2.736 * 10**(-7)
+    k2 = -1.599 * 10**(-5)
+    k1 = -1.109 * 10 **(-1)
+    k0 = -2.082 * 10
 
-    # def compute_log_shift(x_min, x_max, num_points, I_func, d_func):
-    #     """Computes the maximum of the log probability to normalize the distribution."""
-    #     x_values = np.linspace(x_min, x_max, num_points)
-    #     log_values = I_func(x_values) - d_func(x_values)
-    #     return np.max(log_values)
-
-    # def prob_stationary(x):
-    #     """Computes the stationary probability P_s(x) given x."""
-    #     # log_shift = compute_log_shift(-10, 10, 1000, I, d)  # Compute the log shift
-    #     return np.exp(I(x, x0) - d(x) - log_shift) / z
-
-
-
-
-
-    x = np.linspace(-500, 500, 1500)
-    x0 = 0.10137566460502967
-    k4 = -1.167 * 10**(-10)
-    k3 = -7.945 * 10**(-8)
-    k2 = 2.984 * 10**(-5)
-    k1 = -1.123 * 10 **(-1)
-    k0 = -2.132 * 10
-
-    c1 = 6.240 * 10**(-2)
-    c2 = 7.149 * 10**(-4)
-    c3 = 8.287
-    c4 = 8.713 * 10**(-2)
+    c1 = 2.829 * 10**(-3)
+    c2 = 6.593 * 10**(-2)
+    c3 = 8.309
+    c4 = 8.706 * 10**(-2)
     z = 1
+    k = [k0, k1, k2, k3, k4]
 
-    # print(F(0, 1.0, c1, c2))
-    # print(F(1, 1.0, c1, c2))
-    # print(I(-10, x0), I(10, x0))
+    if x0 < 0:
+        const1 = 0
+        const2 = const1 + 2 * np.exp(-c3)*(Phi(x1, c1) - Psi_minus(x1, c2))
+        const3 = const2 + 2 * np.exp(-c3)*(Psi_minus(x0, c2) - Psi_minus(x0, c4))
+        const4 = const3 + 2 * np.exp(-c3)*(Psi_minus(0, c4) - Psi_plus(0, c4))
+    else:
+        const1 = 0
+        const2 = const1 + 2 * np.exp(-c3)*(Phi(x1, c1) - Psi_minus(x1, c2))
+        const3 = const2 + 2 * np.exp(-c3)*(Psi_minus(0, c2) - Psi_plus(0, c2))
+        const4 = const3 + 2 * np.exp(-c3)*(Psi_plus(x0, c2) - Psi_plus(x0, c4))
 
-    plot_prob_1d(files_path_prefix, 'sensible', prob_stationary, x)
+    print([const1, const2, const3, const4])
 
-    x = np.linspace(-50, 50, 1000)
-    x0 = -1.43658447265625
-    k4 = -5.008 * 10**(-12)
-    k3 = -1.391 * 10**(-8)
-    k2 = 4.316 * 10**(-5)
-    k1 = 5.817 * 10 **(-2)
-    k0 = -4.077 * 10
+    plot_prob_1d(files_path_prefix, 'sensible', prob_stationary,  np.linspace(-1000, 500, 1500))
 
-    c1 = 6.240 * 10**(-2)
-    c2 = 7.149 * 10**(-4)
-    c3 = 8.287
-    c4 = 1.742 * 10**(-1)
+    # x = np.linspace(-50, 50, 1000)
+    x0 = -1.9346534142127325
+    x1 = -500
+    k4 = -6.353 * 10**(-12)
+    k3 = -1.865 * 10**(-8)
+    k2 = 4.135 * 10**(-5)
+    k1 = 6.311 * 10 **(-2)
+    k0 = -3.860 * 10
+
+    c1 = 3.155 * 10**(-4)
+    c2 = 7.889 * 10**(-2)
+    c3 = 8.222
+    c4 = 2.177 * 10**(-1)
     z = 1
+    k = [k0, k1, k2, k3, k4]
+    if x0 < 0:
+        const1 = 19000
+        const2 = const1 + 2 * np.exp(-c3)*(Phi(x1, c1) - Psi_minus(x1, c2))
+        const3 = const2 + 2 * np.exp(-c3)*(Psi_minus(x0, c2) - Psi_minus(x0, c4))
+        const4 = const3 + 2 * np.exp(-c3)*(Psi_minus(0, c4) - Psi_plus(0, c4))
+    else:
+        const1 = 0
+        const2 = const1 + 2 * np.exp(-c3)*(Phi(x1, c1) - Psi_minus(x1, c2))
+        const3 = const2 + 2 * np.exp(-c3)*(Psi_minus(0, c2) - Psi_plus(0, c2))
+        const4 = const3 + 2 * np.exp(-c3)*(Psi_plus(x0, c2) - Psi_plus(x0, c4))
+    print([const1, const2, const3, const4])
 
-    plot_prob_1d(files_path_prefix, 'latent', prob_stationary, x)
+    plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-2500, 100, 1000))
 
 
     # x = np.linspace(-1000, 1000, 2000)
