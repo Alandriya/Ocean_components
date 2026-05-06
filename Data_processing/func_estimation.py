@@ -201,8 +201,8 @@ def estimate_A_B_2d(
     # quantiles1 = quantiles1[part:-part]
     # quantiles2 = quantiles2[part:-part]
 
-    quantiles1 = quantiles1[30:-10]
-    quantiles2 = quantiles2[30:-10]
+    quantiles1 = quantiles1[5:-5]
+    quantiles2 = quantiles2[5:-5]
 
     a_grouped = np.zeros((2, len(quantiles1)))
     b_grouped = np.zeros((2, len(quantiles1)))
