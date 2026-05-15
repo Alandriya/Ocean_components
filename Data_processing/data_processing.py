@@ -335,7 +335,7 @@ def mean_blocks(data:np.ndarray,
                     amount += 1
                     tmp += data[:, i, j]
             if amount:
-                data_small[:, i_block, j_block] = tmp
+                data_small[:, i_block, j_block] = tmp / amount
             else:
                 data_small[:, i_block, j_block] = np.nan
 
