@@ -316,19 +316,24 @@ def plot_ab_functional_2d(files_path_prefix: str,
     quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full = data
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(2, 2, figsize=(20, 15))
-    x1_interval = np.linspace(min(quantiles1), max(quantiles1), 500)
-    x2_interval = np.linspace(min(quantiles2), max(quantiles2), 500)
+    x1_interval = np.linspace(min(quantiles1) - 300, max(quantiles1) + 300, 1500)
+    x2_interval = np.linspace(min(quantiles2) - 300, max(quantiles2) + 300, 1500)
 
+
+    quantiles1_list = list(np.linspace(-1000, -150, 100)) + list(quantiles1) + list(np.linspace(25, 300, 100))
+    a_fit1 = list(np.linspace(10000, 7, 100)) + list(a_grouped[0]) + list(np.linspace(-5, -500, 100))
     # a1_coeff_fit = np.polyfit(x1_full, a1_full, 2)
-    a1_coeff_fit = np.polyfit(quantiles1, a_grouped[0], 4)
+    a1_coeff_fit = np.polyfit(quantiles1_list, a_fit1, 4)
     a1_poly_fit = np.poly1d(a1_coeff_fit)
     print(f'A1 rmse: {get_rmse(a1_poly_fit, quantiles1, a_grouped[0]): .3e}')
     a1_string = (f'{a1_coeff_fit[0]:.3e} * x^4 + {a1_coeff_fit[1]:.3e} * x^3 + {a1_coeff_fit[2]:.3e} * x^2'
                        f' +{a1_coeff_fit[3]:.3e} * x + {a1_coeff_fit[4]:.3e}')
+    # a1_string = (f'{a1_coeff_fit[0]:.3e} * x^3 + {a1_coeff_fit[1]:.3e} * x^2 + {a1_coeff_fit[2]:.3e} * x^1'
+    #                    f' +{a1_coeff_fit[3]:.3e}')
     print(a1_string)
 
     b1_argmin = quantiles1[b_grouped[0].argsort()][0]
-    b1_x1 = -1000
+    b1_x1 = -40
     print(b1_argmin)
     quantiles1_left = quantiles1[quantiles1 < b1_x1]
     b1_left = b_grouped[0][quantiles1 < b1_x1]
@@ -356,21 +361,27 @@ def plot_ab_functional_2d(files_path_prefix: str,
     print(b11_center_string)
     print(b11_right_string)
 
-    a2_coeff_fit = np.polyfit(quantiles2, a_grouped[1], 4)
+    quantiles2_list = list(np.linspace(-1000, -300, 100)) + list(quantiles1) + list(np.linspace(10, 300, 100))
+    a_fit2 = list(np.linspace(10000, 7, 100)) + list(a_grouped[0]) + list(np.linspace(-5, -500, 100))
+    a2_coeff_fit = np.polyfit(quantiles2_list, a_fit2, 4)
     # a2_coeff_fit = np.polyfit(quantiles2, a_grouped[1], 2)
     a2_poly_fit = np.poly1d(a2_coeff_fit)
     print(f'A2 rmse: {get_rmse(a2_poly_fit, quantiles2, a_grouped[1]): .3e}')
     a2_string = (f'{a2_coeff_fit[0]:.3e} * x^4 + {a2_coeff_fit[1]:.3e} * x^3 + {a2_coeff_fit[2]:.3e} * x^2'
                        f' +{a2_coeff_fit[3]:.3e} * x + {a2_coeff_fit[4]:.3e}')
-    # a2_string = (f'{a2_coeff_fit[0]:.3e} * x^2 + {a2_coeff_fit[1]:.3e} * x^1 + {a2_coeff_fit[2]:.3e} ')
+    # a2_string = f'{a2_coeff_fit[0]:.3e} * x^3 + {a2_coeff_fit[1]:.3e} * x^2 + {a2_coeff_fit[2]:.3e} * x^1 + {a2_coeff_fit[3]:.3e} '
+    # a2_string = f'{a2_coeff_fit[0]:.3e} * x^2 + {a2_coeff_fit[1]:.3e} * x^1 + {a2_coeff_fit[2]:.3e} '
     print(a2_string)
 
-    b2_x1 = -500
+    b2_x1 = -40
+    # b2_x1 = -1000
     b2_argmin = quantiles2[b_grouped[1].argsort()][0]
     print(b2_argmin)
-
-    quantiles2_left = quantiles2[quantiles2 < b2_x1]
-    b2_left = b_grouped[1][quantiles2 < b2_x1]
+    #&((quantiles2 < -3500) | (quantiles2 > 2500))
+    left_condition = (quantiles2 < b2_x1) &((quantiles2 < -200) | (quantiles2 > -50))
+    quantiles2_left = quantiles2[left_condition]
+    b2_left = b_grouped[1][left_condition]
+    # b2_left = b_grouped[1][quantiles2 < b2_x1]
     quantiles2_center = quantiles2[(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
     b2_center = b_grouped[1][(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
     quantiles2_right = quantiles2[quantiles2 >= b2_argmin]
@@ -387,26 +398,13 @@ def plot_ab_functional_2d(files_path_prefix: str,
     center_error = np.sum(fit_exp_center(quantiles2_center - b2_argmin, *popt2_center) - b2_center)**2
     right_error = np.sum(fit_exp_right(quantiles2_right - b2_argmin, *popt2_right) - b2_right)**2
     print(f'B22 rmse: {np.sqrt(left_error + + center_error + right_error) *1.0/ len(quantiles2): .3e}')
+
     b22_left_string = f'{c1_2:.3e} * |x| + {c3_2:.3e}'
     b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {c3_2:.3e}'
     b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {c3_2:.3e}'
     print(b22_left_string)
     print(b22_center_string)
     print(b22_right_string)
-
-
-    # b22_left_coeff_fit = np.polyfit(quantiles2_left, b2_left, 4)
-    # b22_left_poly_fit = np.poly1d(b22_left_coeff_fit)
-    # b22_right_coeff_fit = np.polyfit(quantiles2_right, b2_right, 1)
-    # b22_right_poly_fit = np.poly1d(b22_right_coeff_fit)
-    #
-    # left_error = (np.sum(b22_left_poly_fit(quantiles2_left) - b2_left)**2)
-    # right_error = (np.sum(b22_right_poly_fit(quantiles2_right) - b2_right)**2)
-    # print(f'B22 rmse: {np.sqrt(left_error + right_error) *1.0/ len(quantiles2): .3e}')
-    #
-    # b22_left_string = (f'{b22_left_coeff_fit[0]:.3e} * x^4 + {b22_left_coeff_fit[1]:.3e} * x^3 + '
-    #                    f'{b22_left_coeff_fit[2]:.3e} * x^2 + {b22_left_coeff_fit[3]:.3e} * x + {b22_left_coeff_fit[4]:.3e}')
-    # b22_right_string = f'{b22_right_coeff_fit[0]:.3e} * x + {b22_right_coeff_fit[1]:.3e}'
 
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
@@ -434,6 +432,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
 
     axs[0, 1].plot(quantiles2, a_grouped[1], c='cyan', label='mean')
     axs[0, 1].plot(x2_interval, a2_poly_fit(x2_interval), c='red', label=a2_string)
+    # axs[0, 1].plot(x2_interval, a1_poly_fit(x2_interval), c='violet', label=a1_string)
     axs[0, 1].set_xlabel(data2_name + ' values', fontsize=20)
     axs[0, 1].set_ylabel('A', fontsize=20)
     axs[0, 1].legend()
@@ -484,18 +483,16 @@ def plot_prob_1d(files_path_prefix: str,
                  prob,
                  x):
     sns.set_style("whitegrid")
-    fig, axs = plt.subplots(1, 1, figsize=(10, 5))
+    fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     plt.xlabel(f'Значения {data_name}', fontsize=14)
-    plt.ylabel('Плотность стационарного распределения', fontsize=14)
+    # plt.ylabel('Плотность стационарного распределения', fontsize=14)
+    plt.ylabel('Логарифм от плотности стационарного распределения', fontsize=14)
     y = [prob(t) for t in x]
     axs.plot(x, y)
-    # mode = 89300 # pressure
-    # mode = -212 # sensible 1
-    # mode = 1245.30 # sensible 2
-    # axs.axvline(x=mode, color='gray', linestyle='--', linewidth=2, label=f'x={mode}')
     axs.legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_log_1d.png')
+    # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
     return
 
 

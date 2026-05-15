@@ -28,6 +28,7 @@ from Coefficients.semiparametric import *
 from Forecasting.utils import fix_random
 from Plotting.plot_func_estimations import *
 from Plotting.plot_coefficients import *
+from scipy.integrate import trapezoid
 from statsmodels.stats.multitest import multipletests
 from scipy.special import gammainc, gamma, erf, erfcx, gammaincc
 # files_path_prefix = '/home/aosipova/EM_ocean/'
@@ -70,6 +71,7 @@ if __name__ == '__main__':
     end_year = start_year + 10
     coef_start = 1
     coef_end = 3653
+    block_size = 5
 
     if data1_name == 'sensible':
         data1_array = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
@@ -125,10 +127,10 @@ if __name__ == '__main__':
         else:
             start = 0
             end = 3650
-        data1_small = mean_blocks(data1_array[start:end], mask)
-        data2_small = mean_blocks(data2_array[start:end], mask)
-        a_small = mean_blocks(a_array[start:end], mask)
-        b_small = mean_blocks(b_array[start:end], mask)
+        data1_small = mean_blocks(data1_array[start:end], mask, block_size)
+        data2_small = mean_blocks(data2_array[start:end], mask, block_size)
+        a_small = mean_blocks(a_array[start:end], mask, block_size)
+        b_small = mean_blocks(b_array[start:end], mask, block_size)
 
         quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
             estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=260))
@@ -142,57 +144,67 @@ if __name__ == '__main__':
     # plot stationary distribution 1d
     def kl_coeff(x, n, l):
         if n == 0:
-            return 1/l
+            return 1 / l
         elif n == 1:
-            return x/l - 1/(l**2)
+            return x / l - 1 / (l ** 2)
         elif n == 2:
-            return x**2 / l - (2*x)/(l**2) + 2/(l**3)
-        elif n==3:
-            return x**3 / l - (3 * x**2)/(l**2) + (6*x) / (l**3) - 6/(l**4)
+            return x ** 2 / l - (2 * x) / (l ** 2) + 2 / (l ** 3)
+        elif n == 3:
+            return x ** 3 / l - (3 * x ** 2) / (l ** 2) + (6 * x) / (l ** 3) - 6 / (l ** 4)
         elif n == 4:
-            return x**4 / l - (4*x**3)/(l**2) + (12 * x**2) / (l**3) - (24*x) / (l**4) + 24/(l**5)
+            return x ** 4 / l - (4 * x ** 3) / (l ** 2) + (12 * x ** 2) / (l ** 3) - (24 * x) / (l ** 4) + 24 / (l ** 5)
         else:
-            return 0
+            raise ValueError("n must be 0..4")
+
 
     def Phi(x, l):
-        return np.exp(l*x) * (k4 * kl_coeff(x, 4, l) + k3 * kl_coeff(x, 3, l) + k2 * kl_coeff(x, 2, l) + k1 * kl_coeff(x, 1, l) +
-                              k0 * kl_coeff(x, 0, l))
+        return np.exp(l * x) * (
+                k4 * kl_coeff(x, 4, l)
+                + k3 * kl_coeff(x, 3, l)
+                + k2 * kl_coeff(x, 2, l)
+                + k1 * kl_coeff(x, 1, l)
+                + k0 * kl_coeff(x, 0, l)
+        )
+
 
     def Psi_minus(x, c):
-        tmp = 0
+        tmp = 0.0
         for n in range(5):
-            tmp += (-1)**n * k[n] * c**(-2*n -2) * gammaincc(2*n + 2, c*np.sqrt(-x)) * gamma(2*n + 2)
-        return tmp * 2
+            tmp += ((-1) ** n) * k[n] * c ** (-2 * n - 2) * gammaincc(2 * n + 2, c * np.sqrt(-x)) * gamma(2 * n + 2)
+        return 2.0 * tmp
+
 
     def Psi_plus(x, c):
-        tmp = 0
-        for n in range(4):
-            tmp +=  k[n] * c**(-2*n -2) * gammaincc(2*n + 2, c*np.sqrt(x)) * gamma(2*n + 2)
-        return tmp * (-2)
+        tmp = 0.0
+        for n in range(5):  # FIXED
+            tmp += k[n] * c ** (-2 * n - 2) * gammaincc(2 * n + 2, c * np.sqrt(x)) * gamma(2 * n + 2)
+        return -2.0 * tmp
+
 
     def I(x):
+        pref = 2 * np.exp(-c3)
+
         if x0 < 0:
             if x < x1:
-                return 2 * np.exp(-c3) * Phi(x, c1) + const1
+                return pref * Phi(x, c1) + const1
             elif x1 <= x < x0:
-                return 2 * np.exp(-c3) * Psi_minus(x, c2) + const2
+                return pref * Psi_minus(x, c2) + const2
             elif x0 <= x < 0:
-                return 2 * np.exp(-c3) * Psi_minus(x, c4) + const3
+                return pref * Psi_minus(x, c4) + const3
             else:
-                return 2 * np.exp(-c3) * Psi_plus(x, c4) + const4
+                return pref * Psi_plus(x, c4) + const4
         else:
             if x < x1:
-                return 2 * np.exp(-c3) * Phi(x, c1) + const1
+                return pref * Phi(x, c1) + const1
             elif x1 <= x < 0:
-                return 2 * np.exp(-c3) * Psi_minus(x, c2) + const2
+                return pref * Psi_minus(x, c2) + const2
             elif 0 <= x < x0:
-                return 2 * np.exp(-c3) * Psi_plus(x, c2) + const3
+                return pref * Psi_plus(x, c2) + const3
             else:
-                return 2 * np.exp(-c3) * Psi_plus(x, c4) + const4
+                return pref * Psi_plus(x, c4) + const4
 
 
     def log_b2(x):
-        """Computes the diffusion coefficient d(x) based on the left and right branches."""
         if x < x1:
             return c1 * abs(x) + c3
         elif x1 <= x < x0:
@@ -200,22 +212,46 @@ if __name__ == '__main__':
         else:
             return c4 * np.sqrt(abs(x)) + c3
 
+
+    def log_prob_unnorm_scalar(x):
+        return I(x) - log_b2(x)
+
+
+    def estimate_logz(x_grid):
+        """
+        Estimates log(z) where
+            z = integral exp(I(x) - log_b2(x)) dx
+        using a stable trapezoidal rule on a grid.
+        """
+        logw = np.array([log_prob_unnorm_scalar(x) for x in x_grid], dtype=float)
+
+        m = np.max(logw)  # shift to avoid under/overflow
+        z_scaled = trapezoid(np.exp(logw - m), x_grid)
+
+        if z_scaled <= 0 or not np.isfinite(z_scaled):
+            raise RuntimeError("Failed to estimate z: scaled integral is non-positive or non-finite.")
+
+        logz = m + np.log(z_scaled)
+        return logz
+
     def prob_stationary(x):
-            return (1/z) * np.exp(I(x) - log_b2(x))
+        # return np.exp(I(x) - log_b2(x) - logz)
+        return I(x) - log_b2(x) - logz
 
-    x0 = 0.3538172795222465
-    x1 = -1000
-    k4 = 1.756 * 10**(-11)
-    k3 = 8.251 * 10**(-8)
-    k2 = 5.773 * 10**(-5)
-    k1 = -1.213 * 10 **(-1)
-    k0 = -2.219 * 10
 
-    c1 = 4.503 * 10**(-4)
-    c2 = 8.324 * 10**(-2)
-    c3 = 8.161
-    c4 = 9.921 * 10**(-2)
-    z = 1
+    x0 = -3.647613525390625
+    x1 = -50
+    k4 = -9.496 * 10**(-9)
+    k3 = -7.729 * 10**(-6)
+    k2 = 8.623 * 10**(-3)
+    k1 = -2.839 * 10 **(1)
+    k0 = -3.239 * 10
+
+    c1 = 1.508 * 10**(-2)
+    c2 = 2.514 * 10**(-1)
+    c3 = 5.868
+    c4 = 2.204 * 10**(-1)
+
     k = [k0, k1, k2, k3, k4]
 
     if x0 < 0:
@@ -230,22 +266,24 @@ if __name__ == '__main__':
         const4 = const3 + 2 * np.exp(-c3)*(Psi_plus(x0, c2) - Psi_plus(x0, c4))
 
     print([const1, const2, const3, const4])
+    x_grid = np.linspace(-2000, 500, 1500)
+    logz = estimate_logz(x_grid)
+    plot_prob_1d(files_path_prefix, 'sensible', prob_stationary,  x_grid)
 
-    plot_prob_1d(files_path_prefix, 'sensible', prob_stationary,  np.linspace(-1000, 500, 1500))
+    x0 = -2.8423638983087227
+    x1 = -45
 
-    x0 = -2.2388663658728802
-    x1 = -500
-    k4 = 7.353 * 10**(-13)
-    k3 = 1.981 * 10**(-8)
-    k2 = 1.042 * 10**(-4)
-    k1 = 9.304 * 10 **(-2)
-    k0 = -3.790 * 10
+    k4 = -1.933 * 10**(-8)
+    k3 = -2.685 * 10**(-5)
+    k2 = 2.158 * 10**(-3)
+    k1 = -1.002 * 10 **(-1)
+    k0 = -3.441 * 10
 
-    c1 = 3.516 * 10**(-4)
-    c2 = 7.846 * 10**(-2)
-    c3 = 8.228
-    c4 = 1.816 * 10**(-2)
-    z = 1
+    c1 = 5.967 * 10**(-3)
+    c2 = 1.951 * 10**(-1)
+    c3 = 6.174
+    c4 = 2.852 * 10**(-1)
+
     k = [k0, k1, k2, k3, k4]
     if x0 < 0:
         const1 = -2 * np.exp(-c3) * Phi(x1, c1)
@@ -260,6 +298,8 @@ if __name__ == '__main__':
     print([const1, const2, const3, const4])
     print(2 * np.exp(-c3) * Phi(-600, c1))
 
-    plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-2000, 500, 1500))
+    x_grid = np.linspace(-1000, 500, 1500)
+    logz = estimate_logz(x_grid)
+    plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-3000, 500, 1500))
 
 
