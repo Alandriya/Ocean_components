@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
 import matplotlib.cm
+from scipy.special import gamma, gammaincc
 from Data_processing.data_processing import scale_to_bins
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
@@ -243,4 +244,156 @@ def estimate_A_B_2d(
     return (quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full,)
             # b_hist, quantiles_little1, quantiles_little2)
 
+def kl_coeff(x, n, l):
+    if n == 0:
+        return 1 / l
+    elif n == 1:
+        return x / l - 1 / (l ** 2)
+    elif n == 2:
+        return x ** 2 / l - (2 * x) / (l ** 2) + 2 / (l ** 3)
+    elif n == 3:
+        return x ** 3 / l - (3 * x ** 2) / (l ** 2) + (6 * x) / (l ** 3) - 6 / (l ** 4)
+    elif n == 4:
+        return x ** 4 / l - (4 * x ** 3) / (l ** 2) + (12 * x ** 2) / (l ** 3) - (24 * x) / (l ** 4) + 24 / (l ** 5)
+    else:
+        raise ValueError("n must be 0..4")
 
+def Phi(x, l, k):
+    k0, k1, k2, k3, k4 = k
+    return np.exp(l * x) * (
+            k4 * kl_coeff(x, 4, l)
+            + k3 * kl_coeff(x, 3, l)
+            + k2 * kl_coeff(x, 2, l)
+            + k1 * kl_coeff(x, 1, l)
+            + k0 * kl_coeff(x, 0, l)
+    )
+
+
+def Psi_minus(x, c, k):
+    tmp = 0.0
+    for n in range(5):
+        tmp += ((-1) ** n) * k[n] * c ** (-2 * n - 2) * gammaincc(2 * n + 2, c * np.sqrt(-x)) * gamma(2 * n + 2)
+    return 2.0 * tmp
+
+
+def Psi_plus(x, c, k):
+    tmp = 0.0
+    for n in range(5):
+        tmp += k[n] * c ** (-2 * n - 2) * gammaincc(2 * n + 2, c * np.sqrt(x)) * gamma(2 * n + 2)
+    return -2.0 * tmp
+
+
+def I(x, args):
+    c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4 = args
+    dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
+    dC = c3
+    dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
+
+    prefL = 2 * np.exp(-dL)
+    prefC = 2 * np.exp(-dC)
+    prefR = 2 * np.exp(-dR)
+
+    if x0 < 0:
+        if x < x1:
+            return prefL * Phi(x, c1, k) + const1
+        elif x1 <= x < x0:
+            return prefC * Psi_minus(x, c2, k) + const2
+        elif x0 <= x < 0:
+            return prefR * Psi_minus(x, c4, k) + const3
+        else:
+            return prefR * Psi_plus(x, c4, k) + const4
+
+    else:
+        if x < x1:
+            return prefL * Phi(x, c1, k) + const1
+        elif x1 <= x < 0:
+            return prefC * Psi_minus(x, c2, k) + const2
+        elif 0 <= x < x0:
+            return prefC * Psi_plus(x, c2, k) + const3
+        else:
+            return prefR * Psi_plus(x, c4, k) + const4
+
+def log_b2(x, args):
+    c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4 = args
+    dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
+    dC = c3
+    dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
+
+    if x < x1:
+        return c1 * abs(x) + dL
+    elif x1 <= x < x0:
+        return c2 * np.sqrt(abs(x)) + dC
+    else:
+        return c4 * np.sqrt(abs(x)) + dR
+
+
+def create_quantiles(files_path_prefix: str,
+                     data1_array: np.ndarray,
+                     data2_array: np.ndarray,
+                     data1_name: str,
+                     data2_name: str,
+                     mask: np.ndarray):
+    """
+
+    :param files_path_prefix:
+    :param data1_array:
+    :param data2_array:
+    :param data1_name: np.array with shape (t, height, width)
+    :param data2_name:
+    :param mask: np.array with shape (height, width)
+    :return:
+    """
+    #estimate the functional a(X) and b(X) from data
+    coef_start = 1
+    coef_end = 3653
+    block_size = 5
+    season = 'full_10_years'
+    start_year = 1979
+
+    str_types = f'{data1_name}-{data2_name}'
+    a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
+    b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
+    b_array = b_array**2
+
+
+    data1_array[:, np.logical_not(mask)] = np.nan
+    data2_array[:, np.logical_not(mask)] = np.nan
+    a_array[:, np.logical_not(mask)] = np.nan
+    b_array[:, np.logical_not(mask)] = np.nan
+
+
+    # for year in range(start_year, start_year + 10):
+    for year in [1979]:
+        print(year)
+        if season == 'year':
+            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1,
+                                                                                      day=1)).days
+            end = (datetime.datetime(year=year, month=12, day=31) - datetime.datetime(year=start_year, month=1,
+                                                                                      day=1)).days
+        elif season == 'spring':
+            start = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+            end = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+        elif season == 'summer':
+            start = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+            end = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+        elif season == 'autumn':
+            start = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+            end = (datetime.datetime(year=year, month=12, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+        elif season == 'winter':
+            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+            end = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
+        else:
+            start = 0
+            end = 3650
+        data1_small = mean_blocks(data1_array[start:end], mask, block_size)
+        data2_small = mean_blocks(data2_array[start:end], mask, block_size)
+        a_small = mean_blocks(a_array[start:end], mask, block_size)
+        b_small = mean_blocks(b_array[start:end], mask, block_size)
+
+        quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
+            estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=260))
+
+        data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
+        # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
+        plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=False)
+    return
