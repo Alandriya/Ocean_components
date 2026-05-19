@@ -86,7 +86,7 @@ if __name__ == '__main__':
     print(f'max 2: {np.nanmax(data2_array)}')
 
     mask = mask.reshape((height, width))
-    create_quantiles(files_path_prefix, data1_array, data2_array, data1_name, data2_name, mask)
+    # create_quantiles(files_path_prefix, data1_array, data2_array, data1_name, data2_name, mask)
     # ----------------------------------------------------------------------------------------------
     # plot stationary distribution 1d
     def prob_stationary_sensible(x):
@@ -131,9 +131,10 @@ if __name__ == '__main__':
 
     args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
 
-    z = 1
-    z = trapezoid([prob_stationary_sensible(x) for x in np.linspace(-1500, 500, 2500)])
-    print(f'Sensible z: {z:.3e}')
+    # z = 1
+    # z = trapezoid([prob_stationary_sensible(x) for x in np.linspace(-1500, 500, 2500)])
+    # print(f'Sensible z: {z:.3e}')
+    z = 2.327e-01
     plot_prob_1d(files_path_prefix, 'sensible', prob_stationary_sensible,  np.linspace(-300, 300, 2500))
     # plot_prob_and_hist(files_path_prefix, 'sensible', prob_stationary_sensible, np.linspace(-300, 300, 2500), data1_array[:365])
     # -----------------------------------------------------------------------------------
@@ -170,9 +171,10 @@ if __name__ == '__main__':
 
     args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
 
-    z = 1
-    z = trapezoid([prob_stationary_latent(x) for x in np.linspace(-1500, 500, 2500)])
-    print(f'Latent z: {z:.3e}')
+    # z = 1
+    # z = trapezoid([prob_stationary_latent(x) for x in np.linspace(-1500, 500, 2500)])
+    # print(f'Latent z: {z:.3e}')
+    z = 2.269e-01
     plot_prob_1d(files_path_prefix, 'latent', prob_stationary_latent, np.linspace(-800, 500, 2500))
     # plot_prob_and_hist(files_path_prefix, 'latent', prob_stationary_latent, np.linspace(-800, 500, 2500), data2_array[:365])
     # ----------------------------------------------------------------------------------------------

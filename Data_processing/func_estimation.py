@@ -6,14 +6,14 @@ import tqdm
 # from VarGamma import fit_ml, pdf, cdf
 from numpy.polynomial import Polynomial
 from symfit import parameters, sin, cos
-from Plotting.plot_func_estimations import plot_estimate_residuals, plot_estimate_a_flux
+from Plotting.plot_func_estimations import plot_estimate_residuals, plot_estimate_a_flux, plot_ab_functional_2d
 from Data_processing.data_processing import load_ABCFE
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
 import matplotlib.cm
 from scipy.special import gamma, gammaincc
-from Data_processing.data_processing import scale_to_bins
+from Data_processing.data_processing import scale_to_bins, mean_blocks
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
