@@ -14,6 +14,7 @@ import matplotlib.ticker as mtick
 import matplotlib.cm
 from scipy.special import gamma, gammaincc
 from Data_processing.data_processing import scale_to_bins, mean_blocks
+from scipy.integrate import trapezoid
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
@@ -397,3 +398,117 @@ def create_quantiles(files_path_prefix: str,
         # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
         plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=False)
     return
+
+
+def get_isolines(
+    prob,
+    x: np.ndarray,
+    amount: int,
+) -> np.ndarray:
+    """
+    Return vertical isolines x_1, ..., x_{amount-1} such that each vertical
+    slice under y = prob(x) has equal area.
+
+    The intervals are:
+
+        [x_min, x_1],
+        [x_1, x_2],
+        ...
+        [x_{amount-1}, x_max]
+
+    Each interval has area total_area / amount.
+
+    Parameters
+    ----------
+    prob:
+        Density function. Must accept a NumPy array and return a NumPy array.
+    x:
+        1D grid of x-values.
+    amount:
+        Number of equal-area vertical slices.
+
+    Returns
+    -------
+    np.ndarray
+        Array of length amount - 1 containing the x-coordinates of isolines.
+    """
+    x = np.asarray(x, dtype=float)
+
+    y = np.array([prob(t) for t in x], dtype=float)
+
+    dx = np.diff(x)
+    y0 = y[:-1]
+    y1 = y[1:]
+
+    # Trapezoidal area of each interval.
+    segment_areas = 0.5 * (y0 + y1) * dx
+    cumulative = np.concatenate([[0.0], np.cumsum(segment_areas)])
+
+    total_area = cumulative[-1]
+
+    targets = total_area * np.arange(1, amount) / amount
+    isolines = []
+
+    for target in targets:
+        # Find segment containing the target cumulative area.
+        i = np.searchsorted(cumulative, target, side="right") - 1
+        i = min(max(i, 0), len(dx) - 1)
+
+        area_before = cumulative[i]
+        area_needed = target - area_before
+
+        x_left = x[i]
+        width = dx[i]
+        left_height = y[i]
+        right_height = y[i + 1]
+
+        # Solve exactly inside this segment assuming linear interpolation
+        # of prob(x) between grid points.
+        #
+        # Area from x_left to x_left + s:
+        #
+        # A(s) = left_height * s
+        #        + (right_height - left_height) * s^2 / (2 * width)
+        #
+        # We need A(s) = area_needed.
+        if segment_areas[i] == 0:
+            # Flat zero-density region. This case is rare if target is valid,
+            # but we handle it defensively.
+            s = 0.0
+        else:
+            slope_term = (right_height - left_height) / (2.0 * width)
+
+            if abs(slope_term) < 1e-15:
+                # Approximately constant density on the segment.
+                s = area_needed / left_height
+            else:
+                a = slope_term
+                b = left_height
+                c = -area_needed
+
+                discriminant = b * b - 4.0 * a * c
+                discriminant = max(discriminant, 0.0)
+
+                root1 = (-b + np.sqrt(discriminant)) / (2.0 * a)
+                root2 = (-b - np.sqrt(discriminant)) / (2.0 * a)
+
+                # Choose the root inside the segment.
+                candidates = [r for r in (root1, root2) if -1e-12 <= r <= width + 1e-12]
+
+                if not candidates:
+                    raise RuntimeError("Failed to locate isoline inside segment")
+
+                s = candidates[0]
+                s = min(max(s, 0.0), width)
+
+        isolines.append(x_left + s)
+
+    return np.asarray([np.nanmin(x)] + isolines + [np.nanmax(x)])
+
+
+def moments(pdf, x_grid):
+    p = np.array([pdf(x) for x in x_grid], dtype=float)
+    p /= trapezoid(p, x_grid)
+    mu = trapezoid(x_grid * p, x_grid)
+    var = trapezoid((x_grid - mu)**2 * p, x_grid)
+    return mu, var

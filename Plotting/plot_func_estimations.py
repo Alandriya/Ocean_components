@@ -10,6 +10,18 @@ import math
 import scipy
 import seaborn as sns
 from scipy.optimize import curve_fit
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from sympy.strategies.branch import condition
+
+from Plotting.video import get_continuous_cmap
+import matplotlib.colors as colors
+import tqdm
+
+x_label_list = ['90W', '60W', '30W', '0']
+y_label_list = ['EQ', '30N', '60N', '80N']
+xticks = [0, 60, 120, 180]
+yticks = [160, 100, 40, 0]
+
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
@@ -563,4 +575,161 @@ def plot_prob_and_hist(files_path_prefix: str,
     axs.legend()
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist.png')
+    return
+
+
+def plot_areas(files_path_prefix: str,
+               data_name: str,
+               prob,
+               x: np.ndarray,
+               borders_list: list,
+               colors_list: list,
+               ):
+    sns.set_style("whitegrid")
+    fig, axs = plt.subplots(1, 1, figsize=(12, 7))
+    if data_name == 'sensible':
+        plt.xlabel(f'Значения явного потока', fontsize=14)
+    else:
+        plt.xlabel(f'Значения скрытого потока', fontsize=14)
+
+    amount = len(borders_list)
+    y = [prob(t) for t in x]
+    axs.plot(x, y, c='r', label='P_s')
+    for i in range(amount):
+        x_left, x_right = borders_list[i]
+
+        # Build a local x-grid for the filled slice.
+        # Include exact borders even if they are not in the original x grid.
+        x_fill = x[(x >= x_left) & (x <= x_right)]
+        x_fill = np.concatenate([[x_left], x_fill, [x_right]])
+        x_fill = np.unique(x_fill)
+        y_fill = np.asarray([prob(t) for t in x_fill], dtype=float)
+
+        # Fill area under the curve between x_left and x_right
+        axs.fill_between(
+            x_fill,
+            y_fill,
+            0,
+            alpha=0.5,
+            label=f"Area {i}",
+            color = colors_list[i],
+        )
+
+        # Draw vertical borders
+        axs.axvline(x_left, linestyle="--", linewidth=1.2)
+        axs.axvline(x_right, linestyle="--", linewidth=1.2)
+    axs.legend()
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/Functional/isolines/{data_name}_areas.png')
+    return
+
+
+def plot_areas_map(files_path_prefix: str,
+                   data_name: str,
+                   borders_list: list,
+                   data_array: np.ndarray,
+                   time_start: int,
+                   time_end: int,
+                   mask: np.ndarray,
+                   start_pic_num: int,
+                   isoline_nums: list,
+                   colors_list: list,
+                   ):
+    if not os.path.exists(files_path_prefix + f'videos/isolines'):
+        os.mkdir(files_path_prefix + f'videos/isolines')
+
+    if not os.path.exists(files_path_prefix + f'videos/isolines/{data_name}'):
+        os.mkdir(files_path_prefix + f'videos/isolines/{data_name}')
+
+
+    fig, axs = plt.subplots(1, 1, figsize=(20, 10))
+    divider = make_axes_locatable(axs)
+    cax = divider.append_axes('right', size='5%', pad=0.3)
+    img = None
+
+    cmap = colors.ListedColormap(['white'] + colors_list)
+    boundaries = np.arange(len(colors_list) + 2) - 0.5
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    cmap.set_bad('lightgreen', 1.0)
+    pic_num = start_pic_num
+    step = 1
+    for t in tqdm.tqdm(range(time_start, time_end, step)):
+        date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
+        fig.suptitle(f'Isolines, {data_name}, {date.strftime("%Y-%m-%d")}', fontsize=30)
+        binary_array = np.zeros_like(data_array[t])
+        for i in range(len(isoline_nums)):
+            condition = ((np.logical_not(np.isnan(data_array[t]))) & (borders_list[i][0] <= data_array[t]) &
+                         (data_array[t] < borders_list[i][1]))
+            binary_array[condition] = isoline_nums[i]
+
+        binary_array[np.logical_not(mask)] = np.nan
+        if img is None:
+            img = axs.imshow(binary_array,
+                                   interpolation='none',
+                                   cmap=cmap,
+                                    alpha=0.5,
+                                   norm=norm)
+            axs.set_xticks(xticks)
+            axs.set_yticks(yticks)
+            axs.set_xticklabels(x_label_list)
+            axs.set_yticklabels(y_label_list)
+        else:
+            img.set_data(binary_array)
+            axs.set_xticks(xticks)
+            axs.set_yticks(yticks)
+            axs.set_xticklabels(x_label_list)
+            axs.set_yticklabels(y_label_list)
+        cbar = fig.colorbar(img, cax=cax, orientation='vertical', ticks=[1, 2, 3, 4, 5])
+        cbar.ax.set_yticklabels([f'Area {i}' for i in range(1, 6)])
+
+        fig.tight_layout()
+        fig.savefig(files_path_prefix + f'videos/isolines/{data_name}/{data_name}_areas_{pic_num}.png')
+        pic_num += 1
+    return
+
+
+def plot_isolines_map(files_path_prefix: str,
+                   data_name: str,
+                   data_array: np.ndarray,
+                   mask: np.ndarray,
+                   ):
+    if not os.path.exists(files_path_prefix + f'videos/isolines'):
+        os.mkdir(files_path_prefix + f'videos/isolines')
+
+    if not os.path.exists(files_path_prefix + f'videos/isolines/{data_name}'):
+        os.mkdir(files_path_prefix + f'videos/isolines/{data_name}')
+
+
+    fig, axs = plt.subplots(1, 1, figsize=(20, 10))
+    # divider = make_axes_locatable(axs)
+    # cax = divider.append_axes('right', size='5%', pad=0.3)
+
+    cmap = colors.ListedColormap(['white'])
+    cmap.set_bad('lightgreen', 1.0)
+
+
+    fig.suptitle(f'Isolines, {data_name}', fontsize=30)
+    binary_array = np.zeros_like(data_array)
+    binary_array[np.logical_not(mask)] = np.nan
+    axs.imshow(binary_array,
+                           interpolation='none',
+                           cmap=cmap,)
+    cs = axs.contour(data_array)
+    plt.clabel(cs, inline=1, fontsize=8)
+    # labels = ['line1', 'line2', 'line3', 'line4',
+    #           'line5', 'line6']
+    # for i in range(len(labels)):
+    #     cs.collections[i].set_label(labels[i])
+
+    axs.set_xticks(xticks)
+    axs.set_yticks(yticks)
+    axs.set_xticklabels(x_label_list)
+    axs.set_yticklabels(y_label_list)
+
+    # cbar = fig.colorbar(img, cax=cax, orientation='vertical', ticks=[1, 2, 3, 4, 5])
+    # cbar.ax.set_yticklabels([f'Area {i}' for i in range(1, 6)])
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/isolines/{data_name}_isolines.png')
+
     return
