@@ -370,7 +370,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
 
     b1_argmin = quantiles1[b_grouped[0].argsort()][0]
     b1_x1 = -40
-    print(b1_argmin)
+    print(f'x0 = {b1_argmin}')
     quantiles1_left = quantiles1[quantiles1 < b1_x1]
     b1_left = b_grouped[0][quantiles1 < b1_x1]
     # quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
@@ -391,6 +391,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
     dC = c3_1
     dR = c3_1 + (c2_1 - c4_1) * np.sqrt(abs(b1_argmin))
 
+    print(f'C3 = {c3_1:.3e}')
     b11_left_string = f'{c1_1:.3e} * |x| + {dL:.3e}'
     b11_center_string = f'{c2_1:.3e} * sqrt(|x|)  + {dC:.3e}'
     b11_right_string = f'{c4_1:.3e} * sqrt(|x|) + {dR:.3e}'
@@ -403,6 +404,8 @@ def plot_ab_functional_2d(files_path_prefix: str,
     print(b11_center_string)
     print(b11_right_string)
 
+    print('\n\n')
+
     a2_coeff_fit = np.polyfit(quantiles2, a_grouped[1], 4)
     a2_poly_fit = np.poly1d(a2_coeff_fit)
     pred_a2 = np.array([a2_poly_fit(x) for x in quantiles2])
@@ -412,8 +415,9 @@ def plot_ab_functional_2d(files_path_prefix: str,
     print(a2_string)
 
     b2_x1 = -40
+    # b2_x1 = -60
     b2_argmin = quantiles2[b_grouped[1].argsort()][0]
-    print(b2_argmin)
+    print(f'x0 = {b2_argmin}')
     left_condition = (quantiles2 < b2_x1) &((quantiles2 < -220) | (quantiles2 > -45))
     quantiles2_left = quantiles2[left_condition]
     b2_left = b_grouped[1][left_condition]
@@ -434,6 +438,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
     dC = c3_2
     dR = c3_2 + (c2_2 - c4_2) * np.sqrt(abs(b2_argmin))
 
+    print(f'C3 = {c3_2:.3e}')
     b22_left_string = f'{c1_2:.3e} * |x| + {dL:.3e}'
     b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {dC:.3e}'
     b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {dR:.3e}'
@@ -519,7 +524,8 @@ def plot_heatmap(files_path_prefix: str,
 def plot_prob_1d(files_path_prefix: str,
                  data_name: str,
                  prob,
-                 x):
+                 x,
+                 year: int,):
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     if data_name == 'sensible':
@@ -533,7 +539,7 @@ def plot_prob_1d(files_path_prefix: str,
     axs.legend()
     fig.tight_layout()
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_log_1d.png')
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}.png')
     return
 
 
@@ -558,6 +564,7 @@ def plot_prob_and_hist(files_path_prefix: str,
               data_name: str,
                 prob,
               x:np.ndarray,
+                       start_year: int,
                        data: np.ndarray,):
     data_hist = data[np.logical_not(np.isnan(data))].flatten()
     sns.set_style("whitegrid")
@@ -574,7 +581,7 @@ def plot_prob_and_hist(files_path_prefix: str,
     axs.hist(data_hist, alpha=0.5, bins=100, density=True)
     axs.legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist_{start_year}.png')
     return
 
 
@@ -655,7 +662,7 @@ def plot_areas_map(files_path_prefix: str,
     step = 1
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
-        fig.suptitle(f'Isolines, {data_name}, {date.strftime("%Y-%m-%d")}', fontsize=30)
+        # fig.suptitle(f'Isolines, {data_name}, {date.strftime("%Y-%m-%d")}', fontsize=30)
         binary_array = np.zeros_like(data_array[t])
         for i in range(len(isoline_nums)):
             condition = ((np.logical_not(np.isnan(data_array[t]))) & (borders_list[i][0] <= data_array[t]) &
@@ -708,13 +715,13 @@ def plot_isolines_map(files_path_prefix: str,
     cmap.set_bad('lightgreen', 1.0)
 
 
-    fig.suptitle(f'Isolines, {data_name}', fontsize=30)
+    # fig.suptitle(f'Isolines, {data_name}', fontsize=30)
     binary_array = np.zeros_like(data_array)
     binary_array[np.logical_not(mask)] = np.nan
     axs.imshow(binary_array,
                            interpolation='none',
                            cmap=cmap,)
-    cs = axs.contour(data_array)
+    cs = axs.contour(data_array, linewidths=2, cmap='autumn')
     plt.clabel(cs, inline=1, fontsize=8)
     # labels = ['line1', 'line2', 'line3', 'line4',
     #           'line5', 'line6']

@@ -1,223 +1,110 @@
 import datetime
-import math
-import os.path
-from statistics import quantiles
-from struct import unpack
-import json
+
 import numpy as np
-from matplotlib.pyplot import autumn
-from scipy.stats import mannwhitneyu
-from skimage.metrics import structural_similarity as ssim
-from torchgen.executorch.api.et_cpp import return_names
 
-from Data_processing.data_processing import *
-from Data_processing.data_processing import mean_blocks
-from Data_processing.func_estimation import *
-# from Plotting.plot_eigenvalues import plot_eigenvalues, plot_mean_year
-# from Plotting.plot_extreme import *
-# from extreme_evolution import *
-# from ABCF_coeff_counting import *
-from Eigenvalues.eigenvalues import *
-from Plotting.plot_func_estimations import plot_ab_functional
-# from Plotting.plot_Bel_coefficients import *
-# from SRS_count_coefficients import *
-# from Plotting.mean_year import *
-from Plotting.video import *
-from Coefficients.semiparametric import *
-from Forecasting.utils import fix_random
-from Plotting.plot_func_estimations import *
-from Plotting.plot_coefficients import *
-from scipy.integrate import trapezoid
-from statsmodels.stats.multitest import multipletests
-from scipy.special import gammainc, gamma, erf, erfcx, gammaincc
-# files_path_prefix = '/home/aosipova/EM_ocean/'
-files_path_prefix = 'D:/Nastya/Data/OceanFull/'
-
-width = 181
-height = 161
-fix_random(2025)
+from config import *
 
 if __name__ == '__main__':
-    # ---------------------------------------------------------------------------------------
-    # Mask
-    maskfile = open(files_path_prefix + "DATA/mask", "rb")
-    binary_values = maskfile.read(29141)
-    maskfile.close()
-    mask = unpack('?' * 29141, binary_values)
-    mask = np.array(mask, dtype=int)
-    mask = mask.reshape((height, width))
-    # ---------------------------------------------------------------------------------------
-    # Days deltas
-    days_delta1 = (datetime.datetime(1989, 1, 1, 0, 0) - datetime.datetime(1979, 1, 1, 0, 0)).days
-    days_delta2 = (datetime.datetime(1999, 1, 1, 0, 0) - datetime.datetime(1989, 1, 1, 0, 0)).days
-    days_delta3 = (datetime.datetime(2009, 1, 1, 0, 0) - datetime.datetime(1999, 1, 1, 0, 0)).days
-    days_delta4 = (datetime.datetime(2019, 1, 1, 0, 0) - datetime.datetime(2009, 1, 1, 0, 0)).days
-    days_delta5 = (datetime.datetime(2025, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    days_delta6 = (datetime.datetime(2025, 11, 1, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
-    # days_delta6 = (datetime.datetime(2024, 4, 28, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    # days_delta7 = (datetime.datetime(2024, 11, 28, 0, 0) - datetime.datetime(2024, 1, 1, 0, 0)).days
-    # ----------------------------------------------------------------------------------------------
-    # data1_name = 'sensible'
-    # data2_name = 'latent'
-    # str_types = 'sensible-latent'
-    # start_year = 1979
-    # end_year = start_year + 10
+    fix_random(2025)
+    mask = get_mask()
+
+    start_year = 1979
+    end_year = 2024
+    # start_year = 19792024
+
+    data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
+    data1_array = data1_array.transpose()
+    data1_array = data1_array.reshape((-1, height, width))
+
+    data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
+    data2_array = data2_array.transpose()
+    data2_array = data2_array.reshape((-1, height, width))
+
+    # if start_year == 2019:
+    #     data1_array = data1_array[:days_delta8]
+    #     data2_array = data2_array[:days_delta8]
     #
-    # if data1_name == 'sensible':
-    #     data1_array = np.load(files_path_prefix + f'Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
-    # else:
-    #     data1_array = np.load(files_path_prefix + f'Fluxes/FLUX_{start_year}-{end_year}_grouped.npy')
-    # data1_array = data1_array.transpose()
-    # data1_array = data1_array.reshape((-1, height, width))
-    # np.save(files_path_prefix + f'Fluxes/sensible_mean_{start_year}-{end_year}.npy', np.mean(data1_array, axis=0))
-    #
-    # # plot_hist(files_path_prefix, data1_name + f'_{start_year}-{end_year}', data1_array)
+    np.save(files_path_prefix + f'DATA/Fluxes/sensible_mean_{start_year}-{end_year}.npy', np.mean(data1_array, axis=0))
+    np.save(files_path_prefix + f'DATA/Fluxes/latent_mean_{start_year}-{end_year}.npy', np.mean(data2_array, axis=0))
+
+    # plot_hist(files_path_prefix, data1_name + f'_{start_year}-{end_year}', data1_array)
     # print(f'min 1: {np.nanmin(data1_array)}')
     # print(f'max 1: {np.nanmax(data1_array)}')
-    #
-    # if data2_name == 'latent':
-    #     data2_array = np.load(files_path_prefix + f'Fluxes/latent_grouped_{start_year}-{end_year}.npy')
-    # else:
-    #     data2_array = np.load(files_path_prefix + f'Pressure/PRESS_{start_year}-{end_year}_grouped.npy')
-    # data2_array = data2_array.transpose()
-    # data2_array = data2_array.reshape((-1, height, width))
-    # # plot_hist(files_path_prefix, data2_name + f'_{start_year}-{end_year}', data2_array)
+    # plot_hist(files_path_prefix, data2_name + f'_{start_year}-{end_year}', data2_array)
     # print(f'min 2: {np.nanmin(data2_array)}')
     # print(f'max 2: {np.nanmax(data2_array)}')
-    # np.save(files_path_prefix + f'Fluxes/latent_mean_{start_year}-{end_year}.npy', np.mean(data2_array, axis=0))
 
-    mask = mask.reshape((height, width))
-    # create_quantiles(files_path_prefix, data1_array, data2_array, data1_name, data2_name, mask)
-    # ----------------------------------------------------------------------------------------------
+    # create_quantiles(files_path_prefix, data1_array, data2_array, data1_name, data2_name, mask, coef_start, coef_end, start_year, block_size)
+    # raise ValueError
+    start_year = 19792024
     # plot stationary distribution 1d
-    def prob_stationary_sensible(x):
+    def prob_stationary(x):
         if x > x_max:
             return np.exp(I(x_max, args) - log_b2(x, args))/ z
-        return np.exp(I(x, args) - log_b2(x, args))/ z
 
-    def prob_stationary_latent(x):
         if x < x_min:
             return np.exp(I(x_min, args) - log_b2(x, args))/ z
-        return np.exp(I(x, args) - log_b2(x, args)) / z
+        return np.exp(I(x, args) - log_b2(x, args))/ z
 
 
-    mask = mask.reshape((height, width))
-    start_year = 1979
-    end_year = start_year + 10
-
-
-    x0 = -3.647613525390625
-    x1 = -40
-    k4 = 1.026 * 10**(-7)
-    k3 = 2.250 * 10**(-5)
-    k2 = 5.919 * 10**(-4)
-    k1 = -1.401 * 10 **(-1)
-    k0 = 1.837 * 1
-    k = [k0, k1, k2, k3, k4]
-    x_min = -1118.5375366210938
-    # x_max = 259.7684326171875
-    x_max = 100
-
-    c1 = 1.255 * 10**(-2)
-    c2 = 3.367 * 10**(-1)
-    c3 = 5.536
-    c4 = 3.294 * 10**(-1)
-
-    dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
-    dC = c3
-    dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
-
-    prefL = 2 * np.exp(-dL)
-    prefC = 2 * np.exp(-dC)
-    prefR = 2 * np.exp(-dR)
-
-    const1 = -prefL * Phi(x1, c1, k)
-    const2 = const1 + prefL * Phi(x1, c1, k) - prefC * Psi_minus(x1, c2, k)
-    const3 = const2 + prefC * Psi_minus(x0, c2, k) - prefR * Psi_minus(x0, c4, k)
-    const4 = const3 + prefR * Psi_minus(0, c4, k) - prefR * Psi_plus(0, c4, k)
-
+    x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = sensible_params
+    dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4 = count_constants(sensible_params)
     args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
 
-    # z = 1
-    # z = trapezoid([prob_stationary_sensible(x) for x in np.linspace(-1500, 500, 2500)])
-    # print(f'Sensible z: {z:.3e}')
-    z = 2.327e-01
-    x = np.linspace(-300, 300, 2500)
-    mean1, var1 = moments(prob_stationary_sensible, x)
+    z = 1
+    z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
+    print(f'Sensible z: {z:.3e}')
+
+    x = np.linspace(-2000, 1500, 2500)
+    mean1, var1 = moments(prob_stationary, x)
     print(f'Mean sensible: {mean1:.1f}')
     print(f'Var sensible: {var1:.1f}')
     print(f'Sigma sensible: {np.sqrt(var1):.1f}')
-    plot_prob_1d(files_path_prefix, 'sensible', prob_stationary_sensible,  x)
-    # plot_prob_and_hist(files_path_prefix, 'sensible', prob_stationary_sensible, x, data1_array[:365])
+    # plot_prob_1d(files_path_prefix, 'sensible', prob_stationary,  np.linspace(-300, 300, 2500), start_year)
+    # plot_prob_and_hist(files_path_prefix, 'sensible', prob_stationary, np.linspace(-500, 500, 2500), start_year, data1_array[::10])
 
     # count and plot isolines
-    # amount = 5
-    # colors_list = ['yellow', 'orange', 'red', 'violet', 'blue']
-    # isolines = get_isolines(prob_stationary_sensible, x, amount)
-    # print(isolines)
-    # isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
-    # plot_isolines(files_path_prefix, 'sensible', prob_stationary_sensible, x, isolines_list, colors_list)
-    # plot_areas(files_path_prefix, data1_name, isolines_list, data1_array, 0, 10, mask,
-    #                  0, [1, 2, 3, 4, 5], colors_list)
+    amount = 5
+    colors_list = ['yellow', 'orange', 'red', 'violet', 'blue']
+    isolines = get_isolines(prob_stationary, x, amount)
+    print(isolines)
+    isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
+    plot_areas(files_path_prefix, 'sensible', prob_stationary, x, isolines_list, colors_list)
+    plot_areas_map(files_path_prefix, data1_name, isolines_list, data1_array, 0, 10, mask,
+                     0, [1, 2, 3, 4, 5], colors_list)
 
-    data1_array = np.load(files_path_prefix + f'Fluxes/sensible_mean_{start_year}-{end_year}.npy')
-    plot_isolines_map(files_path_prefix, 'sensible', data1_array-mean1, mask)
+    # data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_{start_year}-{end_year}.npy')
+    data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_1979-2024.npy')
+    plot_isolines_map(files_path_prefix, 'sensible', data1_mean-mean1, mask)
     # -----------------------------------------------------------------------------------
-    x0 = -2.8423638983087227
-    x1 = -40
 
-    k4 = -1.230 * 10**(-9)
-    k3 = 2.755 * 10**(-6)
-    k2 = 1.230 * 10**(-3)
-    k1 = 5.313 * 10 **(-2)
-    k0 = -4.376 * 1
-    k = [k0, k1, k2, k3, k4]
-
-    c1 = 5.257 * 10**(-3)
-    c2 = 1.951 * 10**(-1)
-    c3 = 6.174
-    c4 = 2.852 * 10**(-1)
-    # x_min = -1225.4668579101562
-    x_min = -300
-    x_max = 225.44720458984375
-
-    dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
-    dC = c3
-    dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
-
-    prefL = 2 * np.exp(-dL)
-    prefC = 2 * np.exp(-dC)
-    prefR = 2 * np.exp(-dR)
-
-    const1 = -prefL * Phi(x1, c1, k)
-    const2 = const1 + prefL * Phi(x1, c1, k) - prefC * Psi_minus(x1, c2, k)
-    const3 = const2 + prefC * Psi_minus(x0, c2, k) - prefR * Psi_minus(x0, c4, k)
-    const4 = const3 + prefR * Psi_minus(0, c4, k) - prefR * Psi_plus(0, c4, k)
-
+    x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = latent_params
+    dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4 = count_constants(latent_params)
     args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
 
-    # z = 1
-    # z = trapezoid([prob_stationary_latent(x) for x in np.linspace(-1500, 500, 2500)])
-    # print(f'Latent z: {z:.3e}')
-    z = 2.269e-01
-    x = np.linspace(-800, 500, 2500)
+    z = 1
+    z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
+    print(f'Latent z: {z:.3e}')
 
-    mean2, var2 = moments(prob_stationary_latent, x)
+    x = np.linspace(-2000, 1500, 2500)
+
+    mean2, var2 = moments(prob_stationary, x)
     print(f'Mean latent: {mean2:.1f}')
     print(f'Var latent: {var2:.1f}')
     print(f'Sigma latent: {np.sqrt(var2):.1f}')
-    plot_prob_1d(files_path_prefix, 'latent', prob_stationary_latent, x)
-    # plot_prob_and_hist(files_path_prefix, 'latent', prob_stationary_latent, x, data2_array[:365])
+    # plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-800, 300, 2500), start_year)
+    # plot_prob_and_hist(files_path_prefix, 'latent', prob_stationary, np.linspace(-1000, 1000, 2500), start_year, data2_array[::10])
 
     # count and plot isolines
-    # isolines = get_isolines(prob_stationary_latent, x, amount)
-    # print(isolines)
-    # isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
-    # plot_isolines(files_path_prefix, 'latent', prob_stationary_latent, x, isolines_list, colors_list)
-    # plot_areas(files_path_prefix, data2_name, isolines_list, data2_array, 0, 10, mask,
-    #                  0, [1, 2, 3, 4, 5], colors_list)
+    isolines = get_isolines(prob_stationary, x, amount)
+    print(isolines)
+    isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
+    plot_areas(files_path_prefix, 'latent', prob_stationary, x, isolines_list, colors_list)
+    plot_areas_map(files_path_prefix, data2_name, isolines_list, data2_array, 0, 10, mask,
+                     0, [1, 2, 3, 4, 5], colors_list)
 
-    data2_array = np.load(files_path_prefix + f'Fluxes/latent_mean_{start_year}-{end_year}.npy')
-    plot_isolines_map(files_path_prefix, 'latent', data2_array - mean2, mask)
+    # data2_mean = np.load(files_path_prefix + f'DATA/Fluxes/latent_mean_{start_year}-{end_year}.npy')
+    data2_mean = np.load(files_path_prefix + f'DATA/Fluxes/latent_mean_1979-2024.npy')
+    plot_isolines_map(files_path_prefix, 'latent', data2_mean - mean2, mask)
     # ----------------------------------------------------------------------------------------------
 

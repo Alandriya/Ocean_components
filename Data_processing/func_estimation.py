@@ -220,11 +220,11 @@ def estimate_A_B_2d(
     # print(len(quantiles1))
     for q1 in range(len(quantiles1)):
         quantile1 = quantiles1[q1]
-        a_grouped[0, q1] = np.mean(a[:, :, :, 0][x1_grouped == quantile1])
-        b_grouped[0, q1] = np.mean(b[:, :, :, 0][x1_grouped == quantile1])
+        # a_grouped[0, q1] = np.mean(a[:, :, :, 0][x1_grouped == quantile1])
+        # b_grouped[0, q1] = np.mean(b[:, :, :, 0][x1_grouped == quantile1])
 
-        # a_grouped[0, q1] = np.median(a[:, :, :, 0][x1_grouped == quantile1])
-        # b_grouped[0, q1] = np.median(b[:, :, :, 0][x1_grouped == quantile1])
+        a_grouped[0, q1] = np.median(a[:, :, :, 0][x1_grouped == quantile1])
+        b_grouped[0, q1] = np.median(b[:, :, :, 0][x1_grouped == quantile1])
 
         a1_full += list(a[:, :, :, 0][x1_grouped == quantile1].flatten())
         b11_full += list(b[:, :, :, 0][x1_grouped == quantile1].flatten())
@@ -232,11 +232,11 @@ def estimate_A_B_2d(
 
     for q2 in range(len(quantiles2)):
         quantile2 = quantiles2[q2]
-        a_grouped[1, q2] = np.mean(a[:, :, :, 1][x2_grouped == quantile2])
-        b_grouped[1, q2] = np.mean(b[:, :, :, 3][x2_grouped == quantile2])
+        # a_grouped[1, q2] = np.mean(a[:, :, :, 1][x2_grouped == quantile2])
+        # b_grouped[1, q2] = np.mean(b[:, :, :, 3][x2_grouped == quantile2])
 
-        # a_grouped[1, q2] = np.median(a[:, :, :, 1][x2_grouped == quantile2])
-        # b_grouped[1, q2] = np.median(b[:, :, :, 3][x2_grouped == quantile2])
+        a_grouped[1, q2] = np.median(a[:, :, :, 1][x2_grouped == quantile2])
+        b_grouped[1, q2] = np.median(b[:, :, :, 3][x2_grouped == quantile2])
 
         a2_full += list(a[:, :, :, 1][x2_grouped == quantile2].flatten())
         b22_full += list(b[:, :, :, 3][x2_grouped == quantile2].flatten())
@@ -333,7 +333,11 @@ def create_quantiles(files_path_prefix: str,
                      data2_array: np.ndarray,
                      data1_name: str,
                      data2_name: str,
-                     mask: np.ndarray):
+                     mask: np.ndarray,
+                     coef_start: int,
+                     coef_end: int,
+                     start_year: int,
+                     block_size: int):
     """
 
     :param files_path_prefix:
@@ -345,58 +349,37 @@ def create_quantiles(files_path_prefix: str,
     :return:
     """
     #estimate the functional a(X) and b(X) from data
-    coef_start = 1
-    coef_end = 3653
-    block_size = 5
+
     season = 'full_10_years'
-    start_year = 1979
 
     str_types = f'{data1_name}-{data2_name}'
+    coef_start = 1
+    coef_end = 17106
     a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
     b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
     b_array = b_array**2
-
 
     data1_array[:, np.logical_not(mask)] = np.nan
     data2_array[:, np.logical_not(mask)] = np.nan
     a_array[:, np.logical_not(mask)] = np.nan
     b_array[:, np.logical_not(mask)] = np.nan
 
+    start = 0
+    end = 3650
+    if start_year == 2019:
+        end = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
+    data1_small = mean_blocks(data1_array[start:end], mask, block_size)
+    data2_small = mean_blocks(data2_array[start:end], mask, block_size)
+    a_small = mean_blocks(a_array[start:end], mask, block_size)
+    b_small = mean_blocks(b_array[start:end], mask, block_size)
 
-    # for year in range(start_year, start_year + 10):
-    for year in [1979]:
-        print(year)
-        if season == 'year':
-            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1,
-                                                                                      day=1)).days
-            end = (datetime.datetime(year=year, month=12, day=31) - datetime.datetime(year=start_year, month=1,
-                                                                                      day=1)).days
-        elif season == 'spring':
-            start = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        elif season == 'summer':
-            start = (datetime.datetime(year=year, month=6, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        elif season == 'autumn':
-            start = (datetime.datetime(year=year, month=9, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=12, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        elif season == 'winter':
-            start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-            end = (datetime.datetime(year=year, month=3, day=1) - datetime.datetime(year=start_year, month=1, day=1)).days
-        else:
-            start = 0
-            end = 3650
-        data1_small = mean_blocks(data1_array[start:end], mask, block_size)
-        data2_small = mean_blocks(data2_array[start:end], mask, block_size)
-        a_small = mean_blocks(a_array[start:end], mask, block_size)
-        b_small = mean_blocks(b_array[start:end], mask, block_size)
+    quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
+        estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=260))
+    print(len(quantiles1))
 
-        quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
-            estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=260))
-
-        data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
-        # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
-        plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=False)
+    data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
+    # plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, year, scatter=True)
+    plot_ab_functional_2d(files_path_prefix, data, data1_name, data2_name, season, start_year, scatter=False)
     return
 
 
