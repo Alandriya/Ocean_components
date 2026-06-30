@@ -352,6 +352,33 @@ def plot_ab_functional_2d(files_path_prefix: str,
     fig, axs = plt.subplots(2, 2, figsize=(20, 15))
     x1_interval = np.linspace(min(quantiles1), max(quantiles1), 1500)
     x2_interval = np.linspace(min(quantiles2), max(quantiles2), 1500)
+    # # -------------------------------------------------------------------------------------
+    axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
+    axs[0, 0].set_xlabel(data1_name + ' values', fontsize=20)
+    axs[0, 0].set_ylabel('A', fontsize=20)
+    axs[0, 0].legend()
+    sns.move_legend(axs[0, 0], loc='upper center', bbox_to_anchor=(0.5, 1.1))
+
+    axs[0, 1].plot(quantiles2, a_grouped[1], c='cyan', label='mean')
+    axs[0, 1].set_xlabel(data2_name + ' values', fontsize=20)
+    axs[0, 1].set_ylabel('A', fontsize=20)
+    axs[0, 1].legend()
+    sns.move_legend(axs[0, 1], loc='upper center', bbox_to_anchor=(0.5, 1.1))
+
+    axs[1, 0].plot(quantiles1, b_grouped[0], c='cyan', label='mean')
+    axs[1, 0].set_xlabel(data1_name + ' values', fontsize=20)
+    axs[1, 0].set_ylabel('log(B)', fontsize=20)
+    axs[1, 0].legend()
+    sns.move_legend(axs[1, 0], loc='upper center', bbox_to_anchor=(0.5, 1.2))
+
+    axs[1, 1].plot(quantiles2, b_grouped[1], c='cyan', label='mean')
+    axs[1, 1].set_xlabel(data2_name + ' values', fontsize=20)
+    axs[1, 1].set_ylabel('log(B)', fontsize=20)
+    axs[1, 1].legend()
+    sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
+    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}_empty.png')
+    # raise ValueError
+    # #-------------------------------------------------------------------------------------
 
     # lin_part1 = (quantiles1 > -60) & (quantiles1 < 0)
     # a1_coeff_fit = np.polyfit(quantiles1[lin_part1], a_grouped[0][lin_part1], 2)
@@ -415,10 +442,11 @@ def plot_ab_functional_2d(files_path_prefix: str,
     print(a2_string)
 
     b2_x1 = -40
-    # b2_x1 = -60
+    # b2_x1 = -50
     b2_argmin = quantiles2[b_grouped[1].argsort()][0]
     print(f'x0 = {b2_argmin}')
-    left_condition = (quantiles2 < b2_x1) &((quantiles2 < -220) | (quantiles2 > -45))
+    left_condition = (quantiles2 < b2_x1) & ((quantiles2 < -200) | (quantiles2 > -45))
+    # left_condition = (quantiles2 < b2_x1) &((quantiles2 < -220) | (quantiles2 > -45))
     quantiles2_left = quantiles2[left_condition]
     b2_left = b_grouped[1][left_condition]
     # b2_left = b_grouped[1][quantiles2 < b2_x1]

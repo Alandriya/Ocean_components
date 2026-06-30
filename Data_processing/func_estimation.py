@@ -203,8 +203,10 @@ def estimate_A_B_2d(
     # quantiles1 = quantiles1[part:-part]
     # quantiles2 = quantiles2[part:-part]
 
-    quantiles1 = quantiles1[5:-5]
-    quantiles2 = quantiles2[5:-5]
+    # quantiles1 = quantiles1[5:-5]
+    # quantiles2 = quantiles2[5:-5]
+    quantiles1 = quantiles1[5:-15]
+    quantiles2 = quantiles2[5:-15]
 
     a_grouped = np.zeros((2, len(quantiles1)))
     b_grouped = np.zeros((2, len(quantiles1)))
@@ -236,10 +238,16 @@ def estimate_A_B_2d(
         # b_grouped[1, q2] = np.mean(b[:, :, :, 3][x2_grouped == quantile2])
 
         a_grouped[1, q2] = np.median(a[:, :, :, 1][x2_grouped == quantile2])
-        b_grouped[1, q2] = np.median(b[:, :, :, 3][x2_grouped == quantile2])
+        if b.shape[3] == 4:
+            b_grouped[1, q2] = np.median(b[:, :, :, 3][x2_grouped == quantile2])
+        else:
+            b_grouped[1, q2] = np.median(b[:, :, :, 1][x2_grouped == quantile2])
 
         a2_full += list(a[:, :, :, 1][x2_grouped == quantile2].flatten())
-        b22_full += list(b[:, :, :, 3][x2_grouped == quantile2].flatten())
+        if b.shape[3] == 4:
+            b22_full += list(b[:, :, :, 3][x2_grouped == quantile2].flatten())
+        else:
+            b22_full += list(b[:, :, :, 1][x2_grouped == quantile2].flatten())
         x2_full += list(x2[x2_grouped == quantile2].flatten())
 
     return (quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full,)
@@ -350,14 +358,23 @@ def create_quantiles(files_path_prefix: str,
     """
     #estimate the functional a(X) and b(X) from data
 
-    season = 'full_10_years'
+    season = '1979-2024_deletedtrend'
+    missing_days = [0, 7304, 10957, 17105]
 
     str_types = f'{data1_name}-{data2_name}'
-    coef_start = 1
-    coef_end = 17106
+    # coef_start = 1
+    # coef_end = 17106
     a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
-    b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
-    b_array = b_array**2
+    # a_array_2 = np.nanmean(a_array, axis=(1, 2, 3))
+    # b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
+    # b_array = b_array**2
+
+    n_lambdas = 3
+    b_array = np.load(files_path_prefix + f'Eigenvalues/sensible-latent/b_eigen_1d_sensible-latent_{n_lambdas}_lambdas_{coef_start}-{coef_end}.npy')
+    b_array = np.nan_to_num(b_array)
+    b_array = b_array ** 2
+    # a_array = np.delete(a_array, missing_days, axis=0)
+    # b_array = np.delete(b_array, missing_days, axis=0)
 
     data1_array[:, np.logical_not(mask)] = np.nan
     data2_array[:, np.logical_not(mask)] = np.nan
@@ -365,16 +382,21 @@ def create_quantiles(files_path_prefix: str,
     b_array[:, np.logical_not(mask)] = np.nan
 
     start = 0
-    end = 3650
+    end = np.min([a_array.shape[0], data1_array.shape[0], b_array.shape[0]])
     if start_year == 2019:
         end = (datetime.datetime(2024, 1, 1, 0, 0) - datetime.datetime(2019, 1, 1, 0, 0)).days
-    data1_small = mean_blocks(data1_array[start:end], mask, block_size)
-    data2_small = mean_blocks(data2_array[start:end], mask, block_size)
+
+    data1_small = mean_blocks(data1_array[start:end] - a_array[start:end, :, :, 0], mask, block_size)
+    data2_small = mean_blocks(data2_array[start:end] - a_array[start:end, :, :, 1], mask, block_size)
+
+    # data1_small = mean_blocks(data1_array[start:end], mask, block_size)
+    # data2_small = mean_blocks(data2_array[start:end], mask, block_size)
     a_small = mean_blocks(a_array[start:end], mask, block_size)
     b_small = mean_blocks(b_array[start:end], mask, block_size)
 
     quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full, = (
-        estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=260))
+        estimate_A_B_2d(data1_small, data2_small, a_small, b_small, quantiles_amount=110))
+    #quantiles_amount=260
     print(len(quantiles1))
 
     data = [quantiles1, quantiles2, a_grouped, np.log(b_grouped), x1_full, x2_full, a1_full, a2_full, np.log(b11_full), np.log(b22_full)]
