@@ -56,7 +56,7 @@ def count_eigenvalues_pair(files_path_prefix: str,
                            array2: np.ndarray,
                            array1_quantiles: list,
                            array2_quantiles: list,
-                           t: int,
+                           # t: int,
                            n_bins: int,
                            offset: int,
                            names: tuple):
@@ -76,30 +76,31 @@ def count_eigenvalues_pair(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
 
-    if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
-        return
-    else:
-        print(f'Counting timestep {t + offset}')
+    for t in range(array1.shape[1]-1):
+        if (t + offset) % 100 == 0:
+            print(f'Counting timestep {t + offset}')
+        if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
+            continue
 
-    b_matrix = np.zeros((n_bins, n_bins))
-    for i1 in range(0, n_bins):
-        points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
-        for j1 in range(0, n_bins):
-            points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
-            if len(points_x1) and len(points_y1):
-                mean1 = np.mean(array1[points_x1, t])
-                mean2 = np.mean(array2[points_y1, t])
-                vec1 = array1[points_x1, t + 1] - mean1
-                vec2 = array2[points_y1, t + 1] - mean2
-                b_matrix[i1, j1] = np.sum(np.multiply.outer(vec1, vec2).ravel())
+        b_matrix = np.zeros((n_bins, n_bins))
+        for i1 in range(0, n_bins):
+            points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
+            for j1 in range(0, n_bins):
+                points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
+                if len(points_x1) and len(points_y1):
+                    mean1 = np.mean(array1[points_x1, t])
+                    mean2 = np.mean(array2[points_y1, t])
+                    vec1 = array1[points_x1, t + 1] - mean1
+                    vec2 = array2[points_y1, t + 1] - mean2
+                    b_matrix[i1, j1] = np.sum(np.multiply.outer(vec1, vec2).ravel())
 
-    b_matrix = np.nan_to_num(b_matrix)
+        b_matrix = np.nan_to_num(b_matrix)
 
-    # count eigenvalues
-    eigenvalues, eigenvectors, positions = get_eig(b_matrix, (names[0], names[1]))
-    print(f'Counting timestep {t + offset} {names[0]}-{names[1]}')
-    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
-    np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
+        # count eigenvalues
+        eigenvalues, eigenvectors, positions = get_eig(b_matrix, (names[0], names[1]))
+        # print(f'Counting timestep {t + offset} {names[0]}-{names[1]}')
+        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
+        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
     return
 
 
