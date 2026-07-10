@@ -2553,12 +2553,12 @@ if __name__ == '__main__':
         for t in tqdm.tqdm(range(data1_array.shape[0]-1)):
             for l in range(n_lambdas):
                 for j1 in range(0, n_bins):
-                    points_sensible = np.where((quantiles_sensible[j1] <= data1_array[t]) & (data1_array[t] < quantiles_sensible[j1 + 1]))[0]
+                    points_sensible = np.where((quantiles_sensible[j1] <= data1_array[t]) & (data1_array[t] < quantiles_sensible[j1 + 1]))
                     # print(eigenvalues[:, l, 0].shape)
                     # print(eigenvectors[:, j1, l, 0].shape)
-                    b_eigen[t, points_sensible, 0] += eigenvalues[t, l, 0] * eigenvectors[t, j1, l, 0]
+                    b_eigen[t][points_sensible][0] += eigenvalues[t, l, 0] * eigenvectors[t, j1, l, 0]
 
-                    points_latent = np.where((quantiles_latent[j1] <= data2_array[t]) & (data2_array[t] < quantiles_latent[j1 + 1]))[0]
-                    b_eigen[t, points_latent, 1] += eigenvalues[t, l, 1] * eigenvectors[t, j1, l, 1]
+                    points_latent = np.where((quantiles_latent[j1] <= data2_array[t]) & (data2_array[t] < quantiles_latent[j1 + 1]))
+                    b_eigen[t][points_latent][1] += eigenvalues[t, l, 1] * eigenvectors[t, j1, l, 1]
 
         np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/b_eigen_1d_{names[0]}-{names[1]}_{n_lambdas}_lambdas_{coef_start}-{coef_end}.npy', b_eigen)

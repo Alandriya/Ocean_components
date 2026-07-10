@@ -107,6 +107,7 @@ def count_constants(params):
     return [dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4]
 
 # start_year = 19792024
+print(f'Loading config {start_year}')
 if start_year == 1979:
     a1_rmse = 1.530e-01
     b1_rmse = 1.973e-01
@@ -312,7 +313,7 @@ elif start_year == 19792024:
     c2 = 4.263e-01
     c3 = 4.402e+00
     c4 = 5.151e-01
-    z = 1
+    z = 1.600e-01
     x_min = -1118.5375366210938
     # x_min = -200
     x_max = 262.07489013671875

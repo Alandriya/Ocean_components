@@ -3,14 +3,15 @@ import datetime
 import numpy as np
 # from networkx.algorithms.threshold import eigenvectors
 from prompt_toolkit.key_binding.bindings.search import start_forward_incremental_search
-
 from config import *
+from Forecast_probs.montecarlo import make_prediction
+from Plotting.plot_forecasts import *
 
 if __name__ == '__main__':
     fix_random(2025)
     mask = get_mask()
 
-    start_year = 1979
+    start_year = 1989
     end_year = start_year + 10
     if start_year == 1979:
         coef_start = 1
@@ -128,3 +129,31 @@ if __name__ == '__main__':
     # data2_mean = np.load(files_path_prefix + f'DATA/Fluxes/latent_mean_1979-2024.npy')
     # plot_isolines_map(files_path_prefix, 'latent', data2_mean - mean2, mask)
     # # ----------------------------------------------------------------------------------------------
+    flux_type = 'sensible'
+    # flux_type = 'latent'
+    # data_array = np.load(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}.npy')
+    # data_array = data_array.transpose()
+    # data_array = data_array.reshape((-1, height, width))
+    # np.save(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}_little.npy', data_array[:500])
+    # raise ValueError
+
+
+    data_array = np.load(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}_little.npy')
+    start = 2
+    end = start + 5
+    prediction, prediction_q05, prediction_q95 = make_prediction(data_array, start, end, mask, 20, 1, 2000)
+    plot_probabilistic_forecast_compare(files_path_prefix,
+                                data_array[start:end],
+                                prediction,
+                                start,
+                                end,
+                                flux_type,
+                                coef_start)
+    plot_probabilistic_forecast(files_path_prefix,
+                                prediction,
+                                prediction_q05,
+                                prediction_q95,
+                                start,
+                                end,
+                                flux_type,
+                                coef_start)
