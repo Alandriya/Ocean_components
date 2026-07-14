@@ -2562,3 +2562,42 @@ if __name__ == '__main__':
                     b_eigen[t][points_latent][1] += eigenvalues[t, l, 1] * eigenvectors[t, j1, l, 1]
 
         np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/b_eigen_1d_{names[0]}-{names[1]}_{n_lambdas}_lambdas_{coef_start}-{coef_end}.npy', b_eigen)
+   # # ----------------------------------------------------------------------------------------------
+    # flux_type = 'sensible'
+    flux_type = 'latent'
+    # data_array = np.load(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}.npy')
+    # data_array = data_array.transpose()
+    # data_array = data_array.reshape((-1, height, width))
+    # np.save(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}_little.npy', data_array[:500])
+    # raise ValueError
+
+
+    data_array = np.load(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}_little.npy')
+    start = 2
+    end = start + 5
+
+    prediction_simple = data_array[start-1:end-1]
+    rmse_simple = np.sqrt(np.nanmean((data_array[start:end, mask] - prediction_simple[:, mask])**2))
+    print(f'RMSE SIMPLE: {rmse_simple:.2f}')
+
+    prediction, prediction_q05, prediction_q95 = make_prediction(data_array, start, end, mask, 20, 1, 2000)
+
+    rmse_mc = np.sqrt(np.nanmean((data_array[start:end, mask] - prediction[:, mask])**2))
+    print(f'RMSE MC: {rmse_mc:.2f}')
+
+    # plot_probabilistic_forecast_compare(files_path_prefix,
+    #                             data_array[start:end],
+    #                             prediction,
+    #                             start,
+    #                             end,
+    #                             flux_type,
+    #                             coef_start)
+    # plot_probabilistic_forecast(files_path_prefix,
+    #                             prediction,
+    #                             prediction_q05,
+    #                             prediction_q95,
+    #                             start,
+    #                             end,
+    #                             flux_type,
+    #                             coef_start)
+    # ----------------------------------------------------------------------------------------------

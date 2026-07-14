@@ -28,7 +28,7 @@ def predict_step(amount: int,
                   x_start):
     prev = np.full(amount, x_start)
     eps = np.random.normal(0, 1, amount)
-    ensemble = prev + a(prev) + b(prev) * eps
+    ensemble = a(prev) + b(prev) * eps
     return ensemble
 
 def make_prediction(x_array: np.ndarray,
@@ -47,13 +47,13 @@ def make_prediction(x_array: np.ndarray,
     prediction_q05[:, np.logical_not(mask)] = np.nan
     prediction_q95[:, np.logical_not(mask)] = np.nan
     for t in range(t_start, t_end, n_steps):
-        print(f'Predicting time step {t} for {n_steps} steps')
+        # print(f'Predicting time step {t} for {n_steps} steps')
         input = x_array[t-1]
         for t_pred in range(n_steps):
             for g in range(len(quantiles)-1):
                 points = np.where((quantiles[g] <= input) & (input < quantiles[g + 1]))
                 ensemble = predict_step(amount_ensemble, np.nanmean(input[points]))
-                prediction[t - t_start + t_pred][points] = np.mean(ensemble)
+                prediction[t - t_start + t_pred][points] = np.mean(ensemble) + input[points]
                 prediction_q05[t-t_start + t_pred][points] = np.quantile(ensemble, 0.05)
                 prediction_q95[t - t_start + t_pred][points] = np.quantile(ensemble, 0.95)
 
