@@ -20,7 +20,7 @@ the process $X(t)$;
 (https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels), also the basic analysing of the data 
 (estimating extreme values, retrieving trends evolution, estimating the distributions, etc.);
 - **Eigenvalues** folder contains the script for constructing Karhunen-Lo'eve decomposition of the diffusion coefficient;
-- **Forecasting** folder contains the scripts for building several type of models for creating mid-term forecasts of the
+- **Forecast_nn** and **Forecast_probs** folders contain the scripts for building several type of forecasts for creating mid-term forecasts of the
 Flux variable (considering 3, 5, 7 and 10 days length horizons);
 - **Plotting** folder contains scripts for plotting variables, coefficients, eigenvectors, extreme trends, forecasts and other;
 - **Video examples** folder contains several examples of the short videos of the coefficients estimations and eigenvectors, 
@@ -81,3 +81,5 @@ If you use this repository in your work, please consider citing one or more of t
 
 - Gorshenin A. K., Osipova A. A., Belyaev K. P. Stochastic analysis of air-sea heat fluxes variability in the North Atlantic in 1979–2022 based on reanalysis data // Computers and Geosciences, 2023. Vol. 181. Art. No. 105461. DOI: 10.1016/j.cageo.2023.105461
 - Belyaev K., Gorshenin A., Korolev V., Osipova A. Comparison of statistical approaches for reconstructing random coefficients in the problem of stochastic modeling of air–sea heat flux increments / // Mathematics, 2024. Vol. 12, no. 2. Art. No. 288. DOI: 10.3390/math12020288 
+- Gorshenin, A. K., Osipova, A. A., & Belyaev, K. P. Eigenvector decomposition for joint analysis of spatial characteristics in the North Atlantic from 1979 to 2024 // Computers & Geosciences, 2026. Vol. 207. Art. No. 106062. DOI: 10.1016/j.cageo.2025.106062
+- Осипова, А. А. Статистический анализ эквивалентности алгоритмов оценивания параметров динамико-стохастических моделей турбулентного теплообмена океана и атмосферы // Системы и средства информатики, 2026. Vol. 36, no. 2. P. 40-61. DOI: 10.14357/08696527260203

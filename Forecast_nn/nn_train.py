@@ -2,18 +2,18 @@
 # run: torchrun --nproc_per_node=1 --master_port 39985 nn_train.py
 import datetime
 import os
-from Forecasting.config import cfg
+from Forecast_nn.config import cfg
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.gpu
 # from models.encoder_decoder import Encoder_Decoder
-from Forecasting.models.attetion_unet import AttU_Net
-from Forecasting.models.SDE_HNN import SDEHNN, SDEHNN_1d
-from Forecasting.loss import Loss_MSE, GaussianNLLLoss
-from Forecasting.loader import Data, Data_1d
+from Forecast_nn.models.attetion_unet import AttU_Net
+from Forecast_nn.models.SDE_HNN import SDEHNN, SDEHNN_1d
+from Forecast_nn.loss import Loss_MSE, GaussianNLLLoss
+from Forecast_nn.loader import Data, Data_1d
 import argparse
 from collections import OrderedDict
-from Forecasting.utils import *
-from Forecasting.train import train
+from Forecast_nn.utils import *
+from Forecast_nn.train import train
 
 
 if __name__ == '__main__':

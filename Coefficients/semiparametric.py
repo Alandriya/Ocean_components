@@ -342,5 +342,26 @@ def parallel_semiparam(files_path_prefix: str,
     return
 
 
+def count_BBT_from_B(files_path_prefix: str,
+                     time_start: int,
+                     time_end: int,
+                     ):
+    for t in tqdm.tqdm(range(time_start + 1, time_end)):
+        if not os.path.exists(files_path_prefix + f'Coeff_data_2d/{t}_B.npy'):
+            print('Failed to load ' + files_path_prefix + f'Coeff_data_2d/{t}_B.npy')
+            continue
+
+        if os.path.exists(files_path_prefix + f'Coeff_data_2d/{t}_BBT.npy'):
+            continue
+        b = np.load(files_path_prefix + f'Coeff_data_2d/{t}_B.npy')
+        b11, b22, b12, b21 = b
+
+        C11 = b11 * b11 + b12 * b12
+        C22 = b21 * b21 + b22 * b22
+        C12 = b11 * b21 + b12 * b22
+
+        C = np.stack((C11, C22, C12), axis=0)
+        np.save(files_path_prefix + f'Coeff_data_2d/{t}_BBT.npy', C)
+    return
 
 

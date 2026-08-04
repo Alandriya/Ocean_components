@@ -12,6 +12,7 @@ import seaborn as sns
 from scipy.optimize import curve_fit
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from sympy.strategies.branch import condition
+from Data_processing.func_estimation import model_logb2
 
 from Plotting.video import get_continuous_cmap
 import matplotlib.colors as colors
@@ -314,30 +315,6 @@ def fit_exp_center(x, c2, c3):
 def fit_exp_right(x, c4):
     return c4 * np.sqrt(np.abs(x))
 
-def sensible_left(x):
-    return -0.013 * x + 4.3
-
-def sensible_right(x):
-    return -0.14 * x - 1.8
-
-def latent_left(x):
-    return -0.024 * x + 4.6
-
-def latent_right(x):
-    # return -0.008 * x - 4.5
-    return  - 0.05 * x - 4.5
-
-def model_logb2(x, x1, x0, c1, c2, c3, c4):
-    dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
-    dC = c3
-    dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
-
-    if x < x1:
-        return c1 * abs(x) + dL
-    elif x < x0:
-        return c2 * np.sqrt(abs(x)) + dC
-    else:
-        return c4 * np.sqrt(abs(x)) + dR
 
 def plot_ab_functional_2d(files_path_prefix: str,
                           data: list,
@@ -345,14 +322,19 @@ def plot_ab_functional_2d(files_path_prefix: str,
                           data2_name: str,
                           season: str,
                           year: int,
-                          scatter: bool = False,
                           ):
-    quantiles1, quantiles2, a_grouped, b_grouped, x1_full, x2_full, a1_full, a2_full, b11_full, b22_full = data
+    quantiles1, quantiles2, a_grouped, b_grouped = data
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(2, 2, figsize=(20, 15))
     x1_interval = np.linspace(min(quantiles1), max(quantiles1), 1500)
     x2_interval = np.linspace(min(quantiles2), max(quantiles2), 1500)
-    # # -------------------------------------------------------------------------------------
+
+    b_fit = '11'
+
+    if not os.path.exists(files_path_prefix + f'videos/Functional/{season}'):
+        os.mkdir(files_path_prefix + f'videos/Functional/{season}')
+
+    # # # -------------------------------------------------------------------------------------
     axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
     axs[0, 0].set_xlabel(data1_name + ' values', fontsize=20)
     axs[0, 0].set_ylabel('A', fontsize=20)
@@ -377,123 +359,171 @@ def plot_ab_functional_2d(files_path_prefix: str,
     axs[1, 1].legend()
     sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
     fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}_empty.png')
+    fig.clf()
     # raise ValueError
     # #-------------------------------------------------------------------------------------
-
-    # lin_part1 = (quantiles1 > -60) & (quantiles1 < 0)
-    # a1_coeff_fit = np.polyfit(quantiles1[lin_part1], a_grouped[0][lin_part1], 2)
-    # print(a1_coeff_fit)
-    # lin_part2 = (quantiles2 > -200) & (quantiles2 < -50)
-    # a2_coeff_fit = np.polyfit(quantiles2[lin_part2], a_grouped[1][lin_part2], 2)
-    # print(a2_coeff_fit)
-
+    fig, axs = plt.subplots(2, 2, figsize=(20, 15))
     a1_coeff_fit = np.polyfit(quantiles1, a_grouped[0], 4)
+    print(a1_coeff_fit)
     a1_poly_fit = np.poly1d(a1_coeff_fit)
     pred_a1 = np.array([a1_poly_fit(x) for x in quantiles1])
-    print(f'A1 rmse: {np.sqrt(np.mean((pred_a1 - a_grouped[0]) ** 2)): .3e}')
+    print(f'A1 rmse: {np.sqrt(np.mean((pred_a1 - a_grouped[0]) ** 2)): .3f}')
+    # a1_string = ''
     a1_string = (f'{a1_coeff_fit[0]:.3e} * x^4 + {a1_coeff_fit[1]:.3e} * x^3 + {a1_coeff_fit[2]:.3e} * x^2'
                        f' +{a1_coeff_fit[3]:.3e} * x + {a1_coeff_fit[4]:.3e}')
     print(a1_string)
 
-    b1_argmin = quantiles1[b_grouped[0].argsort()][0]
-    b1_x1 = -40
-    print(f'x0 = {b1_argmin}')
-    quantiles1_left = quantiles1[quantiles1 < b1_x1]
-    b1_left = b_grouped[0][quantiles1 < b1_x1]
-    # quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
-    quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < -10)]
-    # b1_center = b_grouped[0][(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
-    b1_center = b_grouped[0][(b1_x1 <= quantiles1) & (quantiles1 < -10)]
-    quantiles1_right = quantiles1[quantiles1 >= b1_argmin]
-    b1_right = b_grouped[0][quantiles1 >= b1_argmin]
+    if b_fit == 'polynom':
+        b1_x1 = quantiles1[b_grouped[0].argsort()][0]
+        cond1_left = quantiles1 < b1_x1
+        # cond1_left = (quantiles1 < b1_x1) & ((quantiles1 > -40) | (quantiles1 < -80))
+        quantiles1_left = quantiles1[cond1_left]
 
-    popt1_center, _ = curve_fit(fit_exp_center, quantiles1_center - b1_argmin, b1_center, maxfev=5000)
-    c2_1, c3_1 = popt1_center
-    popt1_left, _ = curve_fit(fit_exp_left, quantiles1_left - b1_x1, b1_left - fit_exp_center(b1_x1 - b1_argmin, c2_1, c3_1), maxfev=5000)
-    c1_1 = popt1_left[0]
-    popt1_right, _ = curve_fit(fit_exp_right, quantiles1_right - b1_argmin, b1_right - c3_1, maxfev=5000)
-    c4_1 = popt1_right[0]
+        quantiles1_right = quantiles1[quantiles1 >= b1_x1]
+        b11_coeff_fit_left = np.polyfit(quantiles1_left, b_grouped[0][cond1_left], 3)
+        b11_coeff_fit_right = np.polyfit(quantiles1_right, b_grouped[0][quantiles1 >= b1_x1], 3)
 
-    dL = c3_1 + c2_1 * np.sqrt(abs(b1_x1)) - c1_1 * abs(b1_x1)
-    dC = c3_1
-    dR = c3_1 + (c2_1 - c4_1) * np.sqrt(abs(b1_argmin))
+        b11_coeff_fit_left, b11_coeff_fit_right = shift_piecewise_polys_to_match(b11_coeff_fit_left, b11_coeff_fit_right, b1_x1)
+        b11_poly_fit_left = np.poly1d(b11_coeff_fit_left)
+        b11_poly_fit_right = np.poly1d(b11_coeff_fit_right)
 
-    print(f'C3 = {c3_1:.3e}')
-    b11_left_string = f'{c1_1:.3e} * |x| + {dL:.3e}'
-    b11_center_string = f'{c2_1:.3e} * sqrt(|x|)  + {dC:.3e}'
-    b11_right_string = f'{c4_1:.3e} * sqrt(|x|) + {dR:.3e}'
+        b11_string_left = (f'{b11_coeff_fit_left[0]:.3e} * x^3 + {b11_coeff_fit_left[1]:.3e} * x^2 + '
+                           f'{b11_coeff_fit_left[2]:.3e} * x^1 +{b11_coeff_fit_left[3]:.3e} * x')
+        b11_string_right = (f'{b11_coeff_fit_right[0]:.3e} * x^3 + {b11_coeff_fit_right[1]:.3e} * x^2 + '
+                            f'{b11_coeff_fit_right[2]:.3e} * x^1 +{b11_coeff_fit_right[3]:.3e} * x')
 
-    pred1 = np.array([model_logb2(x, b1_x1, b1_argmin, c1_1, c2_1, c3_1, c4_1) for x in quantiles1])
-    rmse1 = np.sqrt(np.mean((pred1 - b_grouped[0]) ** 2))
-    print(f'B11 RMSE: {rmse1:.3e}')
+        # print(b11_string_left)
+        # print(b11_string_right)
+        pred_b11 = np.array([b11_poly_fit_left(x) for x in quantiles1_left] + [b11_poly_fit_right(x) for x in quantiles1_right])
+        print(f'B11 rmse: {np.sqrt(np.mean((pred_b11 - b_grouped[0]) ** 2)): .3f}')
 
-    print(b11_left_string)
-    print(b11_center_string)
-    print(b11_right_string)
+        x1_left = x1_interval[x1_interval < b1_x1]
+        x1_right = x1_interval[x1_interval >= b1_x1]
+    else:
+        b1_argmin = quantiles1[b_grouped[0].argsort()][0]
+        b1_x1 = -40
+        print(f'x0 = {b1_argmin}')
+        quantiles1_left = quantiles1[quantiles1 < b1_x1]
+        b1_left = b_grouped[0][quantiles1 < b1_x1]
+        # quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
+        quantiles1_center = quantiles1[(b1_x1 <= quantiles1) & (quantiles1 < -10)]
+        # b1_center = b_grouped[0][(b1_x1 <= quantiles1) & (quantiles1 < b1_argmin)]
+        b1_center = b_grouped[0][(b1_x1 <= quantiles1) & (quantiles1 < -10)]
+        quantiles1_right = quantiles1[quantiles1 >= b1_argmin]
+        b1_right = b_grouped[0][quantiles1 >= b1_argmin]
 
-    print('\n\n')
+        popt1_center, _ = curve_fit(fit_exp_center, quantiles1_center - b1_argmin, b1_center, maxfev=5000)
+        c2_1, c3_1 = popt1_center
+        popt1_left, _ = curve_fit(fit_exp_left, quantiles1_left - b1_x1, b1_left - fit_exp_center(b1_x1 - b1_argmin, c2_1, c3_1), maxfev=5000)
+        c1_1 = popt1_left[0]
+        popt1_right, _ = curve_fit(fit_exp_right, quantiles1_right - b1_argmin, b1_right - c3_1, maxfev=5000)
+        c4_1 = popt1_right[0]
+
+        dL = c3_1 + c2_1 * np.sqrt(abs(b1_x1)) - c1_1 * abs(b1_x1)
+        dC = c3_1
+        dR = c3_1 + (c2_1 - c4_1) * np.sqrt(abs(b1_argmin))
+
+        print(f'C3 = {c3_1:.3e}')
+        b11_left_string = f'{c1_1:.3e} * |x| + {dL:.3e}'
+        b11_center_string = f'{c2_1:.3e} * sqrt(|x|)  + {dC:.3e}'
+        b11_right_string = f'{c4_1:.3e} * sqrt(|x|) + {dR:.3e}'
+
+        pred1 = np.array([model_logb2(x, b1_x1, b1_argmin, c1_1, c2_1, c3_1, c4_1) for x in quantiles1])
+        rmse1 = np.sqrt(np.mean((pred1 - b_grouped[0]) ** 2))
+        print(f'B11 RMSE: {rmse1:.3f}')
+
+        print(b11_left_string)
+        print(b11_center_string)
+        print(b11_right_string)
+        print('\n\n')
+
+        x1_left = x1_interval[x1_interval < b1_x1]
+        x1_center = x1_interval[(x1_interval >= b1_x1) & (x1_interval < b1_argmin)]
+        x1_right = x1_interval[x1_interval >= b1_argmin]
 
     a2_coeff_fit = np.polyfit(quantiles2, a_grouped[1], 4)
     a2_poly_fit = np.poly1d(a2_coeff_fit)
     pred_a2 = np.array([a2_poly_fit(x) for x in quantiles2])
-    print(f'A2 rmse: {np.sqrt(np.mean((pred_a2 - a_grouped[1]) ** 2)): .3e}')
+    print(f'A2 rmse: {np.sqrt(np.mean((pred_a2 - a_grouped[1]) ** 2)): .3f}')
+    # a2_string = ''
     a2_string = (f'{a2_coeff_fit[0]:.3e} * x^4 + {a2_coeff_fit[1]:.3e} * x^3 + {a2_coeff_fit[2]:.3e} * x^2'
                        f' +{a2_coeff_fit[3]:.3e} * x + {a2_coeff_fit[4]:.3e}')
-    print(a2_string)
+    # print(a2_string)
 
-    b2_x1 = -40
-    # b2_x1 = -50
-    b2_argmin = quantiles2[b_grouped[1].argsort()][0]
-    print(f'x0 = {b2_argmin}')
-    left_condition = (quantiles2 < b2_x1) & ((quantiles2 < -200) | (quantiles2 > -45))
-    # left_condition = (quantiles2 < b2_x1) &((quantiles2 < -220) | (quantiles2 > -45))
-    quantiles2_left = quantiles2[left_condition]
-    b2_left = b_grouped[1][left_condition]
-    # b2_left = b_grouped[1][quantiles2 < b2_x1]
-    quantiles2_center = quantiles2[(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
-    b2_center = b_grouped[1][(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
-    quantiles2_right = quantiles2[quantiles2 >= b2_argmin]
-    b2_right = b_grouped[1][quantiles2 >= b2_argmin]
+    if b_fit == 'polynom':
+        b2_x1 = quantiles2[b_grouped[1].argsort()][0] + 10
+        # quantiles2_left = quantiles2[quantiles2 < b2_x1]
+        cond2_left = quantiles2 < b2_x1
+        # cond2_left = (quantiles2 < b2_x1) & ((quantiles2 > -150) | (quantiles2 < -250))
+        quantiles2_left = quantiles2[cond2_left]
+        quantiles2_right = quantiles2[quantiles2 >= b2_x1]
+        b22_coeff_fit_left = np.polyfit(quantiles2_left, b_grouped[1][cond2_left], 2)
+        b22_coeff_fit_right = np.polyfit(quantiles2_right, b_grouped[1][quantiles2 >= b2_x1], 6)
+        b22_coeff_fit_left, b22_coeff_fit_right = shift_piecewise_polys_to_match(b22_coeff_fit_left,
+                                                                                 b22_coeff_fit_right, b2_x1)
 
-    popt2_center, _ = curve_fit(fit_exp_center, quantiles2_center - b2_argmin, b2_center, maxfev=5000)
-    c2_2, c3_2 = popt2_center
-    popt2_left, _ = curve_fit(fit_exp_left, quantiles2_left - b2_argmin, b2_left - fit_exp_center(b2_x1 - b2_argmin, c2_2, c3_2), maxfev=5000)
-    c1_2 = popt2_left[0]
-    popt2_right, _ = curve_fit(fit_exp_right, quantiles2_right - b2_argmin, b2_right - c3_2, maxfev=5000)
-    c4_2 = popt2_right[0]
+        b22_poly_fit_left = np.poly1d(b22_coeff_fit_left)
+        b22_poly_fit_right = np.poly1d(b22_coeff_fit_right)
 
-    dL = c3_2 + c2_2 * np.sqrt(abs(b2_x1)) - c1_2 * abs(b2_x1)
-    dC = c3_2
-    dR = c3_2 + (c2_2 - c4_2) * np.sqrt(abs(b2_argmin))
+        b22_string_left = ''
+        b22_string_right = ''
+        # b22_string_left = (f'{b22_coeff_fit_left[0]:.3e} * x^5 + {b22_coeff_fit_left[1]:.3e} * x^4 + '
+        #                    f'{b22_coeff_fit_left[2]:.3e} * x^3 + {b22_coeff_fit_left[3]:.3e} * x^2 +'
+        #                    f'{b22_coeff_fit_left[4]:.3e} * x^1 + {b22_coeff_fit_left[5]:.3e}')
+        # b22_string_right = (f'{b22_coeff_fit_right[0]:.3e} * x^3 + {b22_coeff_fit_right[1]:.3e} * x^2 + '
+        #                     f'{b22_coeff_fit_right[2]:.3e} * x^1 +{b22_coeff_fit_right[3]:.3e} * x')
 
-    print(f'C3 = {c3_2:.3e}')
-    b22_left_string = f'{c1_2:.3e} * |x| + {dL:.3e}'
-    b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {dC:.3e}'
-    b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {dR:.3e}'
-    print(b22_left_string)
-    print(b22_center_string)
-    print(b22_right_string)
+        # print(b22_string_left)
+        # print(b22_string_right)
+        pred_b22 = np.array([b22_poly_fit_left(x) for x in quantiles2_left] + [b22_poly_fit_right(x) for x in quantiles2_right])
+        print(f'B22 rmse: {np.sqrt(np.mean((pred_b22 - b_grouped[1]) ** 2)): .3f}')
 
-    pred2 = np.array([model_logb2(x, b2_x1, b2_argmin, c1_2, c2_2, c3_2, c4_2) for x in quantiles2])
-    rmse2 = np.sqrt(np.mean((pred2 - b_grouped[1]) ** 2))
-    print(f'B22 RMSE: {rmse2:.3e}')
+        x2_left = x2_interval[x2_interval < b2_x1]
+        x2_right = x2_interval[x2_interval >= b2_x1]
+    else:
+        b2_x1 = -40
+        # b2_x1 = -50
+        b2_argmin = quantiles2[b_grouped[1].argsort()][0]
+        print(f'x0 = {b2_argmin}')
+        # left_condition = (quantiles2 < b2_x1) & ((quantiles2 < -200) | (quantiles2 > -45))
+        left_condition = (quantiles2 < b2_x1) &((quantiles2 < -250) | (quantiles2 > -45))
+        quantiles2_left = quantiles2[left_condition]
+        b2_left = b_grouped[1][left_condition]
+        # b2_left = b_grouped[1][quantiles2 < b2_x1]
+        quantiles2_center = quantiles2[(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
+        b2_center = b_grouped[1][(b2_x1 <= quantiles2) & (quantiles2 < b2_argmin)]
+        quantiles2_right = quantiles2[quantiles2 >= b2_argmin]
+        b2_right = b_grouped[1][quantiles2 >= b2_argmin]
+
+        popt2_center, _ = curve_fit(fit_exp_center, quantiles2_center - b2_argmin, b2_center, maxfev=5000)
+        c2_2, c3_2 = popt2_center
+        popt2_left, _ = curve_fit(fit_exp_left, quantiles2_left - b2_argmin, b2_left - fit_exp_center(b2_x1 - b2_argmin, c2_2, c3_2), maxfev=5000)
+        c1_2 = popt2_left[0]
+        popt2_right, _ = curve_fit(fit_exp_right, quantiles2_right - b2_argmin, b2_right - c3_2, maxfev=5000)
+        c4_2 = popt2_right[0]
+
+        dL = c3_2 + c2_2 * np.sqrt(abs(b2_x1)) - c1_2 * abs(b2_x1)
+        dC = c3_2
+        dR = c3_2 + (c2_2 - c4_2) * np.sqrt(abs(b2_argmin))
+
+        print(f'C3 = {c3_2:.3e}')
+        b22_left_string = f'{c1_2:.3e} * |x| + {dL:.3e}'
+        b22_center_string = f'{c2_2:.3e} * sqrt(|x|)  + {dC:.3e}'
+        b22_right_string = f'{c4_2:.3e} * sqrt(|x|) + {dR:.3e}'
+        print(b22_left_string)
+        print(b22_center_string)
+        print(b22_right_string)
+
+        pred2 = np.array([model_logb2(x, b2_x1, b2_argmin, c1_2, c2_2, c3_2, c4_2) for x in quantiles2])
+        rmse2 = np.sqrt(np.mean((pred2 - b_grouped[1]) ** 2))
+        print(f'B22 RMSE: {rmse2:.3f}')
+
+        x2_left = x2_interval[x2_interval < b2_x1]
+        x2_center = x2_interval[(x2_interval >= b2_x1) & (x2_interval < b2_argmin)]
+        x2_right = x2_interval[x2_interval >= b2_argmin]
 
     np.polynomial.set_default_printstyle('unicode')
     np.set_printoptions(precision=2, suppress=True)
-
-    x1_left = x1_interval[x1_interval < b1_x1]
-    x1_center = x1_interval[(x1_interval >= b1_x1) & (x1_interval < b1_argmin)]
-    x1_right = x1_interval[x1_interval >= b1_argmin]
-
-    x2_left = x2_interval[x2_interval < b2_x1]
-    x2_center = x2_interval[(x2_interval >= b2_x1) & (x2_interval < b2_argmin)]
-    x2_right = x2_interval[x2_interval >= b2_argmin]
-
-    if scatter:
-        axs[0, 0].scatter(x1_full[::1000], a1_full[::1000], c='blue')
-        axs[0, 1].scatter(x2_full[::1000], a2_full[::1000], c='blue')
-        axs[1, 0].scatter(x1_full[::1000], b11_full[::1000], c='blue')
-        axs[1, 1].scatter(x2_full[::1000], b22_full[::1000], c='blue')
 
     axs[0, 0].plot(quantiles1, a_grouped[0], c='cyan', label='mean')
     axs[0, 0].plot(x1_interval, a1_poly_fit(x1_interval), c='red', label=a1_string)
@@ -510,32 +540,39 @@ def plot_ab_functional_2d(files_path_prefix: str,
     sns.move_legend(axs[0, 1], loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
     axs[1, 0].plot(quantiles1, b_grouped[0], c='cyan', label='mean')
-    axs[1, 0].plot(x1_left, fit_exp_left(x1_left - b1_x1, *popt1_left) + fit_exp_center(b1_x1 - b1_argmin, c2_1, c3_1), c='orange', label=b11_left_string)
-    axs[1, 0].plot(x1_center, fit_exp_center(x1_center - b1_argmin, *popt1_center), c='purple', label=b11_center_string)
-    # axs[1, 0].plot(x1_right, fit_exp_center(x1_right - b1_argmin, *popt1_center), c='purple')
-    axs[1, 0].plot(x1_right, fit_exp_right(x1_right - b1_argmin, *popt1_right) + c3_1, c='red', label=b11_right_string)
+    if b_fit == 'polynom':
+        axs[1, 0].plot(x1_left, b11_poly_fit_left(x1_left), c='orange', label=b11_string_left)
+        axs[1, 0].plot(x1_right, b11_poly_fit_right(x1_right), c='red', label=b11_string_right)
+    else:
+        axs[1, 0].plot(x1_left, fit_exp_left(x1_left - b1_x1, *popt1_left) + fit_exp_center(b1_x1 - b1_argmin, c2_1, c3_1), c='orange', label=b11_left_string)
+        axs[1, 0].plot(x1_center, fit_exp_center(x1_center - b1_argmin, *popt1_center), c='purple', label=b11_center_string)
+        axs[1, 0].plot(x1_right, fit_exp_right(x1_right - b1_argmin, *popt1_right) + c3_1, c='red', label=b11_right_string)
     axs[1, 0].set_xlabel(data1_name + ' values', fontsize=20)
     axs[1, 0].set_ylabel('log(B)', fontsize=20)
     axs[1, 0].legend()
     sns.move_legend(axs[1, 0], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
     axs[1, 1].plot(quantiles2, b_grouped[1], c='cyan', label='mean')
-    axs[1, 1].plot(x2_left, fit_exp_left(x2_left - b2_x1, *popt2_left) + fit_exp_center(b2_x1-b2_argmin, c2_2, c3_2), c='orange', label=b22_left_string)
-    axs[1, 1].plot(x2_center, fit_exp_center(x2_center - b2_argmin, *popt2_center), c='purple', label=b22_center_string)
-    axs[1, 1].plot(x2_right, fit_exp_right(x2_right - b2_argmin, *popt2_right) + c3_2, c='red', label=b22_right_string)
+    if b_fit == 'polynom':
+        axs[1, 1].plot(x2_left, b22_poly_fit_left(x2_left), c='orange', label=b22_string_left)
+        axs[1, 1].plot(x2_right, b22_poly_fit_right(x2_right), c='red', label=b22_string_right)
+    else:
+        axs[1, 1].plot(x2_left, fit_exp_left(x2_left - b2_x1, *popt2_left) + fit_exp_center(b2_x1-b2_argmin, c2_2, c3_2), c='orange', label=b22_left_string)
+        axs[1, 1].plot(x2_center, fit_exp_center(x2_center - b2_argmin, *popt2_center), c='purple', label=b22_center_string)
+        axs[1, 1].plot(x2_right, fit_exp_right(x2_right - b2_argmin, *popt2_right) + c3_2, c='red', label=b22_right_string)
     axs[1, 1].set_xlabel(data2_name + ' values', fontsize=20)
     axs[1, 1].set_ylabel('log(B)', fontsize=20)
     axs[1, 1].legend()
     sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
     plt.subplots_adjust(hspace=0.35)
-    if not os.path.exists(files_path_prefix + f'videos/Functional/{season}'):
-        os.mkdir(files_path_prefix + f'videos/Functional/{season}')
-    if scatter:
-        fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_scattered_{year}.png')
-    else:
-        fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png')
-    return
+    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png')
+
+    # x0, x1, k, x_min, x_max, c1, c2, c3, c4, z
+    sensible_params = [b1_argmin, b1_x1, np.flip(a1_coeff_fit), min(quantiles1), max(quantiles1), c1_1, c2_1, c3_1, c4_1, 1]
+    latent_params = [b2_argmin, b2_x1, np.flip(a2_coeff_fit), min(quantiles2), max(quantiles2), c1_2, c2_2, c3_2, c4_2, 1]
+    coefs = [sensible_params, latent_params]
+    return coefs
 
 def plot_heatmap(files_path_prefix: str,
                           data1_name: str,
@@ -553,7 +590,8 @@ def plot_prob_1d(files_path_prefix: str,
                  data_name: str,
                  prob,
                  x,
-                 year: int,):
+                 year: int,
+                 postfix: str,):
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     if data_name == 'sensible':
@@ -564,10 +602,11 @@ def plot_prob_1d(files_path_prefix: str,
     # plt.ylabel('Логарифм от плотности стационарного распределения', fontsize=14)
     y = [prob(t) for t in x]
     axs.plot(x, y)
-    axs.legend()
+    # axs.legend()
     fig.tight_layout()
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_log_1d.png')
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}.png')
+    # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}_{postfix}.png')
     return
 
 
@@ -590,10 +629,12 @@ def plot_hist(files_path_prefix: str,
 
 def plot_prob_and_hist(files_path_prefix: str,
               data_name: str,
-                prob,
+                y1,
+                y2,
               x:np.ndarray,
-                       start_year: int,
-                       data: np.ndarray,):
+                    start_year: int,
+                       data: np.ndarray,
+                       ):
     data_hist = data[np.logical_not(np.isnan(data))].flatten()
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
@@ -602,8 +643,8 @@ def plot_prob_and_hist(files_path_prefix: str,
     else:
         plt.xlabel(f'Значения скрытого потока', fontsize=14)
     data_hist = sorted(data_hist)
-    y = [prob(t) for t in x]
-    axs.plot(x, y, c='r', label = 'P_s')
+    axs.plot(x, y1, c='r', label = 'B^2')
+    axs.plot(x, y2, c='purple', label='Eigen')
     # data = data[10000:-10000]
     # plt.xlabel(f'Differences of {data_name}', fontsize=14)
     axs.hist(data_hist, alpha=0.5, bins=100, density=True)
@@ -768,3 +809,27 @@ def plot_isolines_map(files_path_prefix: str,
     fig.savefig(files_path_prefix + f'videos/isolines/{data_name}_isolines.png')
 
     return
+
+
+def shift_piecewise_polys_to_match(left_coeffs, right_coeffs, x_split, shift="left"):
+    """
+    Shifts one branch vertically so that the two polynomial branches match at x_split.
+
+    left_coeffs, right_coeffs: np.polyfit-style coefficients (highest degree first)
+    shift: "right" or "left"
+    """
+    left_coeffs = np.array(left_coeffs, dtype=float).copy()
+    right_coeffs = np.array(right_coeffs, dtype=float).copy()
+
+    yL = np.polyval(left_coeffs, x_split)
+    yR = np.polyval(right_coeffs, x_split)
+    delta = yL - yR
+
+    if shift == "right":
+        right_coeffs[-1] += delta
+    elif shift == "left":
+        left_coeffs[-1] -= delta
+    else:
+        raise ValueError("shift must be 'right' or 'left'")
+
+    return left_coeffs, right_coeffs

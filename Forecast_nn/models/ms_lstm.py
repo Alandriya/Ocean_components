@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 sys.path.append("..")
-from Forecasting.config import cfg
+from Forecast_nn.config import cfg
 
 
 class MK_LSTM_Cell(nn.Module):

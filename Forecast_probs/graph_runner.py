@@ -7,7 +7,7 @@ import random
 from struct import unpack
 from Plotting.nn_plotter import plot_predictions
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
-from Forecasting.config import cfg
+from Forecast_nn.config import cfg
 
 
 def load_mask(files_path_prefix):

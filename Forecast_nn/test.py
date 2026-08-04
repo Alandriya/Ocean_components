@@ -5,9 +5,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from Forecasting.utils import *
+from Forecast_nn.utils import *
 from Plotting.nn_plotter import plot_predictions, plot_1d_predictions
-from Forecasting.SSIM import get_SSIM
+from Forecast_nn.SSIM import get_SSIM
 
 
 def test(test_data, model, mask):

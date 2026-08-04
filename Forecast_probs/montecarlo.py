@@ -2,8 +2,7 @@ import numpy as np
 import tqdm
 
 from Data_processing.data_processing import scale_to_bins
-from Data_processing.func_estimation import log_b2
-from config import count_constants, sensible_params, latent_params
+from Data_processing.func_estimation import log_b2, count_constants
 
 params = sensible_params
 # params = latent_params
@@ -60,7 +59,3 @@ def make_prediction(x_array: np.ndarray,
             input = prediction[t-t_start + t_pred]
 
     return prediction, prediction_q05, prediction_q95
-
-
-def count_crps():
-    return

@@ -1,18 +1,22 @@
 import datetime
 import os
 from copy import deepcopy
-
+from math import exp, pi, sqrt
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import tqdm
-from data_processing import EM_dataframes_to_grids
+from Data_processing.data_processing import EM_dataframes_to_grids
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from Plotting.video import truncate_colormap
 
-from video import truncate_colormap
+def phi(x: float):
+    return exp(-x ** 2 / 2) / sqrt(2 * pi)
 
+def mixture_density(x, means, sigmas, weights):
+    return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
 
 def draw_4D(files_path_prefix,
             flux_type,
@@ -305,4 +309,29 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
             weights_timelist,
             timesteps,
             borders)
+    return
+
+
+def plot_hist(window, step=1, detected_params = None, means=None, sigmas=None, weights=None):
+    files_path_prefix = 'D://Data/OceanFull/'
+    fig, axes = plt.subplots(1,1, figsize=(10, 8))
+    bins = 15
+    # hist = np.histogram(window, density=True)
+    axes.hist(window, bins, density=True)
+    x = np.linspace(min(window), max(window), 1000)
+    if not detected_params is None:
+        # for triple in detected_params:
+        #     a, sigma, w = triple
+
+            # norm_values = [phi_long(x_, a, sigma) * w for x_ in x]
+            # mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
+            # axes.plot(x, norm_values)
+
+        mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
+        axes.plot(x, mixture_values)
+
+    # print(weights)
+    fig.suptitle(f'n = {len(window)}, bins = {bins}')
+    fig.savefig(files_path_prefix + f'Components/tmp/hist_step_{step}.png')
+    plt.close(fig)
     return

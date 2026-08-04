@@ -12,66 +12,6 @@ width = 181
 height = 161
 
 
-def count_mean_year(files_path_prefix: str,
-                    start_year: int = 2009,
-                    end_year: int = 2019,
-                    coeff_type: str = 'A',
-                    flux_type: str = 'sensible',
-                    method: str = 'Kor',
-                    mask: np.ndarray = None,
-                    ):
-    """
-    Counts mean year as np.array with shape (365, height, width) for 365 days with mean values for each day
-    :param files_path_prefix: path to the working directory
-    :param start_year:
-    :param end_year:
-    :param coeff_type: A/B/C/F/FS
-    :param flux_type: sensible/latent/flux/sst/press
-    :param method: 'Bel' or 'Kor'
-    :param mask: np.array with shape (height, width) with boolean values, where 0 is for land and 1 is for ocean
-    :return:
-    """
-
-    mean_year = np.zeros((365, height, width))
-
-    for year in tqdm.tqdm(range(start_year, end_year)):
-        time_start = (datetime.datetime(year=year, month=1, day=1) - datetime.datetime(year=1979, month=1, day=1)).days
-
-        for day in range(364):
-            if method == 'Kor':
-                coeff = np.load(files_path_prefix + f'Components/{flux_type}/{method}/daily/' + f'{coeff_type}_{day + time_start + 1}.npy')
-            else:
-                if coeff_type == 'A' and flux_type == 'sensible':
-                    postfix = '_sens'
-                    coeff = np.load(files_path_prefix + f'Coeff_data/{day + time_start + 1}_{coeff_type}{postfix}.npy')
-                elif coeff_type == 'A' and flux_type == 'latent':
-                    postfix = '_lat'
-                    coeff = np.load(files_path_prefix + f'Coeff_data/{day + time_start + 1}_{coeff_type}{postfix}.npy')
-                elif coeff_type == 'B' and flux_type == 'sensible':
-                    coeff = np.load(files_path_prefix + f'Coeff_data/{day + time_start + 1}_{coeff_type}.npy')[0]
-                elif coeff_type == 'B' and flux_type == 'latent':
-                    coeff = np.load(files_path_prefix + f'Coeff_data/{day + time_start + 1}_{coeff_type}.npy')[3]
-                elif coeff_type == 'A' and flux_type == 'flux':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-press/{day + time_start + 1}_{coeff_type}_sens.npy')
-                elif coeff_type == 'B' and flux_type == 'flux':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-press/{day + time_start + 1}_{coeff_type}.npy')[0]
-                elif coeff_type == 'A' and flux_type == 'press':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-press/{day + time_start + 1}_{coeff_type}_lat.npy')
-                elif coeff_type == 'B' and flux_type == 'press':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-press/{day + time_start + 1}_{coeff_type}.npy')[3]
-                elif coeff_type == 'A' and flux_type == 'sst':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-sst/{day + time_start + 1}_{coeff_type}_lat.npy')
-                elif coeff_type == 'B' and flux_type == 'sst':
-                    coeff = np.load(files_path_prefix + f'Coeff_data_3d/flux-sst/{day + time_start + 1}_{coeff_type}.npy')[3]
-
-            mean_year[day, :, :] += coeff
-            mean_year[day][np.logical_not(mask)] = None
-
-    mean_year /= (end_year - start_year)
-    np.save(files_path_prefix + f'Mean_year/{method}/{flux_type}_{coeff_type}_{start_year}-{end_year}.npy', mean_year)
-    return
-
-
 def plot_mean_year_2d(files_path_prefix: str, coeff_name: str):
     """
     Plots 2x3 graphics of "mean year" of coefficient coeff_name

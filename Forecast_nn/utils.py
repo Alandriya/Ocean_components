@@ -4,9 +4,9 @@ import random
 import numpy as np
 import torch
 
-# from Forecasting.SSIM import get_SSIM
-from Forecasting.config import cfg
-from Forecasting.loader import load_mask
+# from Forecast_nn.SSIM import get_SSIM
+from Forecast_nn.config import cfg
+from Forecast_nn.loader import load_mask
 
 IN_LEN = cfg.in_len
 OUT_LEN = cfg.out_len

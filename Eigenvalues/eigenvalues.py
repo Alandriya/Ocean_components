@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import gc
 import os
@@ -6,6 +8,9 @@ import numpy as np
 from scipy.linalg import sqrtm
 
 from Plotting.plot_eigenvalues import plot_eigenvalues
+import warnings
+from pathlib import Path
+from typing import Optional
 
 
 def scale_to_bins(arr, bins=100):
@@ -23,43 +28,139 @@ def scale_to_bins(arr, bins=100):
     return arr_scaled, quantiles
 
 
-def get_eig(B: np.ndarray,
+def get_eig(b_matrix: np.ndarray,
             names: tuple):
     """
     Counts eigenvalues for the covariances matrix B for two cases: if both the variables in the data arrays are the
     same, e.g. (Flux, Flux) and for different, e.g. (Flux, SST)
-    :param B: np.array with shape (n_bins, n_bins), two-dimensional
+    :param b_matrix: np.array with shape (n_bins, n_bins), two-dimensional
     :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
     :return:
     """
     if names[0] == names[1]:
-        A = B
+        # Same-variable matrix.
+        covariance = 0.5 * (b_matrix + b_matrix.T)
     else:
-        # print('Performing A = B*B^T', flush=True)
-        A = np.dot(B, B.transpose())
-        # print('Getting sqrt(A)', flush=True)
-        A = sqrtm(A)
+        # Left covariance for the first variable.
+        covariance = b_matrix @ b_matrix.T
 
-    gc.collect()
-    # print('Counting eigenvalues', flush=True)
-    eigenvalues, eigenvectors = np.linalg.eig(A)
-    # sort by absolute value of the eigenvalues
-    eigenvalues = np.real(eigenvalues)
-    eigenvalues = [0 if np.isnan(e) else e for e in eigenvalues]
-    positions = [x for x in range(len(eigenvalues))]
-    positions = [x for _, x in reversed(sorted(zip(np.abs(eigenvalues), positions)))]
-    return np.take(eigenvalues, positions), np.take(eigenvectors, positions, axis=1), positions
+    # Eliminate tiny numerical asymmetry.
+    covariance = 0.5 * (covariance + covariance.T)
+
+    # eigh is intended for symmetric matrices.
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+
+    # Sort from largest eigenvalue to smallest.
+    order = np.argsort(eigenvalues)[::-1]
+
+    eigenvalues = eigenvalues[order]
+    eigenvectors = eigenvectors[:, order]
+
+    # Remove small negative values caused by numerical roundoff.
+    eigenvalues = np.clip(eigenvalues, 0.0, None)
+
+    return eigenvalues, eigenvectors
 
 
-def count_eigenvalues_pair(files_path_prefix: str,
-                           array1: np.ndarray,
-                           array2: np.ndarray,
-                           array1_quantiles: list,
-                           array2_quantiles: list,
-                           # t: int,
-                           n_bins: int,
-                           offset: int,
-                           names: tuple):
+def get_bins(values, quantiles):
+    """
+    Convert field values to bin indices.
+    Invalid values receive bin index -1.
+    """
+    values = np.asarray(values, dtype=float)
+    quantiles = np.asarray(quantiles, dtype=float)
+
+    bins = np.searchsorted(
+        quantiles,
+        values,
+        side="right",
+    ) - 1
+
+    # Include values exactly equal to the final bin boundary.
+    bins[values == quantiles[-1]] = len(quantiles) - 2
+
+    invalid = (
+        ~np.isfinite(values)
+        | (bins < 0)
+        | (bins >= len(quantiles) - 1)
+    )
+
+    bins[invalid] = -1
+
+    return bins
+
+def matrix_to_map(
+    matrix,
+    field1,
+    field2,
+    quantiles1,
+    quantiles2,
+    spatial_shape,
+):
+    """
+    Map an n_bins x n_bins matrix to the geographical grid:
+
+        map[p] = matrix[bin1[p], bin2[p]]
+    """
+    bins1 = get_bins(field1, quantiles1)
+    bins2 = get_bins(field2, quantiles2)
+
+    valid = (
+        (bins1 >= 0)
+        & (bins2 >= 0)
+        & np.isfinite(field1)
+        & np.isfinite(field2)
+    )
+
+    result = np.full(field1.shape[0], np.nan)
+
+    result[valid] = matrix[
+        bins1[valid],
+        bins2[valid],
+    ]
+
+    return result.reshape(spatial_shape)
+
+def bin_values_to_map(
+    bin_values,
+    field,
+    quantiles,
+    spatial_shape,
+):
+    """
+    Map one value per bin to the geographical grid:
+
+        map[p] = bin_values[bin[p]]
+
+    This is used for the diagonal b^2 reconstruction.
+    """
+    bins = get_bins(field, quantiles)
+
+    valid = (
+        (bins >= 0)
+        & np.isfinite(field)
+    )
+
+    result = np.full(field.shape[0], np.nan)
+
+    result[valid] = bin_values[bins[valid]]
+
+    return result.reshape(spatial_shape)
+
+
+def count_eigenvalues_pair(
+    files_path_prefix: str,
+    array1: np.ndarray,
+    array2: np.ndarray,
+    array1_quantiles: list,
+    array2_quantiles: list,
+    n_bins: int,
+    offset: int,
+    names: tuple,
+    spatial_shape: tuple,
+    dt: float = 1.0,
+    n_components: int = 3,
+):
     """
 
     :param files_path_prefix: path to the working directory
@@ -77,30 +178,104 @@ def count_eigenvalues_pair(files_path_prefix: str,
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
 
     for t in range(array1.shape[1]-1):
+    # for t in range(10):
         if (t + offset) % 100 == 0:
             print(f'Counting timestep {t + offset}')
-        if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
-            continue
+        # if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
+        #     continue
 
         b_matrix = np.zeros((n_bins, n_bins))
-        for i1 in range(0, n_bins):
-            points_x1 = np.where((array1_quantiles[i1] <= array1[:, t]) & (array1[:, t] < array1_quantiles[i1 + 1]))[0]
-            for j1 in range(0, n_bins):
-                points_y1 = np.where((array2_quantiles[j1] <= array2[:, t]) & (array2[:, t] < array2_quantiles[j1 + 1]))[0]
-                if len(points_x1) and len(points_y1):
-                    mean1 = np.mean(array1[points_x1, t])
-                    mean2 = np.mean(array2[points_y1, t])
-                    vec1 = array1[points_x1, t + 1] - mean1
-                    vec2 = array2[points_y1, t + 1] - mean2
-                    b_matrix[i1, j1] = np.sum(np.multiply.outer(vec1, vec2).ravel())
+        for i in range(0, n_bins):
+            for j in range(0, n_bins):
+                joint_points = np.where(
+                    (array1_quantiles[i] <= array1[:, t])
+                    & (array1[:, t] < array1_quantiles[i + 1])
+                    & (array2_quantiles[j] <= array2[:, t])
+                    & (array2[:, t] < array2_quantiles[j + 1])
+                )[0]
+                dx = (
+                        array1[joint_points, t + 1]
+                        - array1[joint_points, t]
+                )
+
+                dy = (
+                        array2[joint_points, t + 1]
+                        - array2[joint_points, t]
+                )
+                b_matrix[i, j] = np.mean(dx * dy) / dt
 
         b_matrix = np.nan_to_num(b_matrix)
+        N = n_components
+        # if same variable
+        if names[0] == names[1]:
+            # count eigenvalues
+            b_matrix = 0.5 * (b_matrix + b_matrix.T) # A covariance matrix must be symmetric.
+            eigenvalues, eigenvectors = np.linalg.eigh(b_matrix)
+            # Sort from largest to smallest.
+            order = np.argsort(eigenvalues)[::-1]
 
-        # count eigenvalues
-        eigenvalues, eigenvectors, positions = get_eig(b_matrix, (names[0], names[1]))
-        # print(f'Counting timestep {t + offset} {names[0]}-{names[1]}')
-        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
-        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
+            eigenvalues = eigenvalues[order]
+            eigenvectors = eigenvectors[:, order]
+
+            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
+            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
+
+            C_N = (eigenvectors[:, :N] * eigenvalues[:N]) @ eigenvectors[:, :N].T
+            """
+            C_N = np.zeros((eigenvectors.shape[0], eigenvectors.shape[0]))
+            for k in range(N):
+                eigenvalue = eigenvalues[k]
+                eigenvector = eigenvectors[:, k]
+            
+                C_N += eigenvalue * np.outer(eigenvector, eigenvector)
+            """
+            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_{t + offset}.npy', C_N)
+            # C_N_map = matrix_to_map(
+            #     matrix=C_N,
+            #     field1=array1[:, t],
+            #     field2=array2[:, t],
+            #     quantiles1=array1_quantiles,
+            #     quantiles2=array2_quantiles,
+            #     spatial_shape=spatial_shape,
+            # )
+            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_map_{t + offset}.npy', C_N_map)
+            # --------------------------------------------------------
+            # Reconstructed b^2:
+            # b2_bins[j] = C_N[j, j]
+            # This is the diagonal of the reconstructed covariance.
+            # --------------------------------------------------------
+
+            b2_bins = np.diag(C_N)
+            b2_map = bin_values_to_map(
+                bin_values=b2_bins,
+                field=array1[:, t],
+                quantiles=array1_quantiles,
+                spatial_shape=spatial_shape,
+            )
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_map_{t + offset}.npy', b2_map)
+            # Diffusion amplitude b = sqrt(b^2).
+            b_map = np.sqrt(np.clip(b2_map, 0.0, None))
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_map_{t + offset}.npy', b_map)
+        else:
+            # if different variables
+            U, singular_values, Vt = np.linalg.svd(
+                b_matrix,
+                full_matrices=False,
+            )
+            # Rank-N cross-matrix reconstruction:
+            # B_N = sum_k s_k * u_k * v_k.T
+            B_N = ( U[:, :N] * singular_values[:N]) @ Vt[:N, :]
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Bn_{t + offset}.npy', B_N)
+            B_N_map = matrix_to_map(
+                matrix=B_N,
+                field1=array1[:, t],
+                field2=array2[:, t],
+                quantiles1=array1_quantiles,
+                quantiles2=array2_quantiles,
+                spatial_shape=spatial_shape,
+            )
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Bn_map_{t + offset}.npy', B_N_map)
+
     return
 
 
@@ -260,3 +435,135 @@ def get_trends(files_path_prefix: str,
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_min.npy', min_eigenvector)
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_mean.npy', mean_eigenvector)
     return
+
+
+
+def reconstruct_b2_map(
+    eigenvalues,
+    eigenvectors,
+    field_at_t,
+    quantiles,
+    spatial_shape,
+    n_components=3,
+    mask=None,
+):
+    """
+    Reconstruct article-style b^2 from the first N eigenpairs
+    and map the 100 bin values back to the geographical grid.
+
+    Parameters
+    ----------
+    eigenvalues
+        Shape (100,).
+
+    eigenvectors
+        Shape (100, 100). Eigenvectors are columns.
+
+    field_at_t
+        Flattened geographical field at time t.
+        Shape (n_spatial_points,).
+
+    quantiles
+        Bin boundaries used when calculating the 100 x 100 matrix.
+        Shape (101,).
+
+    spatial_shape
+        For example (160, 181) or (161, 181).
+
+    n_components
+        Number of eigenpairs retained, for example 3.
+
+    mask
+        Optional Boolean geographical mask. True means valid.
+
+    Returns
+    -------
+    b2_matrix_n
+        Rank-N reconstructed 100 x 100 b^2 matrix.
+
+    b2_bins
+        Reconstructed b^2 for each of the 100 bins.
+
+    b2_map
+        Reconstructed b^2 geographical map.
+
+    b_map
+        Reconstructed diffusion-amplitude map sqrt(b^2).
+    """
+    eigenvalues = np.asarray(eigenvalues, dtype=float)
+    eigenvectors = np.asarray(eigenvectors, dtype=float)
+    field_at_t = np.asarray(field_at_t, dtype=float)
+    quantiles = np.asarray(quantiles, dtype=float)
+
+    # Sort by decreasing eigenvalue.
+    order = np.argsort(eigenvalues)[::-1]
+
+    eigenvalues = np.clip(eigenvalues[order], 0.0, None)
+    eigenvectors = eigenvectors[:, order]
+
+    N = min(n_components, eigenvalues.size)
+
+    lambda_n = eigenvalues[:N]
+    vectors_n = eigenvectors[:, :N]
+
+    # Full rank-N reconstruction:
+    #
+    # C_N = sum_i lambda_i * e_i * e_i.T
+    b2_matrix_n = (
+        vectors_n * lambda_n[np.newaxis, :]
+    ) @ vectors_n.T
+
+    # Diagonal of C_N:
+    #
+    # b2_bins[j] = sum_i lambda_i * e[j, i]^2
+    b2_bins = np.sum(
+        lambda_n[np.newaxis, :] * vectors_n**2,
+        axis=1,
+    )
+
+    # Equivalent check:
+    #
+    # np.allclose(b2_bins, np.diag(b2_matrix_n))
+    #
+    # should return True.
+
+    n_bins = len(quantiles) - 1
+
+    bin_indices = (
+        np.searchsorted(
+            quantiles,
+            field_at_t,
+            side="right",
+        )
+        - 1
+    )
+
+    # Include values equal to the final edge.
+    bin_indices[field_at_t == quantiles[-1]] = n_bins - 1
+
+    valid = (
+        np.isfinite(field_at_t)
+        & (bin_indices >= 0)
+        & (bin_indices < n_bins)
+    )
+
+    if mask is not None:
+        valid &= np.asarray(mask, dtype=bool).reshape(-1)
+
+    b2_map_flat = np.full(field_at_t.size, np.nan)
+
+    b2_map_flat[valid] = b2_bins[
+        bin_indices[valid]
+    ]
+
+    b2_map = b2_map_flat.reshape(spatial_shape)
+
+    # Pointwise diffusion amplitude.
+    b_map = np.sqrt(
+        np.clip(b2_map, 0.0, None)
+    )
+
+    return b2_map, b_map
+
+
+

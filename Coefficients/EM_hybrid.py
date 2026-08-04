@@ -1,5 +1,5 @@
 from math import exp, pi, sqrt
-
+import os
 import matplotlib.pyplot as plt
 import numpy
 import numpy as np
@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 
 from Plotting.plot_compare import plot_difference_1d
-
+from Plotting.plot_EM import *
 
 def l2_to_PSO(params, x, hist, n_components):
     # params = params.T
@@ -36,29 +36,7 @@ def mixture_density(x, means, sigmas, weights):
     # return sum([weights[i] * phi_long(x, means[i], sigmas[i]) for i in range(len(means))])
 
 
-def plot_hist(window, step=1, detected_params = None, means=None, sigmas=None, weights=None):
-    files_path_prefix = 'D://Data/OceanFull/'
-    fig, axes = plt.subplots(1,1, figsize=(10, 8))
-    bins = 15
-    # hist = np.histogram(window, density=True)
-    axes.hist(window, bins, density=True)
-    x = np.linspace(min(window), max(window), 1000)
-    if not detected_params is None:
-        # for triple in detected_params:
-        #     a, sigma, w = triple
 
-            # norm_values = [phi_long(x_, a, sigma) * w for x_ in x]
-            # mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
-            # axes.plot(x, norm_values)
-
-        mixture_values = [mixture_density(_x, means, sigmas, weights) for _x in x]
-        axes.plot(x, mixture_values)
-
-    # print(weights)
-    fig.suptitle(f'n = {len(window)}, bins = {bins}')
-    fig.savefig(files_path_prefix + f'Components/tmp/hist_step_{step}.png')
-    plt.close(fig)
-    return
 
 
 def hybrid(sample: np.ndarray,

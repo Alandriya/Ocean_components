@@ -6,7 +6,7 @@ import time
 
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from Forecasting.utils import *
+from Forecast_nn.utils import *
 
 
 def train(train_data, model, criterion, optimizer, mask, model_save_path):

@@ -2,7 +2,7 @@
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 
-from Forecasting.config import cfg
+from Forecast_nn.config import cfg
 
 
 def get_SSIM(prediction, truth, mask=None):

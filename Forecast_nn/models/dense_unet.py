@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from Forecasting.config import cfg
+from Forecast_nn.config import cfg
 
 
 class up_conv(nn.Module):

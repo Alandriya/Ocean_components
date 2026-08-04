@@ -2469,100 +2469,120 @@ if __name__ == '__main__':
     plot_isolines_map(files_path_prefix, 'latent', data2_mean - mean2, mask)
     # ----------------------------------------------------------------------------------------------
     # count and collect eigenvalues
-    names = ('sensible', 'latent')
-    n_bins = 100
-    n_lambdas = 3
-    height = 161
-    width = 181
-    # for start_year in [1979, 1989, 1999, 2009, 2019]:
-    for start_year in [1989, 1999, 2009, 2019]:
-        end_year = start_year + 10
-        if start_year == 1979:
-            coef_start = 1
-            coef_end = 3653
-        elif start_year == 1989:
-            coef_start = 3654
-            coef_end = 7305
-        elif start_year == 1999:
-            coef_start = 7306
-            coef_end = 10958
-        elif start_year == 2009:
-            coef_start = 10959
-            coef_end = 14610
-        else:
-            end_year = 2026
-            coef_start = 14611
-            coef_end = 17106
+    # for start_year in [1989, 1999, 2009, 2019]:
+    #     end_year = start_year + 10
+    #     if start_year == 1979:
+    #         coef_start = 1
+    #         coef_end = 3653
+    #     elif start_year == 1989:
+    #         coef_start = 3654
+    #         coef_end = 7305
+    #     elif start_year == 1999:
+    #         coef_start = 7306
+    #         coef_end = 10958
+    #     elif start_year == 2009:
+    #         coef_start = 10959
+    #         coef_end = 14610
+    #     else:
+    #         end_year = 2026
+    #         coef_start = 14611
+    #         coef_end = 17106
+    #     offset = coef_start
+    #
+    #     print(f'Counting year {start_year}')
+    #     # data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
+    #     # sensible_array_grouped, quantiles_sensible = scale_to_bins(data1_array, n_bins)
+    #     #
+    #     # count_eigenvalues_pair(
+    #     #     files_path_prefix=files_path_prefix,
+    #     #     array1=data1_array,
+    #     #     array2=data1_array,
+    #     #     array1_quantiles=quantiles_sensible,
+    #     #     array2_quantiles=quantiles_sensible,
+    #     #     n_bins=n_bins,
+    #     #     offset=offset,
+    #     #     names=("sensible", "sensible"),
+    #     #     spatial_shape=mask.shape,
+    #     #     dt=1.0,
+    #     #     n_components=n_lambdas,
+    #     # )
+    #
+    #     data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
+    #     latent_array_grouped, quantiles_latent = scale_to_bins(data2_array, n_bins)
+    #     count_eigenvalues_pair(
+    #         files_path_prefix=files_path_prefix,
+    #         array1=data2_array,
+    #         array2=data2_array,
+    #         array1_quantiles=quantiles_latent,
+    #         array2_quantiles=quantiles_latent,
+    #         n_bins=n_bins,
+    #         offset=offset,
+    #         names=("latent", "latent"),
+    #         spatial_shape=mask.shape,
+    #         dt=1.0,
+    #         n_components=n_lambdas,
+    #     )
+    #
+    #     eigenvalues = np.zeros((coef_end - coef_start, 2, n_bins))
+    #     eigenvectors = np.zeros((coef_end - coef_start, 2, n_bins, n_bins))
+    #     b2 = np.zeros((coef_end - coef_start, 2, height, width))
+    #     b = np.zeros_like(b2)
+    #     print(f'Collecting {start_year}')
+    #     for t in tqdm.tqdm(range(coef_end - coef_start)):
+    #         eival_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/eigenvalues_{t + offset}.npy')
+    #         print(eival_sens.shape)
+    #         eivec_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/eigenvectors_{t + offset}.npy')
+    #         eival_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/eigenvalues_{t + offset}.npy')
+    #         eivec_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/eigenvectors_{t + offset}.npy')
+    #         eigenvalues[t, 0] = eival_sens
+    #         eigenvectors[t, 0] = eivec_sens
+    #         eigenvalues[t, 1] = eival_lat
+    #         eigenvectors[t, 1] = eivec_lat
+    #         b2_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/B2_map_{t + offset}.npy')
+    #         b2_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/B2_map_{t + offset}.npy')
+    #         b_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/B_map_{t + offset}.npy')
+    #         b_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/B_map_{t + offset}.npy')
+    #         b2[t, 0] = b2_sens
+    #         b2[t, 1] = b2_lat
+    #         b[t, 0] = b_sens
+    #         b[t, 1] = b_lat
+    #
+    #     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
+    #         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
+    #     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{coef_start}-{coef_end}_1d.npy',
+    #             eigenvalues)
+    #     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{coef_start}-{coef_end}_1d.npy',
+    #             eigenvectors)
+    #     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_{coef_start}-{coef_end}_1d.npy', b2)
+    #     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_{coef_start}-{coef_end}_1d.npy', b)
+    #
 
-        print(start_year)
+    # b_1979 = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_1-3653_1d.npy')
+    # b_1989 = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_3654-7305_1d.npy')
+    # b_1999 = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_7306-10958_1d.npy')
+    # b_2009 = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_10959-14610_1d.npy')
+    # b_2019 = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_14611-17106_1d.npy')
+    # b_all = np.zeros((b_1979.shape[0] + b_1989.shape[0] + b_1999.shape[0] + b_2009.shape[0] + b_2019.shape[0] + 4,2, height, width))
+    #
+    # b_all[:b_1979.shape[0]] = b_1979
+    # start = b_1979.shape[0]
+    #
+    # end = start + b_1989.shape[0]
+    # b_all[start:end] = b_1989
+    # start += b_1989.shape[0]
+    # end += b_1999.shape[0]
+    # b_all[start:end] = b_1999
+    # start += b_1999.shape[0]
+    # end += b_2009.shape[0]
+    # b_all[start:end] = b_2009
+    # start += b_2009.shape[0]
+    # end += b_2019.shape[0]
+    # b_all[start:end] = b_2019
+    # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_1-17106_1d.npy', b_all)
+    # print(b_all.shape[0])
+    # raise ValueError
 
-        # count and collect eigenvalues
-        data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
-        data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
-        offset = coef_start
-
-        sensible_array_grouped, quantiles_sensible = scale_to_bins(data1_array, n_bins)
-        latent_array_grouped, quantiles_latent = scale_to_bins(data2_array, n_bins)
-
-        if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]})'):
-            os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]})')
-        count_eigenvalues_pair(files_path_prefix, data1_array, data1_array, quantiles_sensible, quantiles_sensible,
-                               n_bins, offset, ('sensible', 'sensible'))
-        if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]})'):
-            os.mkdir(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]})')
-        count_eigenvalues_pair(files_path_prefix, data2_array, data2_array, quantiles_latent, quantiles_latent,
-                               n_bins, offset, ('latent', 'latent'))
-
-        eigenvalues = np.zeros((data1_array.shape[1] - 1, n_bins, 2))
-        eigenvectors = np.zeros((data1_array.shape[1] - 1, n_bins, n_bins, 2))
-        print('Collecting')
-        for t in tqdm.tqdm(range(data1_array.shape[1] - 1)):
-            eival_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/eigenvalues_{t + offset}.npy')
-            # print(eival_sens.shape)
-            eivec_sens = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[0]}/eigenvectors_{t + offset}.npy')
-            eival_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/eigenvalues_{t + offset}.npy')
-            eivec_lat = np.load(files_path_prefix + f'Eigenvalues/{names[1]}-{names[1]}/eigenvectors_{t + offset}.npy')
-            eigenvalues[t, :, 0] = eival_sens
-            eigenvectors[t, :, :, 0] = eivec_sens
-            eigenvalues[t, :, 1] = eival_lat
-            eigenvectors[t, :, :, 1] = eivec_lat
-
-        if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]})'):
-            os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]})')
-        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{coef_start}-{coef_end}_1d.npy', eigenvalues)
-        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{coef_start}-{coef_end}_1d.npy', eigenvectors)
-
-        # data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
-        data1_array = data1_array.transpose()
-        data1_array = data1_array.reshape((-1, height, width))
-
-        # data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
-        data2_array = data2_array.transpose()
-        data2_array = data2_array.reshape((-1, height, width))
-
-        offset = coef_start
-        sensible_array_grouped, quantiles_sensible = scale_to_bins(data1_array, n_bins)
-        latent_array_grouped, quantiles_latent = scale_to_bins(data2_array, n_bins)
-
-        eigenvalues = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{coef_start}-{coef_end}_1d.npy')
-        eigenvectors = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{coef_start}-{coef_end}_1d.npy')
-        # print(eigenvalues.shape) #(3652, 100, 2)
-        # print(eigenvectors.shape) #(3652, 100, 100, 2)
-
-        b_eigen = np.zeros((data1_array.shape[0]-1, height, width, 2))
-        for t in tqdm.tqdm(range(data1_array.shape[0]-1)):
-            for l in range(n_lambdas):
-                for j1 in range(0, n_bins):
-                    points_sensible = np.where((quantiles_sensible[j1] <= data1_array[t]) & (data1_array[t] < quantiles_sensible[j1 + 1]))
-                    # print(eigenvalues[:, l, 0].shape)
-                    # print(eigenvectors[:, j1, l, 0].shape)
-                    b_eigen[t][points_sensible][0] += eigenvalues[t, l, 0] * eigenvectors[t, j1, l, 0]
-
-                    points_latent = np.where((quantiles_latent[j1] <= data2_array[t]) & (data2_array[t] < quantiles_latent[j1 + 1]))
-                    b_eigen[t][points_latent][1] += eigenvalues[t, l, 1] * eigenvectors[t, j1, l, 1]
-
-        np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/b_eigen_1d_{names[0]}-{names[1]}_{n_lambdas}_lambdas_{coef_start}-{coef_end}.npy', b_eigen)
-   # # ----------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------
     # flux_type = 'sensible'
     flux_type = 'latent'
     # data_array = np.load(files_path_prefix + f'DATA/Fluxes/{flux_type}_grouped_{start_year}-{end_year}.npy')
