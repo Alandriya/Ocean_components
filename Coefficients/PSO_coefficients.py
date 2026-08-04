@@ -2,6 +2,7 @@ import random
 import time
 from math import exp, pi, sqrt
 
+import numpy
 import numpy as np
 import scipy
 import scipy.stats as ss
@@ -11,6 +12,9 @@ from pymoo.core.problem import Problem
 from pymoo.optimize import minimize
 from pyswarms.single.global_best import GlobalBestPSO
 from sklearn.mixture import GaussianMixture
+
+def mixture_density(x, means, sigmas, weights):
+    return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
 
 
 class MixtureProblem(Problem):
@@ -163,3 +167,12 @@ print(f'Means:{res.X[0:n_components]}')
 print(f'Sigmas: {res.X[n_components:2 * n_components]}')
 print(f'Weights: {res.X[2 * n_components:]}')
 print(f"Optimisation time: {time.time() - opt_start} sec")
+
+
+def l2_to_PSO(params, x, hist, n_components):
+    # params = params.T
+    errors = np.zeros(params.shape[0])
+    for p in range(params.shape[0]):
+        means, sigmas, weights = params[p, 0:n_components], params[p, n_components:2 * n_components], params[p, 2 * n_components:]
+        errors[p] = sqrt(sum([(hist[i] - mixture_density(x[i], means, sigmas, weights)) ** 2 for i in range(len(x))]))
+    return errors

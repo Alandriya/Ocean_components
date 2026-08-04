@@ -2,7 +2,6 @@ import os.path
 
 import numpy as np
 from sklearn.mixture import GaussianMixture
-from Coefficients.EM_hybrid import process_points
 from Data_processing.data_processing import scale_to_bins
 from Plotting.plot_compare import *
 import os
@@ -263,82 +262,6 @@ def count_semi_2d_AB(files_path_prefix: str,
         np.save(files_path_prefix + path + f'Semi_2d/daily/B_{t + start_index}.npy', b_map)
         # print(f'Iteration {t}: {(time.time() - start_time):.1f} seconds')
         # start_time = time.time()
-    return
-
-def parallel_semiparam(files_path_prefix: str,
-                       data_array: np.ndarray,
-                       cpu_count: int,
-                       points_borders: list,
-                       time_start: int,
-                       time_end: int,
-                       timedelta: int,
-                       flux_type: str,
-                       coeff_type: str,
-                       window_width: int,
-                       step_ticks: int,
-                       ticks_by_day: int,
-                       radius: int,
-                       n_components: int,
-                       draw: bool = False):
-    maskfile = open(files_path_prefix + "mask", "rb")
-    binary_values = maskfile.read(29141)
-    maskfile.close()
-    mask = unpack('?' * 29141, binary_values)
-    mask = np.array(mask, dtype=int)
-
-    # select points to list
-    all_points = list()
-    for p in range(points_borders[0], points_borders[1]):
-        if mask[p]:
-            all_points.append(p)
-
-    process_amount = len(all_points) // cpu_count + len(all_points) % cpu_count
-
-    print(f'Processing {len(all_points)} points')
-    # create args list
-    all_args = list()
-    for p in range(cpu_count):
-        points = all_points[p * process_amount:(p + 1) * process_amount]
-        points_info = list()
-        samples = list()
-        for point_idx in points:
-            point_size = (radius * 2 + 1) ** 2
-            point = (point_idx // width, point_idx % width)
-            point_bigger = list()
-            for i in range(-radius, radius + 1):
-                for j in range(-radius, radius + 1):
-                    if 0 <= point[0] + i < height and 0 <= point[1] + j < width and \
-                            mask[(point[0] + i) * width + point[1] + j]:
-                        point_bigger.append((point[0] + i, point[1] + j))
-                    else:
-                        point_size -= 1
-
-            sample = np.zeros((point_size, (time_end - time_start) * ticks_by_day - 1))
-            for i in range(point_size):
-                p = point_bigger[i]
-                sample[i, :] = np.diff(
-                    data_array[p[0] * width + p[1], time_start * ticks_by_day:time_end * ticks_by_day])
-
-            # reshape
-            sample = sample.transpose().flatten()
-
-            points_info.append([point, point_bigger, point_size])
-            samples.append(sample)
-
-        time_info = [time_start, time_end, timedelta]
-        args = [files_path_prefix, time_info, points_info, samples, flux_type, coeff_type, window_width, step_ticks,
-                ticks_by_day, radius, n_components, draw]
-        all_args.append(args)
-
-    if cpu_count == 1:
-        print("I'm the only process here")
-        process_points(*all_args[0])
-    else:
-        print(f"I'm the parent with id = {os.getpid()}")
-        with Pool(cpu_count) as p:
-            p.starmap(process_points, all_args)
-            p.close()
-            p.join()
     return
 
 
