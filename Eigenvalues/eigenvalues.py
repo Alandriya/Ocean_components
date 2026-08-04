@@ -1,16 +1,7 @@
 from __future__ import annotations
-
 import datetime
-import gc
 import os
-
 import numpy as np
-from scipy.linalg import sqrtm
-
-from Plotting.plot_eigenvalues import plot_eigenvalues
-import warnings
-from pathlib import Path
-from typing import Optional
 
 
 def scale_to_bins(arr, bins=100):
@@ -78,13 +69,7 @@ def get_bins(values, quantiles):
 
     # Include values exactly equal to the final bin boundary.
     bins[values == quantiles[-1]] = len(quantiles) - 2
-
-    invalid = (
-        ~np.isfinite(values)
-        | (bins < 0)
-        | (bins >= len(quantiles) - 1)
-    )
-
+    invalid = (~np.isfinite(values) | (bins < 0)| (bins >= len(quantiles) - 1))
     bins[invalid] = -1
 
     return bins
@@ -98,27 +83,15 @@ def matrix_to_map(
     spatial_shape,
 ):
     """
-    Map an n_bins x n_bins matrix to the geographical grid:
-
-        map[p] = matrix[bin1[p], bin2[p]]
+    Map an n_bins x n_bins matrix to the geographical grid: map[p] = matrix[bin1[p], bin2[p]]
     """
     bins1 = get_bins(field1, quantiles1)
     bins2 = get_bins(field2, quantiles2)
 
-    valid = (
-        (bins1 >= 0)
-        & (bins2 >= 0)
-        & np.isfinite(field1)
-        & np.isfinite(field2)
-    )
+    valid = ((bins1 >= 0) & (bins2 >= 0) & np.isfinite(field1) & np.isfinite(field2))
 
     result = np.full(field1.shape[0], np.nan)
-
-    result[valid] = matrix[
-        bins1[valid],
-        bins2[valid],
-    ]
-
+    result[valid] = matrix[bins1[valid], bins2[valid],]
     return result.reshape(spatial_shape)
 
 def bin_values_to_map(
@@ -128,23 +101,16 @@ def bin_values_to_map(
     spatial_shape,
 ):
     """
-    Map one value per bin to the geographical grid:
-
+    Maps one value per bin to the geographical grid:
         map[p] = bin_values[bin[p]]
-
     This is used for the diagonal b^2 reconstruction.
     """
     bins = get_bins(field, quantiles)
 
-    valid = (
-        (bins >= 0)
-        & np.isfinite(field)
-    )
+    valid = ((bins >= 0) & np.isfinite(field))
 
     result = np.full(field.shape[0], np.nan)
-
     result[valid] = bin_values[bins[valid]]
-
     return result.reshape(spatial_shape)
 
 
@@ -162,27 +128,28 @@ def count_eigenvalues_pair(
     n_components: int = 3,
 ):
     """
-
+    Counts the Karhunen-Loeve decomposition for the pair of two variables, e.g. sensible and latent fluxes
     :param files_path_prefix: path to the working directory
     :param array1: array with shape (height*width, n_days): e.g. (29141, 1410)
     :param array2: array with shape (height*width, n_days): e.g. (29141, 1410)
     :param array1_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
     :param array2_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
-    :param t: relative time moment from the beginning of the array
     :param n_bins: amount of bins to divide the values of each array
     :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
     :param names: tuple with names of the data arrays, e.g. ('Flux', 'SST')
+    :param spatial_shape: shape of the map, e.g. (161, 181)
+    :param dt: time step
+    :param n_components: amount of eigenvalues and eigenvectors to get
     :return:
     """
     if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
         os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
 
     for t in range(array1.shape[1]-1):
-    # for t in range(10):
         if (t + offset) % 100 == 0:
             print(f'Counting timestep {t + offset}')
-        # if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
-        #     continue
+        if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
+            continue
 
         b_matrix = np.zeros((n_bins, n_bins))
         for i in range(0, n_bins):
@@ -193,15 +160,9 @@ def count_eigenvalues_pair(
                     & (array2_quantiles[j] <= array2[:, t])
                     & (array2[:, t] < array2_quantiles[j + 1])
                 )[0]
-                dx = (
-                        array1[joint_points, t + 1]
-                        - array1[joint_points, t]
-                )
+                dx = array1[joint_points, t + 1] - array1[joint_points, t]
+                dy = array2[joint_points, t + 1] - array2[joint_points, t]
 
-                dy = (
-                        array2[joint_points, t + 1]
-                        - array2[joint_points, t]
-                )
                 b_matrix[i, j] = np.mean(dx * dy) / dt
 
         b_matrix = np.nan_to_num(b_matrix)
@@ -217,8 +178,8 @@ def count_eigenvalues_pair(
             eigenvalues = eigenvalues[order]
             eigenvectors = eigenvectors[:, order]
 
-            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
-            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
 
             C_N = (eigenvectors[:, :N] * eigenvalues[:N]) @ eigenvectors[:, :N].T
             """
@@ -229,16 +190,16 @@ def count_eigenvalues_pair(
             
                 C_N += eigenvalue * np.outer(eigenvector, eigenvector)
             """
-            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_{t + offset}.npy', C_N)
-            # C_N_map = matrix_to_map(
-            #     matrix=C_N,
-            #     field1=array1[:, t],
-            #     field2=array2[:, t],
-            #     quantiles1=array1_quantiles,
-            #     quantiles2=array2_quantiles,
-            #     spatial_shape=spatial_shape,
-            # )
-            # np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_map_{t + offset}.npy', C_N_map)
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_{t + offset}.npy', C_N)
+            C_N_map = matrix_to_map(
+                matrix=C_N,
+                field1=array1[:, t],
+                field2=array2[:, t],
+                quantiles1=array1_quantiles,
+                quantiles2=array2_quantiles,
+                spatial_shape=spatial_shape,
+            )
+            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_map_{t + offset}.npy', C_N_map)
             # --------------------------------------------------------
             # Reconstructed b^2:
             # b2_bins[j] = C_N[j, j]
@@ -275,28 +236,25 @@ def count_eigenvalues_pair(
                 spatial_shape=spatial_shape,
             )
             np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Bn_map_{t + offset}.npy', B_N_map)
-
     return
 
 
 def count_eigenvalues_triplets(files_path_prefix: str,
-                               t_start: int,
                                flux_array: np.ndarray,
                                SST_array: np.ndarray,
                                press_array: np.ndarray,
-                               mask: np.ndarray,
-                               offset: int = 14610,
+                               spatial_shape: tuple,
+                               offset: int = 0,
                                n_bins: int = 100,
                                ):
     """
     Counts and plots eigenvalues and eigenvectors for pairs Flux-Flux, SST-SST, Flux-SST, Flux-Pressure for time range
-    offset + t_start, offset + len(flux_array)
-    :param files_path_prefix: path to the working directory 
-    :param t_start: relative offset from the beginning of the array for time cycle
+    offset: offset + len(data_array)
+    :param files_path_prefix: path to the working directory
     :param flux_array: array with shape (height*width, n_days): e.g. (29141, 1410) with flux values
     :param SST_array: array with shape (height*width, n_days): e.g. (29141, 1410) with SST values
     :param press_array: array with shape (height*width, n_days): e.g. (29141, 1410) with pressure values
-    :param mask:
+    :param spatial_shape: shape of the map, e.g. (161, 181)
     :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
     :param n_bins: amount of bins to divide the values of each array
     :return:
@@ -309,58 +267,29 @@ def count_eigenvalues_triplets(files_path_prefix: str,
     if not os.path.exists(files_path_prefix + f'Eigenvalues'):
         os.mkdir(files_path_prefix + f'Eigenvalues')
 
-    for t in range(t_start, flux_array.shape[1] - 1):
-    # # for t in range(t_start, 35):
-    #     print(f'Timestep {t}', flush=True)
-    #     # flux-flux
-    #     count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, t, n_bins,
-    #                            offset, ('Flux', 'Flux'))
-    #
-    #     # sst-sst
-    #     count_eigenvalues_pair(files_path_prefix, SST_array, SST_array, quantiles_sst, quantiles_sst, t, n_bins,
-    #                            offset, ('SST', 'SST'))
-    #
-    #     # press-press
-    #     count_eigenvalues_pair(files_path_prefix, press_array, press_array, quantiles_press, quantiles_press, t, n_bins,
-    #                            offset, ('Pressure', 'Pressure'))
-    #
-        # flux-sst
-        count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, t, n_bins,
-                               offset, ('Flux', 'SST'))
+    # flux-flux
+    count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, n_bins,
+                           offset, ('Flux', 'Flux'), spatial_shape)
 
-        # flux-pressure
-        count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, t, n_bins,
-                               offset, ('Flux', 'Pressure'))
-    #
-    #     # sst-pressure
-    #     count_eigenvalues_pair(files_path_prefix, SST_array, press_array, quantiles_sst, quantiles_press, t, n_bins,
-    #                            offset, ('SST', 'Pressure'))
+    # sst-sst
+    count_eigenvalues_pair(files_path_prefix, SST_array, SST_array, quantiles_sst, quantiles_sst, n_bins,
+                           offset, ('SST', 'SST'), spatial_shape)
 
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1]-1, offset, flux_array, quantiles_flux,
-                     ('Flux', 'Flux'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1]-1, offset, SST_array, quantiles_sst,
-                     ('SST', 'SST'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, SST_array.shape[1]-1, offset, SST_array, quantiles_sst,
-                     ('Flux', 'SST'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, press_array.shape[1]-1, offset, press_array, quantiles_press,
-                     ('Flux', 'Pressure'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, press_array.shape[1]-1, offset, press_array, quantiles_press,
-                     ('Pressure', 'Pressure'))
-    plot_eigenvalues(files_path_prefix, 3, mask, 0, flux_array.shape[1]-1, offset, press_array, quantiles_press,
-                         ('SST', 'Pressure'))
+    # press-press
+    count_eigenvalues_pair(files_path_prefix, press_array, press_array, quantiles_press, quantiles_press, n_bins,
+                           offset, ('Pressure', 'Pressure'), spatial_shape)
 
-    # for t1 in [16071, 16161, 16252, 16344]:
-    #     t = t1 - offset
-    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, flux_array, quantiles_flux,
-    #     #                  ('Flux', 'Flux'))
-    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
-    #     #                  ('SST', 'SST'))
-    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, SST_array, quantiles_sst,
-    #     #                  ('Flux', 'SST'))
-    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
-    #     #                  ('Flux', 'Pressure'))
-    #     # plot_eigenvalues(files_path_prefix, 3, mask, t, t+1, offset, press_array, quantiles_press,
-    #     #                  ('Pressure', 'Pressure'))
+    # flux-sst
+    count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, n_bins,
+                           offset, ('Flux', 'SST'), spatial_shape)
+
+    # flux-pressure
+    count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, n_bins,
+                           offset, ('Flux', 'Pressure'), spatial_shape)
+
+    # sst-pressure
+    count_eigenvalues_pair(files_path_prefix, SST_array, press_array, quantiles_sst, quantiles_press, n_bins,
+                           offset, ('SST', 'Pressure'), spatial_shape)
 
     return
 
@@ -448,47 +377,19 @@ def reconstruct_b2_map(
     mask=None,
 ):
     """
-    Reconstruct article-style b^2 from the first N eigenpairs
-    and map the 100 bin values back to the geographical grid.
-
-    Parameters
-    ----------
-    eigenvalues
-        Shape (100,).
-
-    eigenvectors
-        Shape (100, 100). Eigenvectors are columns.
-
-    field_at_t
-        Flattened geographical field at time t.
-        Shape (n_spatial_points,).
-
-    quantiles
-        Bin boundaries used when calculating the 100 x 100 matrix.
-        Shape (101,).
-
-    spatial_shape
-        For example (160, 181) or (161, 181).
-
-    n_components
-        Number of eigenpairs retained, for example 3.
-
-    mask
-        Optional Boolean geographical mask. True means valid.
+    Reconstruct b^2 from the first N eigenpairs and map the n-bin values back to the geographical grid.
+    :param eigenvalues: np.array with shape (n_bins)
+    :param eigenvectors: np.array with shape (n_bins, n_bins). Eigenvectors are columns.
+    :param field_at_t: Flattened geographical field at time t. Shape (n_spatial_points,).
+    :param quantiles: Bin boundaries used when calculating the n_bins x n_bins matrix. Shape (n_bins + 1,).
+    :param spatial_shape: np.array with 2d map size, for example (161, 181).
+    :param n_components: Amount of eigenpairs retained, for example 3.
+    :param mask: Boolean geographical mask with size equal to 2d map size, for example (161, 181).
 
     Returns
     -------
-    b2_matrix_n
-        Rank-N reconstructed 100 x 100 b^2 matrix.
-
-    b2_bins
-        Reconstructed b^2 for each of the 100 bins.
-
-    b2_map
-        Reconstructed b^2 geographical map.
-
-    b_map
-        Reconstructed diffusion-amplitude map sqrt(b^2).
+    b2_map: Reconstructed b^2 geographical map.
+    b_map: Reconstructed diffusion-amplitude map sqrt(b^2).
     """
     eigenvalues = np.asarray(eigenvalues, dtype=float)
     eigenvectors = np.asarray(eigenvectors, dtype=float)
@@ -507,61 +408,33 @@ def reconstruct_b2_map(
     vectors_n = eigenvectors[:, :N]
 
     # Full rank-N reconstruction:
-    #
     # C_N = sum_i lambda_i * e_i * e_i.T
-    b2_matrix_n = (
-        vectors_n * lambda_n[np.newaxis, :]
-    ) @ vectors_n.T
+    # b2_matrix_n = (vectors_n * lambda_n[np.newaxis, :]) @ vectors_n.T
 
     # Diagonal of C_N:
-    #
     # b2_bins[j] = sum_i lambda_i * e[j, i]^2
-    b2_bins = np.sum(
-        lambda_n[np.newaxis, :] * vectors_n**2,
-        axis=1,
-    )
+    b2_bins = np.sum(lambda_n[np.newaxis, :] * vectors_n**2, axis=1,)
 
     # Equivalent check:
-    #
     # np.allclose(b2_bins, np.diag(b2_matrix_n))
-    #
     # should return True.
 
     n_bins = len(quantiles) - 1
-
-    bin_indices = (
-        np.searchsorted(
-            quantiles,
-            field_at_t,
-            side="right",
-        )
-        - 1
-    )
-
+    bin_indices = (np.searchsorted(quantiles, field_at_t, side="right",) - 1)
     # Include values equal to the final edge.
     bin_indices[field_at_t == quantiles[-1]] = n_bins - 1
 
-    valid = (
-        np.isfinite(field_at_t)
-        & (bin_indices >= 0)
-        & (bin_indices < n_bins)
-    )
+    valid = (np.isfinite(field_at_t) & (bin_indices >= 0) & (bin_indices < n_bins))
 
     if mask is not None:
         valid &= np.asarray(mask, dtype=bool).reshape(-1)
 
     b2_map_flat = np.full(field_at_t.size, np.nan)
-
-    b2_map_flat[valid] = b2_bins[
-        bin_indices[valid]
-    ]
-
+    b2_map_flat[valid] = b2_bins[bin_indices[valid]]
     b2_map = b2_map_flat.reshape(spatial_shape)
 
     # Pointwise diffusion amplitude.
-    b_map = np.sqrt(
-        np.clip(b2_map, 0.0, None)
-    )
+    b_map = np.sqrt(np.clip(b2_map, 0.0, None))
 
     return b2_map, b_map
 
