@@ -1,9 +1,11 @@
 import datetime
 import gc
 import os.path
+from statistics import quantiles
 
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 import numpy as np
 import scipy
 import seaborn as sns
@@ -70,10 +72,10 @@ def plot_ab_coefficients(files_path_prefix: str,
     b_max[2] /= 10
 
     cmap_a1 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a1_min / (a1_max - a1_min), 1])
-    cmap_a1.set_bad('darkgreen', 1.0)
+    cmap_a1.set_bad('lightgreen', 1.0)
 
     cmap_a2 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a2_min / (a2_max - a2_min), 1])
-    cmap_a2.set_bad('darkgreen', 1.0)
+    cmap_a2.set_bad('lightgreen', 1.0)
 
     axsa[0].set_title(f'A - {names[0]}', fontsize=20)
     divider = make_axes_locatable(axsa[0])
@@ -100,7 +102,7 @@ def plot_ab_coefficients(files_path_prefix: str,
     # cmap_b = get_continuous_cmap(['#00bfff', '#ffffff', '#b22222'], [0, zero_percent, 1])
     cmap_b = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
     # cmap_b = plt.get_cmap('autumn').copy()
-    cmap_b.set_bad('darkgreen', 1.0)
+    cmap_b.set_bad('lightgreen', 1.0)
 
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end, step)):
@@ -490,5 +492,491 @@ def plot_estimate_ab_distributions(files_path_prefix: str,
     plt.tight_layout()
     fig.savefig(files_path_prefix +
                 f"Distributions/AB_distr/A_HIST_POINT_({point[0]},{point[1]})_({date_start.strftime('%d.%m.%Y')} - {date_end.strftime('%d.%m.%Y')}).png")
+    plt.close(fig)
+    return
+
+
+def plot_scalar_map(
+    files_path_prefix: str,
+    q_amount: int,
+    arr_mesh: np.ndarray,
+    coeff_type: str,
+    data1_name: str,
+    data2_name: str,
+    time_start: int,
+    time_end: int,
+):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    arr_min = np.nanmin(arr_mesh)
+    arr_max = np.nanmax(arr_mesh)
+    if arr_min < 0 < arr_max:
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - arr_min / (arr_max - arr_min), 1])
+    else:
+        cmap = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    cmap.set_bad('lightgreen', 1.0)
+
+    mesh = ax.pcolormesh(
+  np.linspace(1, q_amount, q_amount),
+        np.linspace(1, q_amount, q_amount),
+        arr_mesh,
+        shading="auto",
+        cmap=cmap,
+        vmin=arr_min,
+        vmax=arr_max,
+    )
+    cbar = fig.colorbar(mesh, ax=ax, label=f'{data1_name}-{data2_name} field')
+    cbar.ax.tick_params(labelsize=20)
+    ax.set_xlabel(data1_name, fontsize=20)
+    ax.set_ylabel(data2_name, fontsize=20)
+    ax.set_title(f'{coeff_type} dependence on {data1_name}-{data2_name} levels', fontsize=20)
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_{coeff_type}_{time_start}-{time_end}.png')
+    plt.close(fig)
+    return
+
+
+def _get_axis_centers(
+    coordinates: np.ndarray,
+    mesh_size: int,
+    axis_name: str,
+) -> np.ndarray:
+    """
+    Return cell centers for plotting arrows or ellipses.
+
+    `coordinates` may contain:
+    - bin edges: length = mesh_size + 1;
+    - bin centers: length = mesh_size.
+    """
+    coordinates = np.asarray(coordinates, dtype=float)
+
+    if coordinates.ndim != 1:
+        raise ValueError(
+            f"{axis_name} coordinates must be one-dimensional, "
+            f"got shape {coordinates.shape}."
+        )
+
+    if coordinates.size == mesh_size + 1:
+        return 0.5 * (coordinates[:-1] + coordinates[1:])
+
+    if coordinates.size == mesh_size:
+        return coordinates
+
+    raise ValueError(
+        f"{axis_name} has length {coordinates.size}, but the corresponding "
+        f"mesh dimension is {mesh_size}. Expected {mesh_size} centers or "
+        f"{mesh_size + 1} edges."
+    )
+
+def plot_drift_field(
+    files_path_prefix: str,
+    quantiles1: np.ndarray,
+    quantiles2: np.ndarray,
+    a1_mesh: np.ndarray,
+    a2_mesh: np.ndarray,
+    data1_name: str,
+    data2_name: str,
+        time_start: int,
+        time_end: int,
+    arrow_step: int = 2,
+    normalize_arrows: bool = False,
+    quiver_scale: float = None,
+):
+    """
+    Draw the two-dimensional drift vector field.
+
+    Parameters
+    ----------
+    quantiles1, quantiles2
+        Bin edges or bin centers for X1 and X2.
+
+    a1_mesh, a2_mesh
+        Drift components with shape:
+            (len(quantiles2) - 1, len(quantiles1) - 1)
+        when quantiles are edges, or:
+            (len(quantiles2), len(quantiles1))
+        when quantiles are centers.
+
+    arrow_step
+        Draw one arrow for every `arrow_step` bins.
+
+    normalize_arrows
+        False:
+            Arrow length represents drift magnitude.
+        True:
+            All nonzero arrows have equal length and show direction only.
+
+    quiver_scale
+        Matplotlib quiver scale. Use None for automatic scaling.
+    """
+    a1_mesh = np.asarray(a1_mesh, dtype=float)
+    a2_mesh = np.asarray(a2_mesh, dtype=float)
+
+    if a1_mesh.shape != a2_mesh.shape:
+        raise ValueError(
+            f"a1_mesh and a2_mesh must have identical shapes, got "
+            f"{a1_mesh.shape} and {a2_mesh.shape}."
+        )
+
+    if a1_mesh.ndim != 2:
+        raise ValueError(
+            f"Drift meshes must be two-dimensional, got {a1_mesh.shape}."
+        )
+
+    if arrow_step < 1:
+        raise ValueError("arrow_step must be at least 1.")
+
+    # Background: total drift magnitude.
+    drift_magnitude = np.hypot(a1_mesh, a2_mesh)
+
+    arr_min = min(np.nanmin(a1_mesh), np.nanmin(a2_mesh))
+    arr_max = max(np.nanmax(a1_mesh), np.nanmax(a2_mesh))
+    if arr_min < 0 < arr_max:
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - arr_min / (arr_max - arr_min), 1])
+    else:
+        cmap = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    cmap.set_bad('lightgreen', 1.0)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    mesh = ax.pcolormesh(
+        quantiles1,
+        quantiles2,
+        np.ma.masked_invalid(drift_magnitude),
+        shading="auto",
+        cmap=cmap,
+        vmin=arr_min,
+        vmax=arr_max,
+    )
+
+    cbar = fig.colorbar(mesh,ax=ax,label=f"{data1_name}-{data2_name} drift magnitude (number of bin)")
+    cbar.ax.tick_params(labelsize=20)
+
+    x_centers = _get_axis_centers(
+        quantiles1,
+        a1_mesh.shape[1],
+        data1_name,
+    )
+    y_centers = _get_axis_centers(
+        quantiles2,
+        a1_mesh.shape[0],
+        data2_name,
+    )
+
+    x_grid, y_grid = np.meshgrid(x_centers, y_centers)
+
+    plot_slice = (
+        slice(None, None, arrow_step),
+        slice(None, None, arrow_step),
+    )
+
+    x_arrows = x_grid[plot_slice]
+    y_arrows = y_grid[plot_slice]
+    u = a1_mesh[plot_slice].copy()
+    v = a2_mesh[plot_slice].copy()
+
+    valid = (
+        np.isfinite(x_arrows)
+        & np.isfinite(y_arrows)
+        & np.isfinite(u)
+        & np.isfinite(v)
+    )
+
+    if normalize_arrows:
+        magnitude = np.hypot(u, v)
+
+        nonzero = valid & (magnitude > 0)
+
+        u_normalized = np.full_like(u, np.nan)
+        v_normalized = np.full_like(v, np.nan)
+
+        u_normalized[nonzero] = u[nonzero] / magnitude[nonzero]
+        v_normalized[nonzero] = v[nonzero] / magnitude[nonzero]
+
+        u = u_normalized
+        v = v_normalized
+        valid = nonzero
+
+    ax.quiver(
+        x_arrows[valid],
+        y_arrows[valid],
+        u[valid],
+        v[valid],
+        angles="xy",
+        scale_units="xy",
+        scale=quiver_scale,
+    )
+
+    ax.set_xlabel(data1_name)
+    ax.set_ylabel(data2_name)
+    ax.set_title('Drift field', fontsize=20)
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_drift_field_{time_start}-{time_end}.png',dpi=300, bbox_inches="tight",)
+    plt.close(fig)
+
+    return
+
+
+def plot_diffusion_ellipses(
+    files_path_prefix: str,
+    quantiles1: np.ndarray,
+    quantiles2: np.ndarray,
+    c11_mesh: np.ndarray,
+    c12_mesh: np.ndarray,
+    c22_mesh: np.ndarray,
+    data1_name: str,
+    data2_name: str,
+        time_start: int,
+        time_end: int,
+    ellipse_step: int = 3,
+    dt: float = 1.0,
+    n_sigma: float = 1.0,
+    ellipse_scale: float = 1.0,
+    equal_aspect: bool = True,
+):
+    """
+    Draw local diffusion ellipses from the covariance matrix
+
+        C = [[C11, C12],
+             [C12, C22]].
+
+    The background shows tr(C) = C11 + C22.
+
+    Parameters
+    ----------
+    ellipse_step
+        Draw one ellipse for every `ellipse_step` bins.
+
+    dt
+        Time interval represented by C. For daily coefficients, usually 1.
+
+    n_sigma
+        Number of standard deviations represented by the ellipse.
+
+    ellipse_scale
+        Additional visual multiplier for ellipse sizes.
+
+    equal_aspect
+        Use equal physical scaling for X1 and X2 axes. This preserves the
+        geometric orientation and aspect ratio of the ellipses.
+    """
+    c11_mesh = np.asarray(c11_mesh, dtype=float)
+    c12_mesh = np.asarray(c12_mesh, dtype=float)
+    c22_mesh = np.asarray(c22_mesh, dtype=float)
+
+    if not (
+        c11_mesh.shape == c12_mesh.shape == c22_mesh.shape
+    ):
+        raise ValueError(
+            "c11_mesh, c12_mesh, and c22_mesh must have identical shapes. "
+            f"Received {c11_mesh.shape}, {c12_mesh.shape}, "
+            f"and {c22_mesh.shape}."
+        )
+
+    if c11_mesh.ndim != 2:
+        raise ValueError(
+            f"Diffusion meshes must be two-dimensional, "
+            f"got {c11_mesh.shape}."
+        )
+
+    if ellipse_step < 1:
+        raise ValueError("ellipse_step must be at least 1.")
+
+    if dt <= 0:
+        raise ValueError("dt must be positive.")
+
+    if n_sigma <= 0:
+        raise ValueError("n_sigma must be positive.")
+
+    if ellipse_scale <= 0:
+        raise ValueError("ellipse_scale must be positive.")
+
+    # Total local diffusion intensity.
+    diffusion_trace = c11_mesh + c22_mesh
+
+    arr_min = min(np.nanmin(c11_mesh), np.nanmin(c22_mesh), np.nanmin(c12_mesh))
+    arr_max = max(np.nanmax(c11_mesh), np.nanmax(c22_mesh), np.nanmax(c12_mesh))
+    if arr_min < 0 < arr_max:
+        cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - arr_min / (arr_max - arr_min), 1])
+    else:
+        cmap = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
+    cmap.set_bad('lightgreen', 1.0)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    mesh = ax.pcolormesh(
+        quantiles1,
+        quantiles2,
+        np.ma.masked_invalid(diffusion_trace),
+        shading="auto",
+        cmap=cmap,
+        vmin=arr_min,
+        vmax=arr_max,
+    )
+
+    cbar = fig.colorbar(mesh, ax=ax, label=f"{data1_name}-{data2_name} diffusion trace",)
+    cbar.ax.tick_params(labelsize=20)
+
+    x_centers = _get_axis_centers(
+        quantiles1,
+        c11_mesh.shape[1],
+        data1_name,
+    )
+    y_centers = _get_axis_centers(
+        quantiles2,
+        c11_mesh.shape[0],
+        data2_name,
+    )
+
+    for row in range(0, c11_mesh.shape[0], ellipse_step):
+        for column in range(0, c11_mesh.shape[1], ellipse_step):
+            c11 = c11_mesh[row, column]
+            c12 = c12_mesh[row, column]
+            c22 = c22_mesh[row, column]
+
+            if not np.all(np.isfinite([c11, c12, c22])):
+                continue
+
+            covariance = np.array(
+                [
+                    [c11, c12],
+                    [c12, c22],
+                ],
+                dtype=float,
+            )
+
+            # eigh is appropriate because C is symmetric.
+            eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+
+            # Ignore clearly invalid covariance matrices.
+            tolerance = 1e-12 * max(
+                1.0,
+                np.max(np.abs(eigenvalues)),
+            )
+
+            if np.any(eigenvalues < -tolerance):
+                continue
+
+            # Remove tiny negative values caused by floating-point error.
+            eigenvalues = np.clip(eigenvalues, 0.0, None)
+
+            order = np.argsort(eigenvalues)[::-1]
+            eigenvalues = eigenvalues[order]
+            eigenvectors = eigenvectors[:, order]
+
+            if eigenvalues[0] <= 0:
+                continue
+
+            principal_vector = eigenvectors[:, 0]
+
+            angle = np.degrees(
+                np.arctan2(
+                    principal_vector[1],
+                    principal_vector[0],
+                )
+            )
+
+            # Matplotlib Ellipse expects full width and full height.
+            width = (
+                2
+                * n_sigma
+                * np.sqrt(eigenvalues[0] * dt)
+                * ellipse_scale
+            )
+
+            height = (
+                2
+                * n_sigma
+                * np.sqrt(eigenvalues[1] * dt)
+                * ellipse_scale
+            )
+
+            ellipse = Ellipse(
+                xy=(
+                    x_centers[column],
+                    y_centers[row],
+                ),
+                width=width,
+                height=height,
+                angle=angle,
+                fill=False,
+                linewidth=1.0,
+            )
+
+            ax.add_patch(ellipse)
+
+    ax.set_xlim(
+        float(np.nanmin(quantiles1)),
+        float(np.nanmax(quantiles1)),
+    )
+    ax.set_ylim(
+        float(np.nanmin(quantiles2)),
+        float(np.nanmax(quantiles2)),
+    )
+
+    if equal_aspect:
+        ax.set_aspect("equal", adjustable="box")
+
+    ax.set_xlabel(data1_name)
+    ax.set_ylabel(data2_name)
+    ax.set_title('Diffusion ellipses')
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_diff_ellipses_{time_start}-{time_end}.png',dpi=300, bbox_inches="tight",)
+    plt.close(fig)
+
+    return
+
+
+def plot_velocity(files_path_prefix: str,
+                  fp_system,
+                  velocity_magnitude,
+                  velocity_1,
+                  velocity_2,
+                    data1_name: str,
+                    data2_name: str,
+                  time_start: int,
+                  time_end: int,
+                  ):
+    x1 = fp_system["x_centers"]
+    x2 = fp_system["y_centers"]
+
+    x1_grid, x2_grid = np.meshgrid(x1, x2)
+
+    step = 2
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    background = ax.pcolormesh(
+        fp_system["x_edges"],
+        fp_system["y_edges"],
+        velocity_magnitude,
+        shading="auto",
+    )
+
+    cbar = fig.colorbar(background, ax=ax, label="Probability-current velocity magnitude",)
+    cbar.ax.tick_params(labelsize=20)
+
+    sl = (
+        slice(None, None, step),
+        slice(None, None, step),
+    )
+
+    ax.quiver(
+        x1_grid[sl],
+        x2_grid[sl],
+        velocity_1[sl],
+        velocity_2[sl],
+        angles="xy",
+        scale_units="xy",
+        scale=None,
+    )
+
+    ax.set_xlabel(data1_name)
+    ax.set_ylabel(data2_name)
+    ax.set_title("Stationary probability-flow velocity")
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_velocity_{time_start}-{time_end}.png')
     plt.close(fig)
     return
