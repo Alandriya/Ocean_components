@@ -303,11 +303,16 @@ def collect_estimates(files_path_prefix: str,
                       time_end: int,):
     for coeff_type in coeff_types:
         print(f'Collecting {coeff_type}')
-        first = np.load(files_path_prefix + path_local + f'daily/{coeff_type}_{time_start}.npy')
+        first = np.load(files_path_prefix + path_local + f'Daily/{coeff_type}_{time_start}.npy')
         print(first.shape)
-        arr = np.zeros((time_end - time_start + 1, height, width, first.shape[1]))
+        # arr = np.zeros((time_end - time_start + 1, height, width, first.shape[1]))
+        arr = np.zeros((time_end - time_start + 1, first.shape[0], height, width))
         for t in tqdm.tqdm(range(time_end-time_start)):
-            arr[t] = np.load(files_path_prefix + path_local + f'daily/{coeff_type}_{time_start + t}.npy').reshape((height, width, -1))
+            # arr[t] = np.load(files_path_prefix + path_local + f'daily/{coeff_type}_{time_start + t}.npy').reshape((height, width, -1))
+            try:
+                arr[t] = np.load(files_path_prefix + path_local + f'Daily/{coeff_type}_{time_start + t}.npy').reshape((-1, height, width))
+            except FileNotFoundError:
+                print('No file ' + files_path_prefix + path_local + f'Daily/{coeff_type}_{time_start + t}.npy!')
         np.save(files_path_prefix + path_local + f'{coeff_type}_{time_start}-{time_end}.npy', arr)
     return
 

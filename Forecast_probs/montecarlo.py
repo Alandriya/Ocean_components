@@ -1,8 +1,7 @@
 import numpy as np
-import tqdm
 
 from Data_processing.data_processing import scale_to_bins
-from Data_processing.func_estimation import log_b2, count_constants
+from Functional.func_estimation import log_b2, count_constants
 
 params = sensible_params
 # params = latent_params
