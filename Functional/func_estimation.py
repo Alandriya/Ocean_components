@@ -12,8 +12,8 @@ import matplotlib.cm
 from scipy.special import gamma, gammaincc
 from Data_processing.data_processing import scale_to_bins, mean_blocks
 from scipy.integrate import trapezoid
-import warnings
-warnings.filterwarnings("error")
+# import warnings
+# warnings.filterwarnings("error")
 
 months_names = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
@@ -247,7 +247,7 @@ def create_quantiles_2d(files_path_prefix: str,
                         block_size: int,
                         b_type:str):
     str_types = f'{data1_name}-{data2_name}'
-    a_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/A_{coef_start}-{coef_end}.npy')
+    a_array = np.load(files_path_prefix + f'Components/{str_types}/A_{coef_start}-{coef_end}.npy')
 
     if b_type == 'eigen':
         b_array = np.load(files_path_prefix + f'Eigenvalues/{str_types}/B2_{coef_start}-{coef_end}_1d.npy')
@@ -258,7 +258,7 @@ def create_quantiles_2d(files_path_prefix: str,
             missing_days_eigen = [3652, 14609]
             a_array = np.delete(a_array, missing_days_eigen, axis=0)
     else:
-        b_array = np.load(files_path_prefix + f'Components/{str_types}/Semi_2d/B_{coef_start}-{coef_end}.npy')
+        b_array = np.load(files_path_prefix + f'Components/{str_types}/B_{coef_start}-{coef_end}.npy')
         b_array = b_array**2
 
     print(f'Loaded data')
@@ -457,4 +457,53 @@ def model_logb2(x, x1, x0, c1, c2, c3, c4):
     elif x < x0:
         return c2 * np.sqrt(abs(x)) + dC
     else:
-        return c4 * np.sqrt(abs(x)) + dR
+        return c4 * np.sqrt(abs(x)) + dR\
+
+def create_mesh(files_path_prefix: str,
+               data1_array: np.ndarray,
+               data2_array: np.ndarray,
+               quantiles_amount: int,
+                coef_start: int,
+                coef_end: int,
+                str_types: str,
+               a_array: np.ndarray,
+               b_array: np.ndarray,
+               c_array: np.ndarray = None,
+
+               ):
+
+    x1_grouped, _ = scale_to_bins(data1_array, quantiles_amount)
+    x2_grouped, _ = scale_to_bins(data2_array, quantiles_amount)
+    quantiles1 = get_values(x1_grouped)
+    quantiles2 = get_values(x2_grouped)
+
+    a_mesh = np.zeros((2, len(quantiles1), len(quantiles2)))
+    b_mesh = np.zeros((4, len(quantiles1), len(quantiles2)))
+    c_mesh = np.zeros((3, len(quantiles1), len(quantiles2)))
+    for q1 in tqdm.tqdm(range(len(quantiles1))):
+        quantile1 = quantiles1[q1]
+        for q2 in range(len(quantiles2)):
+            quantile2 = quantiles2[q2]
+            a_mesh[0, q1, q2] = np.mean(a_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            a_mesh[1, q1, q2] = np.mean(a_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+
+            b_mesh[0, q1, q2] = np.mean(b_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            b_mesh[1, q1, q2] = np.mean(b_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            b_mesh[2, q1, q2] = np.mean(b_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            b_mesh[3, q1, q2] = np.mean(b_array[:, :, :, 3][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+
+            c_mesh[0, q1, q2] = np.mean(c_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            c_mesh[1, q1, q2] = np.mean(c_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            c_mesh[2, q1, q2] = np.mean(c_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_quantiles1_{quantiles_amount}.npy', quantiles1)
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_quantiles2_{quantiles_amount}.npy', quantiles2)
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_a_mesh_{quantiles_amount}.npy', a_mesh)
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_b_mesh_{quantiles_amount}.npy', b_mesh)
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_c_mesh_{quantiles_amount}.npy', c_mesh)
+    return
+
+def count_correlation_BTT_mesh(c_mesh: np.ndarray,):
+    corr_mesh = np.zeros((c_mesh.shape[1], c_mesh.shape[2]))
+    corr_mesh = c_mesh[2] / (np.sqrt(c_mesh[0] * c_mesh[1]))
+    return corr_mesh
