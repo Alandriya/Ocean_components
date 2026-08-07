@@ -6,15 +6,12 @@ import matplotlib.pyplot as plt
 import matplotlib.cm
 from numpy.polynomial import Polynomial
 import datetime
-import math
 import scipy
 import seaborn as sns
 from scipy.optimize import curve_fit
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from sympy.strategies.branch import condition
-from Data_processing.func_estimation import model_logb2
+from Functional.func_estimation import model_logb2
 
-from Plotting.video import get_continuous_cmap
 import matplotlib.colors as colors
 import tqdm
 
