@@ -153,7 +153,7 @@ def count_semi_2d_AB(files_path_prefix: str,
                      start_index: int = 0,
                      ):
     """
-    Counts and saves to files_path_prefix + path + 'Semi_1d/daily' A and B estimates X array for each day
+    Counts and saves to files_path_prefix + path + 'Coeff_data_2d' A and B estimates X array for each day
     t+start index for t in (time_start, time_end)
     :param files_path_prefix: path to the working directory
     :param data_array: np.array with shape [time_steps, height, width, 2] where 2 is for 2 components of X vector
@@ -166,29 +166,23 @@ def count_semi_2d_AB(files_path_prefix: str,
     :param start_index: offset index when saving maps
     :return:
     """
-    if not os.path.exists(files_path_prefix + path):
-        os.mkdir(files_path_prefix + path)
-
-    if not os.path.exists(files_path_prefix + path + f'Semi_2d'):
-        os.mkdir(files_path_prefix + path + f'Semi_2d')
-
-    if not os.path.exists(files_path_prefix + path + f'Semi_2d/daily'):
-        os.mkdir(files_path_prefix + path + f'Semi_2d/daily')
-
     a_map = np.zeros((data_array.shape[1], data_array.shape[2], 2), dtype=float)
     b_map = np.zeros((data_array.shape[1], data_array.shape[2], 4), dtype=float)
+    c_map = np.zeros((data_array.shape[1], data_array.shape[2], 3), dtype=float)
     a_map[np.logical_not(mask), :] = np.nan
     b_map[np.logical_not(mask), :] = np.nan
+    c_map[np.logical_not(mask), :] = np.nan
     data_array = data_array.reshape((data_array.shape[0], -1, 2))
     a_map = a_map.reshape((-1, 2))
     b_map = b_map.reshape((-1, 4))
+    c_map = c_map.reshape((-1, 3))
     # start_time = time.time()
     data1 = data_array[:, :, 0]
     data2 = data_array[:, :, 1]
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
         # for t in range(time_start + 1, time_end):
         # print(f't = {t}')
-        if os.path.exists(files_path_prefix + path + f'Semi_1d/daily/A_{t + start_index}.npy'):
+        if os.path.exists(files_path_prefix + path + f'A_{t + start_index}.npy'):
             continue
 
         data1_q, quantiles = scale_to_bins(data1[t - 1], quantiles_amount)
@@ -209,6 +203,7 @@ def count_semi_2d_AB(files_path_prefix: str,
                 window = (data_array[t, place, :] - data_array[t - 1, place, :])
                 a_sum = np.zeros(2)
                 b_sum = np.zeros(4)
+                c_sum = np.zeros(3)
 
                 if window.shape[0] == 0:
                     continue
@@ -252,31 +247,43 @@ def count_semi_2d_AB(files_path_prefix: str,
                 b_sum[3] = np.sqrt(
                     sum([(means[1 + q * n_components]**2 + sigmas_squared[1]) * weights[q] for q in range(n_components)]))
 
+                # C11 = b11 * b11 + b12 * b12
+                # C22 = b21 * b21 + b22 * b22
+                # C12 = b11 * b21 + b12 * b22
+                c_map[0] = b_sum[0] **2 + b_sum[2]**2
+                c_map[1] = b_sum[1] **2 + b_sum[3]**2
+                c_map[2] = b_sum[0] * b_sum[3] + b_sum[2] * b_sum[1]
+
+
                 a_map[place] = a_sum
                 b_map[place] = b_sum
+                c_map[place] = c_sum
                 # if t == 1:
                 #     print(a_sum)
 
         # print('\n\n', flush=True)
-        np.save(files_path_prefix + path + f'Semi_2d/daily/A_{t + start_index}.npy', a_map)
-        np.save(files_path_prefix + path + f'Semi_2d/daily/B_{t + start_index}.npy', b_map)
+        np.save(files_path_prefix + path + f'A_{t + start_index}.npy', a_map)
+        np.save(files_path_prefix + path + f'B_{t + start_index}.npy', b_map)
+        np.save(files_path_prefix + path + f'BBT_{t + start_index}.npy', c_map)
         # print(f'Iteration {t}: {(time.time() - start_time):.1f} seconds')
         # start_time = time.time()
     return
 
 
 def count_BBT_from_B(files_path_prefix: str,
+                     path_local: str,
                      time_start: int,
                      time_end: int,
                      ):
-    for t in tqdm.tqdm(range(time_start + 1, time_end)):
-        if not os.path.exists(files_path_prefix + f'Coeff_data_2d/{t}_B.npy'):
-            print('Failed to load ' + files_path_prefix + f'Coeff_data_2d/{t}_B.npy')
+    for t in tqdm.tqdm(range(time_start, time_end)):
+        if not os.path.exists(files_path_prefix + path_local + f'B_{t}.npy'):
+            print('Failed to load ' + files_path_prefix + path_local + f'B_{t}.npy')
             continue
 
-        if os.path.exists(files_path_prefix + f'Coeff_data_2d/{t}_BBT.npy'):
+        if os.path.exists(files_path_prefix + path_local + f'BBT_{t}.npy'):
             continue
-        b = np.load(files_path_prefix + f'Coeff_data_2d/{t}_B.npy')
+        b = np.load(files_path_prefix + path_local + f'B_{t}.npy')
+        b = np.swapaxes(b, 0, 1)
         b11, b22, b12, b21 = b
 
         C11 = b11 * b11 + b12 * b12
@@ -284,7 +291,7 @@ def count_BBT_from_B(files_path_prefix: str,
         C12 = b11 * b21 + b12 * b22
 
         C = np.stack((C11, C22, C12), axis=0)
-        np.save(files_path_prefix + f'Coeff_data_2d/{t}_BBT.npy', C)
+        np.save(files_path_prefix + path_local + f'BBT_{t}.npy', C)
     return
 
 
