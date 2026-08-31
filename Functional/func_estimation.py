@@ -471,36 +471,70 @@ def create_mesh(files_path_prefix: str,
                c_array: np.ndarray = None,
 
                ):
-
     x1_grouped, _ = scale_to_bins(data1_array, quantiles_amount)
     x2_grouped, _ = scale_to_bins(data2_array, quantiles_amount)
     quantiles1 = get_values(x1_grouped)
     quantiles2 = get_values(x2_grouped)
 
-    a_mesh = np.zeros((2, len(quantiles1), len(quantiles2)))
-    b_mesh = np.zeros((4, len(quantiles1), len(quantiles2)))
-    c_mesh = np.zeros((3, len(quantiles1), len(quantiles2)))
+    if not a_array is None:
+        a_mesh = np.zeros((2, len(quantiles1), len(quantiles2)))
+        a_array = a_array[:len(data1_array)]
+    if not b_array is None:
+        b_mesh = np.zeros((4, len(quantiles1), len(quantiles2)))
+        b_array = b_array[:len(data1_array)]
+    if not c_array is None:
+        c_mesh = np.zeros((3, len(quantiles1), len(quantiles2)))
+        c_array = c_array[:len(data1_array)]
     for q1 in tqdm.tqdm(range(len(quantiles1))):
         quantile1 = quantiles1[q1]
         for q2 in range(len(quantiles2)):
             quantile2 = quantiles2[q2]
-            a_mesh[0, q1, q2] = np.mean(a_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            a_mesh[1, q1, q2] = np.mean(a_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-
-            b_mesh[0, q1, q2] = np.mean(b_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            b_mesh[1, q1, q2] = np.mean(b_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            b_mesh[2, q1, q2] = np.mean(b_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            b_mesh[3, q1, q2] = np.mean(b_array[:, :, :, 3][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-
-            c_mesh[0, q1, q2] = np.mean(c_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            c_mesh[1, q1, q2] = np.mean(c_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
-            c_mesh[2, q1, q2] = np.mean(c_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            if not a_array is None:
+                a_mesh[0, q1, q2] = np.mean(a_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                a_mesh[1, q1, q2] = np.mean(a_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            if not b_array is None:
+                b_mesh[0, q1, q2] = np.mean(b_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                b_mesh[1, q1, q2] = np.mean(b_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                b_mesh[2, q1, q2] = np.mean(b_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                b_mesh[3, q1, q2] = np.mean(b_array[:, :, :, 3][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+            if not c_array is None:
+                c_mesh[0, q1, q2] = np.mean(c_array[:, :, :, 0][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                c_mesh[1, q1, q2] = np.mean(c_array[:, :, :, 1][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
+                c_mesh[2, q1, q2] = np.mean(c_array[:, :, :, 2][(x1_grouped == quantile1) & (x2_grouped == quantile2)])
 
     np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_quantiles1_{quantiles_amount}.npy', quantiles1)
     np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_quantiles2_{quantiles_amount}.npy', quantiles2)
-    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_a_mesh_{quantiles_amount}.npy', a_mesh)
-    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_b_mesh_{quantiles_amount}.npy', b_mesh)
-    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_c_mesh_{quantiles_amount}.npy', c_mesh)
+    if not a_array is None:
+        np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_a_mesh_{quantiles_amount}.npy', a_mesh)
+    if not b_array is None:
+        np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_b_mesh_{quantiles_amount}.npy', b_mesh)
+    if not c_array is None:
+        np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_c_mesh_{quantiles_amount}.npy', c_mesh)
+    return
+
+def count_N_in_mesh(files_path_prefix: str,
+               data1_array: np.ndarray,
+               data2_array: np.ndarray,
+               quantiles_amount: int,
+                coef_start: int,
+                coef_end: int,
+                str_types: str,
+               ):
+    x1_grouped, _ = scale_to_bins(data1_array, quantiles_amount)
+    x2_grouped, _ = scale_to_bins(data2_array, quantiles_amount)
+    quantiles1 = get_values(x1_grouped)
+    quantiles2 = get_values(x2_grouped)
+
+    N = np.zeros((quantiles_amount, quantiles_amount))
+    for q1 in tqdm.tqdm(range(len(quantiles1))):
+        quantile1 = quantiles1[q1]
+        for q2 in range(len(quantiles2)):
+            quantile2 = quantiles2[q2]
+            N[q1, q2] =  ((x1_grouped == quantile1) & (x2_grouped == quantile2)).sum()
+        if q1 == 0:
+            print(N[0])
+
+    np.save(files_path_prefix + f'Functional/{str_types}/{coef_start}-{coef_end}_N2_{quantiles_amount}.npy', N)
     return
 
 def count_correlation_BTT_mesh(c_mesh: np.ndarray,):

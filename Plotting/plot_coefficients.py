@@ -980,3 +980,52 @@ def plot_velocity(files_path_prefix: str,
     fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_velocity_{time_start}-{time_end}.png')
     plt.close(fig)
     return
+
+
+def check_C_positivity(files_path_prefix: str,
+                        fp_system,
+                        operator_check,
+                       start_year: int,
+                       end_year: int,
+                       quantiles_amount: int,
+                        data1_name: str,
+                        data2_name: str,
+
+                       ):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(
+        figsize=(8, 8)
+    )
+
+    mesh = ax.pcolormesh(
+        fp_system["x_edges"],
+        fp_system["y_edges"],
+        operator_check[
+            "negative_strength_mesh"
+        ],
+        shading="auto",
+    )
+
+    fig.colorbar(
+        mesh,
+        ax=ax,
+        label=(
+            "Negative off-diagonal "
+            "operator strength"
+        ),
+    )
+
+    ax.set_xlabel(data1_name)
+    ax.set_ylabel(data2_name)
+
+    ax.set_title(
+        "Locations responsible for "
+        "loss of positivity, "
+        f"{start_year} - {end_year}"
+    )
+
+    fig.tight_layout()
+    fig.savefig(files_path_prefix + f'videos/2D/{data1_name}-{data2_name}_c_diagnose_{start_year}-{end_year}.png')
+    plt.close(fig)
+    return

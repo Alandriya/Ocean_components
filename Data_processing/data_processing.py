@@ -232,8 +232,22 @@ def scale_to_bins(arr, bins=100):
     quantiles += [np.nanmax(arr)]
     # for j in tqdm.tqdm(range(bins - 1)):
     for j in range(bins):
-        arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
-            (quantiles[j] + quantiles[j + 1]) / 2
+        if j < bins - 1:
+            mask = (
+                    np.logical_not(np.isnan(arr))
+                    & (quantiles[j] <= arr)
+                    & (arr < quantiles[j + 1])
+            )
+        else:
+            mask = (
+                    np.logical_not(np.isnan(arr))
+                    & (quantiles[j] <= arr)
+                    & (arr <= quantiles[j + 1])
+            )
+
+        arr_scaled[mask] = (
+                                   quantiles[j] + quantiles[j + 1]
+                           ) / 2
     return arr_scaled, quantiles
 
 

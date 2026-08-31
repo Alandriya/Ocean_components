@@ -6,8 +6,12 @@ import numpy as np
 import scipy
 import seaborn as sns
 import tqdm
-from VarGamma import fit_ml, pdf, cdf
 from scipy.stats import pearsonr
+import numpy as np
+import matplotlib.pyplot as plt
+
+from scipy.integrate import cumulative_trapezoid
+from scipy.stats import kendalltau, norm
 
 
 def plot_estimate_fluxes_1d(files_path_prefix: str,
@@ -39,10 +43,10 @@ def plot_estimate_fluxes_1d(files_path_prefix: str,
     # sens_t = scipy.stats.t.fit(sens_val[:part])
     # lat_t = scipy.stats.t.fit(lat_val[:part])
 
-    sens_vargamma = fit_ml(sens_val[:part])
-    lat_vargamma = fit_ml(lat_val[:part])
-    print(f'Sensible parameters: {sens_vargamma}')
-    print(f'Latent parameters: {lat_vargamma}')
+    # sens_vargamma = fit_ml(sens_val[:part])
+    # lat_vargamma = fit_ml(lat_val[:part])
+    # print(f'Sensible parameters: {sens_vargamma}')
+    # print(f'Latent parameters: {lat_vargamma}')
 
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(1, 2, figsize=(15, 8))
@@ -54,34 +58,34 @@ def plot_estimate_fluxes_1d(files_path_prefix: str,
 
     # mu, sigma = sens_norm
     x = np.linspace(-200, 100, 300)
-    print(
-        f'Kolmogorov-Smirnov test for VarGamma for sensible: {scipy.stats.kstest(sens_val[part:part * 2], cdf, sens_vargamma)[1]}')
-    axs[0].cla()
+    # print(
+        # f'Kolmogorov-Smirnov test for VarGamma for sensible: {scipy.stats.kstest(sens_val[part:part * 2], cdf, sens_vargamma)[1]}')
+    # axs[0].cla()
     # axs[0].hist(sens_val[part:part*2], bins=15, density=True)
     sns.histplot(sens_val, bins=15, kde=False, ax=axs[0], stat='density')
     # axs[0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
-    axs[0].plot(x, pdf(x, *sens_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
-                                                 f'{sens_vargamma[0]:.1f}; '
-                                                 f'{chr(946)}={sens_vargamma[1]:.1f}; '
-                                                 f'{chr(955)}={sens_vargamma[2]:.1f}; '
-                                                 f'{chr(947)}={sens_vargamma[3]:.1f}', c='orange')
+    # axs[0].plot(x, pdf(x, *sens_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+    #                                              f'{sens_vargamma[0]:.1f}; '
+    #                                              f'{chr(946)}={sens_vargamma[1]:.1f}; '
+    #                                              f'{chr(955)}={sens_vargamma[2]:.1f}; '
+    #                                              f'{chr(947)}={sens_vargamma[3]:.1f}', c='orange')
     # axs[0].plot(x, scipy.stats.t.pdf(x, *sens_t),  label='Fitted t')
     axs[0].set_title(f'Sensible', fontsize=16)
     axs[0].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")
 
     # mu, sigma = lat_norm
     x = np.linspace(-200, 100, 300)
-    print(
-        f'Kolmogorov-Smirnov test for VarGamma for latent: {scipy.stats.kstest(lat_val[part:part * 2], cdf, lat_vargamma)[1]}\n')
+    # print(
+        # f'Kolmogorov-Smirnov test for VarGamma for latent: {scipy.stats.kstest(lat_val[part:part * 2], cdf, lat_vargamma)[1]}\n')
     axs[1].cla()
     # axs[1].hist(lat_val[part:part*2], bins=15, density=True)
     sns.histplot(lat_val, bins=15, kde=False, ax=axs[1], stat='density')
     # axs[1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), label='Fitted normal')
-    axs[1].plot(x, pdf(x, *lat_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
-                                                f'{lat_vargamma[0]:.1f}; '
-                                                f'{chr(946)}={lat_vargamma[1]:.1f}; '
-                                                f'{chr(955)}={lat_vargamma[2]:.1f}; '
-                                                f'{chr(947)}={lat_vargamma[3]:.1f}', c='orange')
+    # axs[1].plot(x, pdf(x, *lat_vargamma), label=f'Fitted VarGamma,\n {chr(945)}='
+    #                                             f'{lat_vargamma[0]:.1f}; '
+    #                                             f'{chr(946)}={lat_vargamma[1]:.1f}; '
+    #                                             f'{chr(955)}={lat_vargamma[2]:.1f}; '
+    #                                             f'{chr(947)}={lat_vargamma[3]:.1f}', c='orange')
     # axs[1].plot(x, scipy.stats.t.pdf(x, *lat_t), label='Fitted t')
     axs[1].set_title(f'Latent', fontsize=20)
     axs[1].legend(bbox_to_anchor=(0.5, -0.5), loc="lower center")

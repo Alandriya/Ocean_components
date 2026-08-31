@@ -11,8 +11,8 @@ import seaborn as sns
 from scipy.optimize import curve_fit
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from Functional.func_estimation import model_logb2
-
 import matplotlib.colors as colors
+from matplotlib.colors import LogNorm
 import tqdm
 
 x_label_list = ['90W', '60W', '30W', '0']
@@ -641,7 +641,8 @@ def plot_prob_and_hist(files_path_prefix: str,
         plt.xlabel(f'Значения скрытого потока', fontsize=14)
     data_hist = sorted(data_hist)
     axs.plot(x, y1, c='r', label = 'B^2')
-    axs.plot(x, y2, c='purple', label='Eigen')
+    if not y2 is None:
+        axs.plot(x, y2, c='purple', label='Eigen')
     # data = data[10000:-10000]
     # plt.xlabel(f'Differences of {data_name}', fontsize=14)
     axs.hist(data_hist, alpha=0.5, bins=100, density=True)
