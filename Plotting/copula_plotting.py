@@ -9,7 +9,7 @@ def plot_copula_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, margin
     ax.set_xlabel("Sensible heat flux")
     ax.set_ylabel("Density")
     ax.legend()
-    fig.savefig(files_path_prefix + f'videos/Functional/2d_copula_sensible_marginal.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/2d_copula_sensible_marginal.png', dpi=300,)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -18,7 +18,7 @@ def plot_copula_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, margin
     ax.set_xlabel("Latent heat flux")
     ax.set_ylabel("Density")
     ax.legend()
-    fig.savefig(files_path_prefix + f'videos/Functional/2d_copula_latent_marginal.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/2d_copula_latent_marginal.png', dpi=300,)
     plt.close(fig)
 
 
@@ -33,7 +33,7 @@ def plot_joint_density(files_path_prefix, x1, x2, joint_density, title="Gaussian
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    fig.savefig(files_path_prefix + f'videos/Functional/2d_density.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/2d_density.png', dpi=300,)
     plt.close(fig)
 
 
@@ -48,7 +48,7 @@ def plot_joint_contours(files_path_prefix, x1, x2, joint_density, levels=15, tit
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    fig.savefig(files_path_prefix + f'videos/Functional/joint_contours.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/joint_contours.png', dpi=300,)
     plt.close(fig)
 
 
@@ -65,7 +65,7 @@ def plot_empirical_copula_comparison(files_path_prefix, x1, x2, empirical_densit
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    fig.savefig(files_path_prefix + f'videos/Functional/empirical_joint_density.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/empirical_joint_density.png', dpi=300,)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(7, 5.5), constrained_layout=True)
@@ -78,7 +78,7 @@ def plot_empirical_copula_comparison(files_path_prefix, x1, x2, empirical_densit
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    fig.savefig(files_path_prefix + f'videos/Functional/copula_density_2d.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/copula_density_2d.png', dpi=300,)
     plt.close(fig)
 
 
@@ -97,7 +97,7 @@ def plot_empirical_copula_contours(files_path_prefix, x1, x2, empirical_density,
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
-    fig.savefig(files_path_prefix + f'videos/Functional/joint_contours_empirical.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/joint_contours_empirical.png', dpi=300,)
     plt.close(fig)
 
 def plot_copula_space_comparison(files_path_prefix, centers, empirical_density, gaussian_density, levels=12):
@@ -111,7 +111,7 @@ def plot_copula_space_comparison(files_path_prefix, centers, empirical_density, 
     ax.set_title("Empirical copula")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    fig.savefig(files_path_prefix + f'videos/Functional/copula_empirical.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/copula_empirical.png', dpi=300,)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(6, 5.5), constrained_layout=True)
@@ -122,7 +122,7 @@ def plot_copula_space_comparison(files_path_prefix, centers, empirical_density, 
     ax.set_title("Gaussian copula")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    fig.savefig(files_path_prefix + f'videos/Functional/copula_gaussian.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/copula_gaussian.png', dpi=300,)
     plt.close(fig)
 
 
@@ -140,7 +140,7 @@ def plot_copula_space_contours(files_path_prefix, centers, empirical_density, ga
     ax.set_title("Empirical copula (solid) vs Gaussian copula (dashed)")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    fig.savefig(files_path_prefix + f'videos/Functional/copula_space_contours.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/copula_space_contours.png', dpi=300,)
     plt.close(fig)
 
 def plot_copula_models_contours(files_path_prefix, centers, empirical_density, gaussian_density, student_density, levels=10):

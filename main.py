@@ -72,13 +72,13 @@ if __name__ == '__main__':
     missing_days_coefs = [0, 7304, 10957]
     missing_days_eigen = [0, 3652, 7304, 10957, 14609]
 
-    # data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
-    # data1_array = data1_array.transpose().reshape((-1, height, width))
-    # data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
-    # data2_array = data2_array.transpose().reshape((-1, height, width))
-    # if end_year == 2024:
-    #     data1_array = np.delete(data1_array, missing_days_eigen, axis=0)
-    #     data2_array = np.delete(data2_array, missing_days_eigen, axis=0)
+    data1_array = np.load(files_path_prefix + f'DATA/Fluxes/sensible_grouped_{start_year}-{end_year}.npy')
+    data1_array = data1_array.transpose().reshape((-1, height, width))
+    data2_array = np.load(files_path_prefix + f'DATA/Fluxes/latent_grouped_{start_year}-{end_year}.npy')
+    data2_array = data2_array.transpose().reshape((-1, height, width))
+    if end_year == 2024:
+        data1_array = np.delete(data1_array, missing_days_eigen, axis=0)
+        data2_array = np.delete(data2_array, missing_days_eigen, axis=0)
 
     # np.save(files_path_prefix + f'DATA/Fluxes/sensible_mean_{start_year}-{end_year}.npy', np.mean(data1_array, axis=0))
     # np.save(files_path_prefix + f'DATA/Fluxes/latent_mean_{start_year}-{end_year}.npy', np.mean(data2_array, axis=0))
@@ -142,7 +142,7 @@ if __name__ == '__main__':
     # z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
     # print(f'Sensible z 2: {z:.3e}')
     # y2 = [prob_stationary(x) for x in np.linspace(-500, 500, 2500)]
-    # plot_prob_and_hist(files_path_prefix, 'sensible',y1, None, np.linspace(-500, 500, 2500), start_year, data1_array[::10])
+    plot_prob_and_hist(files_path_prefix, 'sensible',y1, None, np.linspace(-500, 500, 2500), start_year, data1_array[::10])
     #
     x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = latent_params
     if b_type == 'eigen' and start_year == 1999:
@@ -169,8 +169,8 @@ if __name__ == '__main__':
     # print(f'Var latent: {var2:.1f}')
     # print(f'Sigma latent: {np.sqrt(var2):.1f}')
     # plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-800, 300, 2500), start_year, b_type)
-    # plot_prob_and_hist(files_path_prefix, 'latent', y1, None, np.linspace(-800, 300, 2500), start_year, data2_array[::10])
-    # raise ValueError
+    plot_prob_and_hist(files_path_prefix, 'latent', y1, None, np.linspace(-800, 300, 2500), start_year, data2_array[::10])
+    raise ValueError
     # -----------------------------------------------------------------------------------
     # # count and plot isolines
 

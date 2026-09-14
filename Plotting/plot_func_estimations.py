@@ -355,7 +355,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
     axs[1, 1].set_ylabel('log(B)', fontsize=20)
     axs[1, 1].legend()
     sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
-    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}_empty.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}_empty.png', dpi=300,)
     fig.clf()
     # raise ValueError
     # #-------------------------------------------------------------------------------------
@@ -563,7 +563,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
     sns.move_legend(axs[1, 1], loc='upper center', bbox_to_anchor=(0.5, 1.2))
 
     plt.subplots_adjust(hspace=0.35)
-    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{season}/{data1_name}-{data2_name}_{year}.png', dpi=300,)
 
     # x0, x1, k, x_min, x_max, c1, c2, c3, c4, z
     sensible_params = [b1_argmin, b1_x1, np.flip(a1_coeff_fit), min(quantiles1), max(quantiles1), c1_1, c2_1, c3_1, c4_1, 1]
@@ -603,7 +603,7 @@ def plot_prob_1d(files_path_prefix: str,
     fig.tight_layout()
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_log_1d.png')
     # fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}.png')
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}_{postfix}.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_1d_{year}_{postfix}.png', dpi=300,)
     return
 
 
@@ -620,7 +620,7 @@ def plot_hist(files_path_prefix: str,
     axs.hist(data, bins=100)
     axs.legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_hist.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_hist.png', dpi=300,)
     return
 
 
@@ -636,11 +636,13 @@ def plot_prob_and_hist(files_path_prefix: str,
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     if data_name == 'sensible':
-        plt.xlabel(f'Значения явного потока', fontsize=14)
+        # plt.xlabel(f'Значения явного потока', fontsize=14)
+        plt.xlabel(f'Sensible flux values', fontsize=14)
     else:
-        plt.xlabel(f'Значения скрытого потока', fontsize=14)
+        # plt.xlabel(f'Значения скрытого потока', fontsize=14)
+        plt.xlabel(f'Latent flux values', fontsize=14)
     data_hist = sorted(data_hist)
-    axs.plot(x, y1, c='r', label = 'B^2')
+    axs.plot(x, y1, c='r', label = 'Stationary density')
     if not y2 is None:
         axs.plot(x, y2, c='purple', label='Eigen')
     # data = data[10000:-10000]
@@ -648,7 +650,7 @@ def plot_prob_and_hist(files_path_prefix: str,
     axs.hist(data_hist, alpha=0.5, bins=100, density=True)
     axs.legend()
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist_{start_year}.png')
+    fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist_{start_year}_eng.png', dpi=300,)
     return
 
 
@@ -757,7 +759,7 @@ def plot_areas_map(files_path_prefix: str,
         cbar.ax.set_yticklabels([f'Area {i}' for i in range(1, 6)])
 
         fig.tight_layout()
-        fig.savefig(files_path_prefix + f'videos/isolines/{data_name}/{data_name}_areas_{pic_num}.png')
+        fig.savefig(files_path_prefix + f'videos/isolines/{data_name}/{data_name}_areas_{pic_num}.png', dpi=300,)
         pic_num += 1
     return
 
@@ -804,7 +806,7 @@ def plot_isolines_map(files_path_prefix: str,
     # cbar.ax.set_yticklabels([f'Area {i}' for i in range(1, 6)])
 
     fig.tight_layout()
-    fig.savefig(files_path_prefix + f'videos/isolines/{data_name}_isolines.png')
+    fig.savefig(files_path_prefix + f'videos/isolines/{data_name}_isolines.png', dpi=300,)
 
     return
 
