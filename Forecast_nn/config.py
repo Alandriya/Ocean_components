@@ -47,7 +47,8 @@ cfg = OrderedEasyDict()
 cfg.features_amount = 1
 # ConvLSTM  MS-LSTM  Att-Unet Transformer
 # cfg.model_name = 'Attention U-net'
-cfg.model_name = 'SDE_HNN_1d'
+# cfg.model_name = 'SDE_HNN_1d'
+cfg.model_name = 'SDE_KAN'
 cfg.nn_mode = 'train'
 
 cfg.bins = 100
@@ -59,7 +60,7 @@ cfg.B_coeff_weight = 0.01
 
 cfg.gpu = '0, 1, 2, 3'
 cfg.gpu_nums = len(cfg.gpu.split(','))
-cfg.work_path = 'MS-RNN'
+cfg.work_path = 'NN'
 cfg.dataset = 'Ocean'
 cfg.lstm_hidden_state = 32
 cfg.kernel_size = 2

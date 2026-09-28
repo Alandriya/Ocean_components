@@ -68,6 +68,10 @@ if __name__ == '__main__':
         coef_end = 17106
     offset = coef_start
 
+    tmp = np.load("D:/Nastya/Data/OceanFull/DATA/Fluxes/sensible_grouped_1979-2024.npy")
+    print(tmp.shape)
+    raise ValueError
+
     missing_values_eigen = [3653, 7305, 10958, 14610]
     missing_days_coefs = [0, 7304, 10957]
     missing_days_eigen = [0, 3652, 7304, 10957, 14609]
