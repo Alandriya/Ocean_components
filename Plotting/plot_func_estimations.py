@@ -638,16 +638,18 @@ def plot_prob_and_hist(files_path_prefix: str,
     if data_name == 'sensible':
         # plt.xlabel(f'Значения явного потока', fontsize=14)
         plt.xlabel(f'Sensible flux values', fontsize=14)
+        hist_range = [-500, 500]
     else:
         # plt.xlabel(f'Значения скрытого потока', fontsize=14)
         plt.xlabel(f'Latent flux values', fontsize=14)
+        hist_range = [-800, 300]
     data_hist = sorted(data_hist)
     axs.plot(x, y1, c='r', label = 'Stationary density')
     if not y2 is None:
         axs.plot(x, y2, c='purple', label='Eigen')
     # data = data[10000:-10000]
     # plt.xlabel(f'Differences of {data_name}', fontsize=14)
-    axs.hist(data_hist, alpha=0.5, bins=100, density=True)
+    axs.hist(data_hist, range=hist_range, alpha=0.5, bins=100, density=True)
     axs.legend()
     fig.tight_layout()
     fig.savefig(files_path_prefix + f'videos/Functional/{data_name}_prob_hist_{start_year}_eng.png', dpi=300,)
