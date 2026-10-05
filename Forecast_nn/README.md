@@ -138,3 +138,24 @@ prediction = model(x, mask)
 ```
 
 Then add it to `Forecast_nn/models/registry.py`. The common train/test/evaluation/plotting code does not need to change.
+
+## Additional common-interface models
+
+The same `train.py` and `test.py` now support:
+
+```bat
+python -m Forecast_nn.train --model simvp
+python -m Forecast_nn.test  --model simvp
+
+python -m Forecast_nn.train --model fno
+python -m Forecast_nn.test  --model fno
+```
+
+All common-interface models use the same tensors:
+
+- input `x`: `[B, T_in, C, H, W]`
+- mask: `[1,1,H,W]` or `[B,1,H,W]` (2-D and 3-D mask forms are also accepted)
+- output: `[B, T_out, C, H, W]`
+
+`simvp.py` is a SimVP-style CNN-only spatiotemporal model adapted to the U-Net map pipeline.
+`fno.py` is a 2-D Fourier Neural Operator with ordered history channels, ocean mask and coordinates.
