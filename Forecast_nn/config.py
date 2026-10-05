@@ -56,6 +56,32 @@ class Config:
             'use_coord_channels': True,
             'mask_features': True,
         },
+        'simvp': {
+            'base_channels': 16,
+            'depth': 3,
+            'dropout': 0.05,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
+            'temporal_blocks': 4,
+            'temporal_kernel': 3,
+            'spatial_kernel': 3,
+            'horizon_embedding': True,
+        },
+        'fno': {
+            'width': 48,
+            'modes_y': 12,
+            'modes_x': 12,
+            'layers': 4,
+            'dropout': 0.0,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
+            'projection_width': 96,
+            'padding': 6,
+        },
     }
 
     # -------------------------------------------------------------------------

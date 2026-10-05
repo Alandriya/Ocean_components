@@ -3,7 +3,6 @@ import os.path
 import numpy as np
 from Plotting.plot_coefficients import plot_velocity
 files_path_prefix = 'D:/Nastya/Data/OceanFull/'
-from Forecast_nn.utils import fix_random
 from Functional.func_estimation import *
 from Data_processing.data_processing import *
 from Coefficients.semiparametric import *
@@ -34,7 +33,6 @@ def get_mask():
     return mask
 
 if __name__ == '__main__':
-    fix_random(2025)
     mask = get_mask()
     names = ('sensible', 'latent')
     n_bins = 100
@@ -67,10 +65,6 @@ if __name__ == '__main__':
         end_year = 2024
         coef_end = 17106
     offset = coef_start
-
-    tmp = np.load("D:/Nastya/Data/OceanFull/DATA/Fluxes/sensible_grouped_1979-2024.npy")
-    print(tmp.shape)
-    raise ValueError
 
     missing_values_eigen = [3653, 7305, 10958, 14610]
     missing_days_coefs = [0, 7304, 10957]
