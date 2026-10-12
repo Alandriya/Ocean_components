@@ -689,7 +689,7 @@ def plot_areas(files_path_prefix: str,
             y_fill,
             0,
             alpha=0.5,
-            label=f"Area {i}",
+            label=f"Area {i + 1}",
             color = colors_list[i],
         )
 
@@ -725,7 +725,7 @@ def plot_areas_map(files_path_prefix: str,
     cax = divider.append_axes('right', size='5%', pad=0.3)
     img = None
 
-    cmap = colors.ListedColormap(['white'] + colors_list)
+    cmap = colors.ListedColormap(['lightgreen'] + colors_list)
     boundaries = np.arange(len(colors_list) + 2) - 0.5
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
     cmap.set_bad('lightgreen', 1.0)
@@ -757,8 +757,9 @@ def plot_areas_map(files_path_prefix: str,
             axs.set_yticks(yticks)
             axs.set_xticklabels(x_label_list)
             axs.set_yticklabels(y_label_list)
-        cbar = fig.colorbar(img, cax=cax, orientation='vertical', ticks=[1, 2, 3, 4, 5])
-        cbar.ax.set_yticklabels([f'Area {i}' for i in range(1, 6)])
+        cbar = fig.colorbar(img, cax=cax, orientation='vertical', ticks=[0, 1, 2, 3, 4, 5])
+        cbar.ax.set_yticklabels(['Land'] + [f'Area {i}' for i in range(1, 6)])
+
 
         fig.tight_layout()
         fig.savefig(files_path_prefix + f'videos/isolines/{data_name}/{data_name}_areas_{pic_num}.png', dpi=300,)

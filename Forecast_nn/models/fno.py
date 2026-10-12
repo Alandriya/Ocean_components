@@ -22,64 +22,159 @@ from Forecast_nn.models.unet import _groups, _resize_mask
 
 
 class SpectralConv2d(nn.Module):
-    """Truncated 2-D Fourier convolution over low-frequency modes."""
-
-    def __init__(self, in_channels, out_channels, modes_y=12, modes_x=12):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        modes_y,
+        modes_x
+    ):
         super().__init__()
-        self.in_channels = int(in_channels)
-        self.out_channels = int(out_channels)
-        self.modes_y = int(modes_y)
-        self.modes_x = int(modes_x)
 
-        if self.modes_y < 1 or self.modes_x < 1:
-            raise ValueError('modes_y and modes_x must be positive.')
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.modes_y = modes_y
+        self.modes_x = modes_x
 
-        scale = 1.0 / max(self.in_channels * self.out_channels, 1) ** 0.5
-        shape = (self.in_channels, self.out_channels, self.modes_y, self.modes_x)
-        self.weight_pos = nn.Parameter(scale * torch.randn(*shape, dtype=torch.cfloat))
-        self.weight_neg = nn.Parameter(scale * torch.randn(*shape, dtype=torch.cfloat))
+        scale = 1.0 / (in_channels * out_channels)
+
+        # ВАЖНО:
+        # обучаемые параметры только float32,
+        # никаких nn.Parameter(dtype=torch.cfloat)
+        self.weight_pos_real = nn.Parameter(
+            scale * torch.randn(
+                in_channels,
+                out_channels,
+                modes_y,
+                modes_x,
+                dtype=torch.float32
+            )
+        )
+
+        self.weight_pos_imag = nn.Parameter(
+            scale * torch.randn(
+                in_channels,
+                out_channels,
+                modes_y,
+                modes_x,
+                dtype=torch.float32
+            )
+        )
+
+        self.weight_neg_real = nn.Parameter(
+            scale * torch.randn(
+                in_channels,
+                out_channels,
+                modes_y,
+                modes_x,
+                dtype=torch.float32
+            )
+        )
+
+        self.weight_neg_imag = nn.Parameter(
+            scale * torch.randn(
+                in_channels,
+                out_channels,
+                modes_y,
+                modes_x,
+                dtype=torch.float32
+            )
+        )
 
     @staticmethod
-    def _complex_mul(x, weight):
-        # x:      B,Cin,my,mx
-        # weight: Cin,Cout,my,mx
-        # output: B,Cout,my,mx
-        return torch.einsum('bixy,ioxy->boxy', x, weight)
+    def compl_mul2d(x, weights):
+        """
+        x:
+            [B, in_channels, modes_y, modes_x]
+
+        weights:
+            [in_channels, out_channels, modes_y, modes_x]
+
+        result:
+            [B, out_channels, modes_y, modes_x]
+        """
+        return torch.einsum(
+            "bixy,ioxy->boxy",
+            x,
+            weights
+        )
 
     def forward(self, x):
-        input_dtype = x.dtype
+        """
+        x:
+            [B, C, H, W]
 
-        # Keep Fourier transforms in float32/complex64 even under CUDA autocast.
-        xf = x.float()
-        batch, _, height, width = xf.shape
-        x_ft = torch.fft.rfft2(xf, norm='ortho')
+        output:
+            [B, C_out, H, W]
+        """
 
-        out_ft = torch.zeros(
-            batch,
-            self.out_channels,
-            height,
-            width // 2 + 1,
-            dtype=torch.cfloat,
-            device=x.device,
-        )
+        original_dtype = x.dtype
 
-        # Keep positive and negative y bands disjoint for normal-sized grids.
-        max_y = max(height // 2, 1)
-        my = min(self.modes_y, max_y)
-        mx = min(self.modes_x, width // 2 + 1)
+        # FFT держим в float32.
+        # Это особенно важно для нашей сетки 81 x 91
+        # и обучения с AMP.
+        with torch.autocast(
+            device_type=x.device.type,
+            enabled=False
+        ):
+            x = x.float()
 
-        out_ft[:, :, :my, :mx] = self._complex_mul(
-            x_ft[:, :, :my, :mx],
-            self.weight_pos[:, :, :my, :mx],
-        )
-        out_ft[:, :, -my:, :mx] = self._complex_mul(
-            x_ft[:, :, -my:, :mx],
-            self.weight_neg[:, :, :my, :mx],
-        )
+            batch, _, height, width = x.shape
 
-        y = torch.fft.irfft2(out_ft, s=(height, width), norm='ortho')
-        return y.to(dtype=input_dtype)
+            x_ft = torch.fft.rfft2(
+                x,
+                norm="ortho"
+            )
 
+            out_ft = torch.zeros(
+                batch,
+                self.out_channels,
+                height,
+                width // 2 + 1,
+                device=x.device,
+                dtype=torch.complex64
+            )
+
+            # Создаём complex64 только во время forward.
+            # nn.Parameter остаются float32.
+            weight_pos = torch.complex(
+                self.weight_pos_real,
+                self.weight_pos_imag
+            )
+
+            weight_neg = torch.complex(
+                self.weight_neg_real,
+                self.weight_neg_imag
+            )
+
+            my = min(
+                self.modes_y,
+                height
+            )
+
+            mx = min(
+                self.modes_x,
+                width // 2 + 1
+            )
+
+            out_ft[:, :, :my, :mx] = self.compl_mul2d(
+                x_ft[:, :, :my, :mx],
+                weight_pos[:, :, :my, :mx]
+            )
+
+            out_ft[:, :, -my:, :mx] = self.compl_mul2d(
+                x_ft[:, :, -my:, :mx],
+                weight_neg[:, :, :my, :mx]
+            )
+
+            out = torch.fft.irfft2(
+                out_ft,
+                s=(height, width),
+                norm="ortho"
+            )
+
+        # Возвращаем dtype внешнего AMP-контекста.
+        return out.to(dtype=original_dtype)
 
 class FNOBlock(nn.Module):
     """Residual spectral block with global Fourier and local 1x1 branches."""

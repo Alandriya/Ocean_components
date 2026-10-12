@@ -71,27 +71,32 @@ class Config:
         },
         'fno': {
             'width': 48,
-            'modes_y': 12,
-            'modes_x': 12,
-            'layers': 4,
+
+            'modes_y': 14,
+            'modes_x': 14,
+
+            'layers': 3,
+            'projection_width': 96,
+
             'dropout': 0.0,
+
             'residual': True,
             'use_mask_channel': True,
             'use_coord_channels': True,
             'mask_features': True,
-            'projection_width': 96,
-            'padding': 6,
-        },
+
+            'padding': 2,
+        }
     }
 
     # -------------------------------------------------------------------------
     # Optimization
     # -------------------------------------------------------------------------
     epochs = 50
-    batch_size = 4
+    batch_size = 16
     learning_rate = 3.5e-4
     weight_decay = 1e-4
-    num_workers = 2
+    num_workers = 4
     amp = True
     fast_cuda = True
     seed = 2025

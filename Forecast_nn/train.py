@@ -102,7 +102,7 @@ def main():
         data_file, mask, 0, train_end, cfg.in_len, cfg.out_len,
         mean, std, cfg.stride, args.downsample
     )
-    loader = DataLoader(dataset, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=True))
+    loader = DataLoader(dataset, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=True,))
     print(f'  sequences={len(dataset):,}  batches/epoch={len(loader):,}', flush=True)
     print(f'  input={cfg.in_len} days  output={cfg.out_len} days  stride={cfg.stride}', flush=True)
     if os.name == 'nt' and args.num_workers > 0:

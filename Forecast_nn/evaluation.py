@@ -34,7 +34,8 @@ def build_run_tag(model_name, variable, downsample, in_len, out_len, stride, mod
         'residual': 'res', 'use_mask_channel': 'mask',
         'use_coord_channels': 'xy', 'mask_features': 'mf',
     }
-    parts = [model_name, variable, f'ds{downsample}', f'in{in_len}', f'out{out_len}', f'st{stride}']
+    # parts = [model_name, variable, f'ds{downsample}', f'in{in_len}', f'out{out_len}', f'st{stride}']
+    parts = [f'ds{downsample}', f'in{in_len}', f'out{out_len}', f'st{stride}']
     for key, value in model_params.items():
         name = aliases.get(key, key)
         parts.append(f'{name}{_short(value)}')

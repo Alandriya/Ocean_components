@@ -158,12 +158,12 @@ def main():
     output_dir = Path(cfg.results_root) / model_name / variable / run_tag / 'test'
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, acc in methods.items():
-        path = output_dir / f'metrics_{name}_{run_tag}.xlsx'
+        path = output_dir / f'metrics_{name}.xlsx'
         save_metrics_xlsx(path, name, variable, run_tag, summaries[name], checkpoint, acc.sample_rows)
         print(f'  saved: {path}', flush=True)
 
     if saved['sample_id']:
-        plot_file = output_dir / f'forecast_samples_{run_tag}.npz'
+        plot_file = output_dir / f'forecast_samples.npz'
         save_plot_samples(plot_file, saved, {
             'run_tag': run_tag,
             'model_name': model_name,

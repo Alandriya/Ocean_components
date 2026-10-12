@@ -140,7 +140,7 @@ if __name__ == '__main__':
     # z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
     # print(f'Sensible z 2: {z:.3e}')
     # y2 = [prob_stationary(x) for x in np.linspace(-500, 500, 2500)]
-    plot_prob_and_hist(files_path_prefix, 'sensible',y1, None, np.linspace(-500, 500, 2500), start_year, data1_array[::10])
+    # plot_prob_and_hist(files_path_prefix, 'sensible',y1, None, np.linspace(-500, 500, 2500), start_year, data1_array[::10])
     #
     x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = latent_params
     if b_type == 'eigen' and start_year == 1999:
@@ -167,31 +167,43 @@ if __name__ == '__main__':
     # print(f'Var latent: {var2:.1f}')
     # print(f'Sigma latent: {np.sqrt(var2):.1f}')
     # plot_prob_1d(files_path_prefix, 'latent', prob_stationary, np.linspace(-800, 300, 2500), start_year, b_type)
-    plot_prob_and_hist(files_path_prefix, 'latent', y1, None, np.linspace(-800, 300, 2500), start_year, data2_array[::10])
-    raise ValueError
+    # plot_prob_and_hist(files_path_prefix, 'latent', y1, None, np.linspace(-800, 300, 2500), start_year, data2_array[::10])
+    # raise ValueError
     # -----------------------------------------------------------------------------------
     # # count and plot isolines
 
-    # amount = 5
-    # colors_list = ['yellow', 'orange', 'red', 'violet', 'blue']
-    # isolines = get_isolines(prob_stationary, np.linspace(-300, 300, 2500), amount)
-    # print(isolines)
-    # isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
-    # plot_areas(files_path_prefix, 'sensible', prob_stationary, np.linspace(-300, 300, 2500), isolines_list, colors_list)
-    # plot_areas_map(files_path_prefix, data1_name, isolines_list, data1_array, 0, 10, mask,
-    #                  0, [1, 2, 3, 4, 5], colors_list)
-    #
-    # # data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_{start_year}-{end_year}.npy')
-    # data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_1979-2024.npy')
-    # plot_isolines_map(files_path_prefix, 'sensible', data1_mean-mean1, mask)
+    amount = 5
+    colors_list = ['yellow', 'orange', 'red', 'violet', 'blue']
 
-    # isolines = get_isolines(prob_stationary, np.linspace(-800, 300, 2500), amount)
-    # print(isolines)
-    # isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
-    # plot_areas(files_path_prefix, 'latent', prob_stationary, np.linspace(-800, 300, 2500), isolines_list, colors_list)
-    # plot_areas_map(files_path_prefix, data2_name, isolines_list, data2_array, 0, 10, mask,
-    #                  0, [1, 2, 3, 4, 5], colors_list)
-    #
+    x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = sensible_params
+    dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4 = count_constants(sensible_params)
+    args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
+    z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
+    isolines = get_isolines(prob_stationary, np.linspace(-500, 500, 2500), amount)
+    print(isolines)
+    isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
+    plot_areas(files_path_prefix, 'sensible', prob_stationary, np.linspace(-500, 500, 2500), isolines_list, colors_list)
+    plot_areas_map(files_path_prefix, data1_name, isolines_list, data1_array, 0, 10, mask,
+                     0, [1, 2, 3, 4, 5], colors_list)
+
+    # data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_{start_year}-{end_year}.npy')
+    # data1_mean = np.load(files_path_prefix + f'DATA/Fluxes/sensible_mean_1979-2024.npy')
+
+
+    x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = latent_params
+    if b_type == 'eigen' and start_year == 1999:
+        x_max = -1
+    dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4 = count_constants(latent_params)
+    args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
+    z = trapezoid([prob_stationary(x) for x in np.linspace(-2000, 1500, 2500)])
+    isolines = get_isolines(prob_stationary, np.linspace(-800, 300, 2500), amount)
+    print(isolines)
+    isolines_list = [(isolines[i], isolines[i+1]) for i in range(amount)]
+    plot_areas(files_path_prefix, 'latent', prob_stationary, np.linspace(-800, 300, 2500), isolines_list, colors_list)
+    plot_areas_map(files_path_prefix, data2_name, isolines_list, data2_array, 0, 10, mask,
+                     0, [1, 2, 3, 4, 5], colors_list)
+
+    raise ValueError
     # # data2_mean = np.load(files_path_prefix + f'DATA/Fluxes/latent_mean_{start_year}-{end_year}.npy')
     # data2_mean = np.load(files_path_prefix + f'DATA/Fluxes/latent_mean_1979-2024.npy')
     # plot_isolines_map(files_path_prefix, 'latent', data2_mean - mean2, mask)
