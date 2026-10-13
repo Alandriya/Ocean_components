@@ -25,7 +25,10 @@ from Forecast_nn.losses import forecast_loss
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.plotting.training_curve import plot_training_curve
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, gpu_memory_string, load_checkpoint
-from Forecast_nn.sde import SDECoefficientLookup
+from Forecast_nn.sde import (
+    SDEFieldReader, SDEOceanSequenceDataset,
+    load_or_create_sde_field_normalization, source_to_serializable,
+)
 
 
 def parse_args():
@@ -44,17 +47,24 @@ def parse_args():
 
     # None means: use cfg.sde_weight for *_sde models, otherwise 0.
     p.add_argument('--sde-weight', type=float, default=None)
-    p.add_argument('--sde-file', default=None, help='Override cfg.sde_sources[variable]["file"].')
+    p.add_argument('--sde-a-file', default=None, help='Override the configured A coefficient NPY file.')
+    p.add_argument('--sde-b-file', default=None, help='Override the configured B coefficient NPY file.')
+    p.add_argument('--sde-time-offset', type=int, default=None, help='Flux index represented by coefficient element 0; default comes from config (1).')
     p.add_argument('--sde-b-kind', choices=('variance', 'diffusion'), default=cfg.sde_b_kind)
     p.add_argument('--sde-dt', type=float, default=cfg.sde_dt)
     p.add_argument('--sde-eps', type=float, default=cfg.sde_eps)
+    p.add_argument('--sde-loss-mode', choices=('first_step', 'last_observed_all'), default=cfg.sde_loss_mode)
     return p.parse_args()
 
 
-def _sde_source(variable, override=None):
+def _sde_source(variable, a_override=None, b_override=None, time_offset=None):
     source = dict(cfg.sde_sources[variable])
-    if override:
-        source = {'file': Path(override)}
+    if a_override:
+        source['a_file'] = Path(a_override)
+    if b_override:
+        source['b_file'] = Path(b_override)
+    if time_offset is not None:
+        source['time_offset'] = int(time_offset)
     return source
 
 
@@ -117,25 +127,57 @@ def main():
     print(f'  mean={mean.tolist()}  std={std.tolist()}', flush=True)
 
     print('\n[3/7] Ito-SDE information...', flush=True)
-    sde_lookup = None
+    sde_reader = None
     sde_source = None
+    sde_feature_stats = None
+    sde_stats_path = None
     if sde_enabled:
-        sde_source = _sde_source(args.variable, args.sde_file)
-        sde_lookup = SDECoefficientLookup.from_source(
+        sde_source = _sde_source(
+            args.variable, args.sde_a_file, args.sde_b_file, args.sde_time_offset
+        )
+        sde_feature_stats, sde_stats_path = load_or_create_sde_field_normalization(
             sde_source,
+            mask,
+            args.variable,
+            args.downsample,
+            train_end,
+            cfg.stats_root,
             b_kind=args.sde_b_kind,
             feature_clip=cfg.sde_feature_clip,
+            rebuild=args.rebuild_stats,
         )
-        print(f'  source={sde_source}', flush=True)
-        print(f'  table={sde_lookup.describe()}', flush=True)
-        print(f'  conditioning={uses_sde_conditioning}  sde_weight={sde_weight:g}  dt={args.sde_dt:g}', flush=True)
+        sde_reader = SDEFieldReader(
+            sde_source,
+            downsample=args.downsample,
+            b_kind=args.sde_b_kind,
+            feature_clip=cfg.sde_feature_clip,
+            feature_stats=sde_feature_stats,
+            state_std=std,
+        )
+        print(f'  source={source_to_serializable(sde_source)}', flush=True)
+        print(f'  maps={sde_reader.describe()}', flush=True)
+        print(f'  feature_stats={sde_stats_path}', flush=True)
+        print(
+            f'  alignment: coefficient element 0 -> flux t={sde_reader.time_offset}; '
+            f'A_t/B_t are attached to observed X_t and future maps are never read',
+            flush=True,
+        )
+        print(
+            f'  conditioning={uses_sde_conditioning}  sde_weight={sde_weight:g}  '
+            f'b_kind={args.sde_b_kind} loss_mode={args.sde_loss_mode} dt={args.sde_dt:g}',
+            flush=True,
+        )
     else:
         print('  disabled for this run.', flush=True)
 
     print('\n[4/7] Dataset and DataLoader...', flush=True)
-    dataset = OceanSequenceDataset(
+    dataset_cls = SDEOceanSequenceDataset if sde_enabled else OceanSequenceDataset
+    dataset_kwargs = {}
+    if sde_enabled:
+        dataset_kwargs['sde_reader'] = sde_reader
+    dataset = dataset_cls(
         data_file, mask, 0, train_end, cfg.in_len, cfg.out_len,
-        mean, std, cfg.stride, args.downsample
+        mean, std, cfg.stride, args.downsample, **dataset_kwargs
     )
     loader = DataLoader(dataset, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=True))
     print(f'  sequences={len(dataset):,}  batches/epoch={len(loader):,}', flush=True)
@@ -149,7 +191,7 @@ def main():
     model = build_model(args.model, cfg.in_len, cfg.out_len, dataset.channels, model_params).to(device)
     run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if sde_enabled:
-        run_tag = append_sde_run_tag(run_tag, sde_weight, args.sde_b_kind)
+        run_tag = append_sde_run_tag(run_tag, sde_weight, args.sde_b_kind, args.sde_loss_mode)
     run_dir = Path(cfg.results_root) / args.model / args.variable / run_tag
     checkpoint_path = run_dir / 'checkpoint.pth'
     history_path = run_dir / 'training_history.npz'
@@ -213,9 +255,12 @@ def main():
         'sde_conditioning': bool(uses_sde_conditioning),
         'sde_weight': float(sde_weight),
         'sde_b_kind': args.sde_b_kind,
+        'sde_loss_mode': args.sde_loss_mode,
+        'sde_time_offset': int(sde_source.get('time_offset', 1)) if sde_source else None,
+        'sde_feature_stats': sde_feature_stats,
         'sde_dt': float(args.sde_dt),
         'sde_eps': float(args.sde_eps),
-        'sde_source': sde_source,
+        'sde_source': source_to_serializable(sde_source) if sde_source else None,
     }
 
     print('\n[6/7] Training...', flush=True)
@@ -232,15 +277,18 @@ def main():
         if device.type == 'cuda':
             torch.cuda.reset_peak_memory_stats(device)
 
-        for batch_idx, (x, y) in enumerate(loader, 1):
+        for batch_idx, batch in enumerate(loader, 1):
+            if sde_enabled:
+                x, y, sde_features, sde_last_coefficients = batch
+                sde_features = sde_features.to(device, non_blocking=True)
+                sde_last_coefficients = sde_last_coefficients.to(device, non_blocking=True)
+            else:
+                x, y = batch
+                sde_features = None
+                sde_last_coefficients = None
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
-
-            sde_features = None
-            if uses_sde_conditioning:
-                # Keep coefficient lookup in float32; the network itself can still use AMP.
-                sde_features = sde_lookup.conditioning_features(x.float(), mask_tensor)
 
             with torch.cuda.amp.autocast(enabled=use_amp):
                 if uses_sde_conditioning:
@@ -252,8 +300,10 @@ def main():
             loss, parts = forecast_loss(
                 pred, y, x[:, -1], mask_tensor,
                 dynamic_weight=args.dynamic_weight,
-                sde_lookup=sde_lookup if sde_weight > 0 else None,
+                sde_last_coefficients=sde_last_coefficients if sde_weight > 0 else None,
                 sde_weight=sde_weight,
+                sde_b_kind=args.sde_b_kind,
+                sde_loss_mode=args.sde_loss_mode,
                 sde_dt=args.sde_dt,
                 sde_eps=args.sde_eps,
             )

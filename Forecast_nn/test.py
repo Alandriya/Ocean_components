@@ -19,7 +19,7 @@ from Forecast_nn.evaluation import (
 )
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, load_checkpoint
-from Forecast_nn.sde import SDECoefficientLookup
+from Forecast_nn.sde import SDEFieldReader, SDEOceanSequenceDataset
 
 
 def parse_args():
@@ -34,6 +34,7 @@ def parse_args():
     p.add_argument('--plot-samples', default=','.join(map(str, cfg.plot_samples)))
     p.add_argument('--sde-weight', type=float, default=None, help='Only used to resolve the default *_sde run directory.')
     p.add_argument('--sde-b-kind', choices=('variance', 'diffusion'), default=cfg.sde_b_kind)
+    p.add_argument('--sde-loss-mode', choices=('first_step', 'last_observed_all'), default=cfg.sde_loss_mode, help='Used only to resolve the default SDE run directory.')
     return p.parse_args()
 
 
@@ -52,7 +53,7 @@ def main():
     default_sde_weight = float(cfg.sde_weight if (args.sde_weight is None and conditioned) else (args.sde_weight or 0.0))
     default_run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if conditioned or default_sde_weight > 0:
-        default_run_tag = append_sde_run_tag(default_run_tag, default_sde_weight, args.sde_b_kind)
+        default_run_tag = append_sde_run_tag(default_run_tag, default_sde_weight, args.sde_b_kind, args.sde_loss_mode)
     default_run_dir = Path(cfg.results_root) / args.model / args.variable / default_run_tag
     checkpoint_path = Path(args.checkpoint) if args.checkpoint else default_run_dir / 'checkpoint.pth'
     if not checkpoint_path.exists():
@@ -76,19 +77,29 @@ def main():
     mask = load_mask(cfg.mask_file, downsample)
     reader = OceanFieldReader(data_file, downsample)
 
-    sde_lookup = None
+    sde_reader = None
     if conditioned:
         source = checkpoint.get('sde_source') or cfg.sde_sources[variable]
-        sde_lookup = SDECoefficientLookup.from_source(
+        feature_stats = checkpoint.get('sde_feature_stats')
+        if feature_stats is None:
+            raise KeyError(
+                'Checkpoint does not contain sde_feature_stats required by the time-aligned SDE model.'
+            )
+        sde_reader = SDEFieldReader(
             source,
+            downsample=downsample,
             b_kind=checkpoint.get('sde_b_kind', cfg.sde_b_kind),
             feature_clip=cfg.sde_feature_clip,
+            feature_stats=feature_stats,
+            state_std=std,
         )
 
     test_input_start = max(0, train_end - in_len * stride)
-    test_data = OceanSequenceDataset(
+    dataset_cls = SDEOceanSequenceDataset if conditioned else OceanSequenceDataset
+    dataset_kwargs = {'sde_reader': sde_reader} if conditioned else {}
+    test_data = dataset_cls(
         data_file, mask, test_input_start, reader.length, in_len, out_len,
-        mean, std, stride, downsample
+        mean, std, stride, downsample, **dataset_kwargs
     )
     loader = DataLoader(test_data, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=False))
 
@@ -121,10 +132,15 @@ def main():
     started = time.time()
 
     with torch.no_grad():
-        for batch_idx, (x, y) in enumerate(loader, 1):
+        for batch_idx, batch in enumerate(loader, 1):
+            if conditioned:
+                x, y, sde_features, _sde_last_coefficients = batch
+                sde_features = sde_features.to(device, non_blocking=True)
+            else:
+                x, y = batch
+                sde_features = None
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
-            sde_features = sde_lookup.conditioning_features(x.float(), mask_tensor) if conditioned else None
             with torch.cuda.amp.autocast(enabled=use_amp):
                 if conditioned:
                     nn_pred = model(x, mask_tensor, sde_features=sde_features)

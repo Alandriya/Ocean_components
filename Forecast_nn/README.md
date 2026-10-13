@@ -286,3 +286,67 @@ python -m Forecast_nn.train --model simvp_sde --resume --epochs 15 --sde-weight 
 ```
 
 The checkpoint contains the model, optimizer, AMP scaler, epoch counter and complete loss history.
+
+## Time-aligned semiparametric A/B coefficient maps
+
+The SDE-informed models now read the coefficient maps directly from:
+
+```text
+{files_path_prefix}/Components/sensible-latent/A1_1-17106.npy  # sensible drift A
+{files_path_prefix}/Components/sensible-latent/B1_1-17106.npy  # sensible diffusion B
+{files_path_prefix}/Components/sensible-latent/A2_1-17106.npy  # latent drift A
+{files_path_prefix}/Components/sensible-latent/B2_1-17106.npy  # latent diffusion B
+```
+
+`files_path_prefix` defaults to `cfg.root_path` and can be changed in `config.py`.
+The files may use the same supported layouts as the flux arrays: `(space,time)`,
+`(time,space)`, `(time,H,W)` or `(time,C,H,W)`.
+
+### Causal time alignment
+
+The coefficient series begins at **t=1**. Coefficient element 0 is interpreted as
+`A_1/B_1`, estimated from the already observed transition `X_1-X_0`.
+Consequently:
+
+```text
+X_0 -> no A/B map is available (zero conditioning only)
+X_1 -> A/B element 0
+X_2 -> A/B element 1
+...
+X_t -> A/B element t-1
+```
+
+Only A/B maps aligned with the historical input sequence are read. The target
+coefficient maps `A_{t+1}, B_{t+1}, ...` are **not** read because they were
+estimated using future increments and would leak target information.
+
+The default SDE regularizer uses only the last observed `A_t/B_t` for the first
+forecast transition (`sde_loss_mode='first_step'`). An optional
+`last_observed_all` mode reuses the same known `A_t/B_t` for all short-horizon
+increments without reading any future coefficient map.
+
+### B interpretation
+
+For coefficients produced by `semiparametric.py`, use:
+
+```python
+cfg.sde_b_kind = 'diffusion'
+```
+
+The saved object is named `B`, and the vector implementation subsequently forms
+`B B^T`. For normalized model state `Z=(X-mean)/std`, the loader therefore uses
+`B_Z = B_X/std`, and the SDE loss uses variance `B_Z**2 * dt`.
+
+### Example
+
+```bat
+python -m Forecast_nn.train ^
+    --model simvp_sde ^
+    --variable sensible ^
+    --sde-b-kind diffusion ^
+    --sde-loss-mode first_step ^
+    --sde-weight 1e-4 ^
+    --batch-size 16 ^
+    --num-workers 4 ^
+    --amp
+```

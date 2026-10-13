@@ -43,8 +43,11 @@ def build_run_tag(model_name, variable, downsample, in_len, out_len, stride, mod
     return '_'.join(map(str, parts))
 
 
-def append_sde_run_tag(run_tag, sde_weight, b_kind):
-    return f'{run_tag}_sdew{_short(float(sde_weight))}_sdeb{str(b_kind)}'
+def append_sde_run_tag(run_tag, sde_weight, b_kind, loss_mode=None):
+    tag = f'{run_tag}_sdew{_short(float(sde_weight))}_sdeb{str(b_kind)}'
+    if loss_mode:
+        tag += f'_sdemode{str(loss_mode)}'
+    return tag
 
 
 def _gaussian_kernel(size=11, sigma=1.5):
@@ -232,7 +235,7 @@ def save_metrics_xlsx(path, method, variable, run_tag, metrics, checkpoint, samp
     for key in (
         'model_name', 'downsample', 'grid_shape', 'in_len', 'out_len', 'stride',
         'train_end_idx', 'epochs', 'learning_rate', 'dynamic_weight', 'sde_enabled',
-        'sde_weight', 'sde_b_kind', 'sde_dt', 'sde_source',
+        'sde_weight', 'sde_b_kind', 'sde_loss_mode', 'sde_time_offset', 'sde_dt', 'sde_source',
     ):
         if key in checkpoint:
             rows.append((key, checkpoint.get(key)))
