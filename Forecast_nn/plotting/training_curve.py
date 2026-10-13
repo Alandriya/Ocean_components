@@ -15,14 +15,18 @@ def plot_training_curve(input_path, output_path=None, title=None):
     epochs = history.get('epoch', np.arange(1, len(history['total_loss']) + 1))
     total = history['total_loss']
 
-    fig, ax = plt.subplots(figsize=(9, 5.5))
+    fig, ax = plt.subplots(figsize=(9.5, 5.8))
     ax.plot(epochs, total, linewidth=2, label='Total loss')
-    if 'mse' in history:
+    if 'mse' in history and len(history['mse']) == len(epochs):
         ax.plot(epochs, history['mse'], linewidth=1.8, label='MSE')
-    if 'dynamic' in history:
-        ax.plot(epochs, history['dynamic'], linewidth=1.5, linestyle='--', label='Dynamic loss')
+    if 'dynamic' in history and len(history['dynamic']) == len(epochs) and np.any(np.asarray(history['dynamic']) != 0):
+        ax.plot(epochs, history['dynamic'], linewidth=1.4, linestyle='--', label='Dynamic loss')
+    if 'sde' in history and len(history['sde']) == len(epochs) and np.any(np.asarray(history['sde']) != 0):
+        ax.plot(epochs, history['sde'], linewidth=1.4, linestyle='--', label='SDE energy')
+    if 'sde_drift' in history and len(history['sde_drift']) == len(epochs) and np.any(np.asarray(history['sde_drift']) != 0):
+        ax.plot(epochs, history['sde_drift'], linewidth=1.2, linestyle=':', label='SDE drift MSE')
     ax.set_xlabel('Epoch')
-    ax.set_ylabel('Loss')
+    ax.set_ylabel('Loss / diagnostic')
     ax.set_title(title or 'Training curve')
     ax.grid(True, alpha=0.25)
     ax.legend()

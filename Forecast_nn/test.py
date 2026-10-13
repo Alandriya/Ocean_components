@@ -1,14 +1,9 @@
 """Common evaluation entry point for every registered Forecast_nn model.
 
-Run from the repository root:
-    python -m Forecast_nn.test
-
-The script compares the selected neural network against:
-- historical mean of the input sequence;
-- persistence (copy the last observed map).
+The selected neural network is compared with historical mean and persistence.
+Metrics include MSE/MAE/RMSE, masked SSIM and temporal-change diagnostics.
 """
 import argparse
-import os
 import time
 from pathlib import Path
 
@@ -18,9 +13,13 @@ from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
 from Forecast_nn.data import OceanFieldReader, OceanSequenceDataset, load_mask
-from Forecast_nn.evaluation import MetricAccumulator, build_run_tag, save_metrics_xlsx, save_plot_samples
-from Forecast_nn.models import build_model, available_models
+from Forecast_nn.evaluation import (
+    MetricAccumulator, build_run_tag, append_sde_run_tag,
+    save_metrics_xlsx, save_plot_samples,
+)
+from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, load_checkpoint
+from Forecast_nn.sde import SDECoefficientLookup
 
 
 def parse_args():
@@ -33,6 +32,8 @@ def parse_args():
     p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=cfg.amp)
     p.add_argument('--checkpoint', default=None)
     p.add_argument('--plot-samples', default=','.join(map(str, cfg.plot_samples)))
+    p.add_argument('--sde-weight', type=float, default=None, help='Only used to resolve the default *_sde run directory.')
+    p.add_argument('--sde-b-kind', choices=('variance', 'diffusion'), default=cfg.sde_b_kind)
     return p.parse_args()
 
 
@@ -47,7 +48,11 @@ def main():
     use_amp = bool(args.amp and device.type == 'cuda')
 
     model_params = dict(cfg.model_params[args.model])
+    conditioned = model_uses_sde_conditioning(args.model)
+    default_sde_weight = float(cfg.sde_weight if (args.sde_weight is None and conditioned) else (args.sde_weight or 0.0))
     default_run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
+    if conditioned or default_sde_weight > 0:
+        default_run_tag = append_sde_run_tag(default_run_tag, default_sde_weight, args.sde_b_kind)
     default_run_dir = Path(cfg.results_root) / args.model / args.variable / default_run_tag
     checkpoint_path = Path(args.checkpoint) if args.checkpoint else default_run_dir / 'checkpoint.pth'
     if not checkpoint_path.exists():
@@ -65,12 +70,21 @@ def main():
     std = np.asarray(checkpoint['std'], dtype=np.float32)
     train_end = int(checkpoint['train_end_idx'])
     run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
+    conditioned = bool(checkpoint.get('sde_conditioning', model_uses_sde_conditioning(model_name)))
 
     data_file = Path(checkpoint.get('data_file', cfg.data_files[variable]))
     mask = load_mask(cfg.mask_file, downsample)
     reader = OceanFieldReader(data_file, downsample)
 
-    # Include the preceding input history so sample 0 predicts the first held-out test frame.
+    sde_lookup = None
+    if conditioned:
+        source = checkpoint.get('sde_source') or cfg.sde_sources[variable]
+        sde_lookup = SDECoefficientLookup.from_source(
+            source,
+            b_kind=checkpoint.get('sde_b_kind', cfg.sde_b_kind),
+            feature_clip=cfg.sde_feature_clip,
+        )
+
     test_input_start = max(0, train_end - in_len * stride)
     test_data = OceanSequenceDataset(
         data_file, mask, test_input_start, reader.length, in_len, out_len,
@@ -78,11 +92,12 @@ def main():
     )
     loader = DataLoader(test_data, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=False))
 
-    print('\n' + '=' * 92, flush=True)
+    print('\n' + '=' * 96, flush=True)
     print('FORECAST_NN TEST + BASELINES', flush=True)
-    print('=' * 92, flush=True)
+    print('=' * 96, flush=True)
     print(f'[runtime] device={device} AMP={use_amp} workers={args.num_workers} batch={args.batch_size}', flush=True)
     print(f'[model] {model_name}  variable={variable}  checkpoint={checkpoint_path}', flush=True)
+    print(f'[model] SDE conditioning={conditioned}', flush=True)
     print(f'[data] test target starts at frame {train_end}; sequences={len(test_data):,}; grid={mask.shape[0]}x{mask.shape[1]}', flush=True)
 
     model = build_model(model_name, in_len, out_len, reader.channels, model_kwargs)
@@ -92,10 +107,11 @@ def main():
     params = sum(p.numel() for p in model.parameters())
     print(f'[model] parameters={params:,}', flush=True)
 
+    acc_kwargs = dict(out_len=out_len, ssim_window=cfg.ssim_window, ssim_sigma=cfg.ssim_sigma)
     methods = {
-        model_name: MetricAccumulator(out_len),
-        'historical_mean': MetricAccumulator(out_len),
-        'persistence': MetricAccumulator(out_len),
+        model_name: MetricAccumulator(**acc_kwargs),
+        'historical_mean': MetricAccumulator(**acc_kwargs),
+        'persistence': MetricAccumulator(**acc_kwargs),
     }
     sample_ids = parse_ids(args.plot_samples)
     saved = {k: [] for k in ('sample_id', 'forecast_start_index', 'input_last', 'truth', model_name, 'historical_mean', 'persistence')}
@@ -108,8 +124,12 @@ def main():
         for batch_idx, (x, y) in enumerate(loader, 1):
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
+            sde_features = sde_lookup.conditioning_features(x.float(), mask_tensor) if conditioned else None
             with torch.cuda.amp.autocast(enabled=use_amp):
-                nn_pred = model(x, mask_tensor)
+                if conditioned:
+                    nn_pred = model(x, mask_tensor, sde_features=sde_features)
+                else:
+                    nn_pred = model(x, mask_tensor)
 
             mean_pred = x.mean(dim=1, keepdim=True).repeat(1, out_len, 1, 1, 1)
             persistence_pred = x[:, -1:].repeat(1, out_len, 1, 1, 1)
@@ -149,7 +169,7 @@ def main():
     summaries = {name: acc.summary() for name, acc in methods.items()}
     for name, m in summaries.items():
         print(
-            f'  {name:18s} RMSE={m["overall_rmse"]:.6g} MAE={m["overall_mae"]:.6g} '
+            f'  {name:20s} RMSE={m["overall_rmse"]:.6g} MAE={m["overall_mae"]:.6g} SSIM={m["overall_ssim"]:.4f} '
             f'delta_RMSE={m["delta_rmse"]:.6g} delta_corr={m["delta_correlation"]:.4f} '
             f'|delta| pred/true={m["pred_mean_abs_change"]:.4g}/{m["true_mean_abs_change"]:.4g}',
             flush=True
@@ -163,7 +183,7 @@ def main():
         print(f'  saved: {path}', flush=True)
 
     if saved['sample_id']:
-        plot_file = output_dir / f'forecast_samples.npz'
+        plot_file = output_dir / 'forecast_samples.npz'
         save_plot_samples(plot_file, saved, {
             'run_tag': run_tag,
             'model_name': model_name,
@@ -176,7 +196,7 @@ def main():
         })
         print(f'  plotting data: {plot_file}', flush=True)
         print(f'  plot command: python -m Forecast_nn.plotting.forecast_comparison --input "{plot_file}" --method all', flush=True)
-    print('=' * 92 + '\n', flush=True)
+    print('=' * 96 + '\n', flush=True)
 
 
 if __name__ == '__main__':

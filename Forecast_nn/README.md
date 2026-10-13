@@ -1,161 +1,288 @@
-# Forecast_nn — cleaned common framework
+# Forecast_nn — common framework + SDE-informed models
 
-This folder replaces the duplicated launchers from the previous version with one common interface.
+The folder keeps the common interface:
 
-## Structure
+```python
+x:          [B, T_in, C, H, W]
+mask:       [1, 1, H, W] or [B, 1, H, W]
+prediction: [B, T_out, C, H, W]
+```
+
+The original model implementations remain in `models/`. Three additional informed versions are registered without removing the base versions.
+
+## Main structure
 
 ```text
 Forecast_nn/
-├── config.py                  # experiment configuration
-├── data.py                    # mmap reader, mask, normalization, sequence dataset
-├── losses.py                  # common masked losses
-├── evaluation.py              # metrics, XLSX and saved plot samples
-├── runtime.py                 # CUDA / DataLoader helpers
-├── train.py                   # common training launcher
-├── test.py                    # common testing + baselines launcher
+├── config.py
+├── data.py
+├── sde.py                       # a(x), b(x) lookup and conditioning features
+├── losses.py                    # MSE + optional dynamic + optional SDE loss
+├── evaluation.py                # RMSE/MAE/MSE/SSIM + temporal diagnostics
+├── train.py
+├── test.py
+├── aggregate_metrics.py         # all metrics_*.xlsx -> one comparison workbook
 ├── models/
-│   ├── registry.py            # common-interface model registry
-│   ├── unet_convlstm.py       # Model 1: U-Net + ConvLSTM forecaster
-│   ├── unet.py                # lightweight U-Net control model
-│   └── ...                    # preserved old model implementations
+│   ├── unet_convlstm.py
+│   ├── simvp.py
+│   ├── fno.py
+│   ├── unet_convlstm_sde.py
+│   ├── simvp_sde.py
+│   ├── fno_sde.py
+│   ├── sde_conditioning.py
+│   └── ... preserved legacy models
 └── plotting/
     ├── training_curve.py
     └── forecast_comparison.py
 ```
 
-Old duplicated top-level launchers, `__pycache__`, experimental handlers and obsolete plotting files were intentionally removed. Existing model implementations from the uploaded folder were preserved in `models/` unchanged.
+## Registered models
 
-Preserved legacy model sources: `SDE_HNN.py`, `attetion_unet.py`, `conv_gru.py`, `convlstm.py`, `dense_unet.py`, `encoder_decoder.py`, `ms_lstm.py`, `ms_predrnn.py`, `rbf_kan.py`, `residual_head.py`, and `sde_energy.py`. The uploaded archive contained only `.pyc` files (no recoverable `.py` source) for `predrnn_v2` and `sde_energy_v2`, so those two were not reconstructed from bytecode.
+Base models:
 
-## Model 1: U-Net + ConvLSTM
+```text
+unet
+unet_convlstm
+simvp
+fno
+```
 
-`UNetConvLSTMForecaster` is the primary model in this iteration. Each historical map is passed through the same U-Net encoder, the bottleneck maps are processed chronologically by ConvLSTM, and the decoder uses skip features from the last observed map. The model accepts `[B, T_in, C, H, W]` and returns `[B, T_out, C, H, W]`.
+SDE-informed models:
 
-Each input day is encoded separately with shared spatial weights, and ConvLSTM processes the bottleneck features in chronological order. The model can append the ocean mask and normalized x/y coordinates as static channels to every frame. Intermediate U-Net features can also be masked at every spatial scale. By default the output is residual relative to the last observed map, and the output layer is initialized to zero, so the initial model is exactly the persistence forecast.
+```text
+unet_convlstm_sde
+simvp_sde
+fno_sde
+```
 
-A lightweight `unet` model is also registered as a control baseline. Future SimVP and FNO models can be added to `models/registry.py` without changing `train.py` or `test.py`.
+### U-Net + ConvLSTM + SDE
 
-## Configuration
+For every historical day, the spatial U-Net bottleneck is conditioned by local `a(x), b(x)` maps through a small FiLM module before entering ConvLSTM:
 
-Edit `Forecast_nn/config.py`. The important settings are:
+```text
+X_t -> U-Net encoder -> bottleneck -----> FiLM -----> ConvLSTM
+                                      ^
+                                      |
+                               a(X_t), b(X_t)
+```
+
+### SimVP + SDE
+
+The same FiLM conditioning is applied to every encoded historical bottleneck before the SimVP spatiotemporal CNN blocks. This is the recommended first informed experiment because base SimVP currently preserves temporal motion best.
+
+### FNO + SDE
+
+The SDE coefficient fields are treated as physical/operator coefficient fields. By default the complete history of `a(X_t), b(X_t)` is concatenated with the ordered flux history before the FNO lifting layer.
+
+```text
+[X_1...X_30, a_1...a_30, b_1...b_30, mask, Y, X]
+                         -> 1x1 lifting -> Fourier blocks -> output
+```
+
+Set `sde_history=False` in `config.py` if only the last input-day coefficients should be supplied.
+
+## SDE statistics format
+
+The preferred input is the NPZ already created by the earlier SDE-Energy pipeline:
+
+```text
+bin_edges : [C, bins+1]
+a         : [C, bins]
+b         : [C, bins]
+```
+
+Those statistics were estimated in normalized state space, so they match the current normalized model tensors directly.
+
+The loader also accepts generic NPZ keys:
+
+```text
+values / x / centers / bin_centers
++
+a / drift
++
+b / variance / diffusion
+```
+
+Paths are configured in `config.py`:
 
 ```python
-cfg.model_name = 'unet_convlstm'
-cfg.variable = 'sensible'
-cfg.downsample = 2
-cfg.in_len = 30
-cfg.out_len = 3
-cfg.stride = 1
-cfg.test_steps = 365
-
-cfg.model_params['unet_convlstm'] = {
-    'base_channels': 16,
-    'depth': 3,
-    'dropout': 0.05,
-    'residual': True,
-    'use_mask_channel': True,
-    'use_coord_channels': True,
-    'mask_features': True,
-    'lstm_kernel': 3,
+cfg.sde_sources = {
+    'sensible': {
+        'file': cfg.root_path / 'DATA' / 'Fluxes' /
+                'sde_energy_stats_sensible_ds2_stride_1_bins_500.npz'
+    },
+    'latent': {...},
 }
 ```
 
-The default data files are:
+If your files have different names, only change these paths.
 
-```text
-D:/Nastya/Data/OceanFull/DATA/Fluxes/sensible_grouped_1979-2024.npy
-D:/Nastya/Data/OceanFull/DATA/Fluxes/latent_grouped_1979-2024.npy
-```
-
-The `(29141, time)` layout is read directly via numpy mmap. `downsample=2` converts each native `161x181` field to `81x91` using `[::2, ::2]` without creating a second dataset file.
-
-## Training
-
-From the repository root:
-
-```bat
-python -m Forecast_nn.train
-```
-
-Useful overrides:
-
-```bat
-python -m Forecast_nn.train --model unet_convlstm --variable sensible --epochs 50 --batch-size 4 --amp --num-workers 2
-```
-
-To continue the same run for another 15 epochs:
-
-```bat
-python -m Forecast_nn.train --resume --epochs 15
-```
-
-A checkpoint is saved after every epoch and includes model, optimizer, AMP scaler and complete history, so resume training is a real continuation rather than loading model weights only.
-
-## Testing
-
-```bat
-python -m Forecast_nn.test
-```
-
-The test script compares:
-
-- the selected neural network;
-- historical mean of the input sequence;
-- persistence (last observed field copied forward).
-
-Each method gets a separate XLSX with overall, per-horizon and per-sample errors. The summary also contains temporal diagnostics:
-
-- delta RMSE;
-- correlation between predicted and true temporal increments;
-- mean absolute predicted and true temporal change.
-
-These metrics help detect the nearly-constant forecast collapse that occurred in the earlier architecture.
-
-## Plots
-
-Training curve:
-
-```bat
-python -m Forecast_nn.plotting.training_curve --input ".../training_history.npz"
-```
-
-Forecast comparison:
-
-```bat
-python -m Forecast_nn.plotting.forecast_comparison --input ".../forecast_samples_....npz" --method all
-```
-
-The comparison plot uses the requested three-row format: truth, forecast and absolute error.
-
-## Adding the next model
-
-Implement a class with the common interface:
+If the coefficients are stored as three separate NumPy arrays instead of one NPZ, use:
 
 ```python
-prediction = model(x, mask)
-# x:          B,T_in,C,H,W
-# prediction: B,T_out,C,H,W
+cfg.sde_sources['sensible'] = {
+    'value_file': r'D:/.../flux_values.npy',
+    'a_file': r'D:/.../a.npy',
+    'b_file': r'D:/.../b.npy',
+}
 ```
 
-Then add it to `Forecast_nn/models/registry.py`. The common train/test/evaluation/plotting code does not need to change.
+These arrays must describe the same one-dimensional state lookup (one row per field channel), not a future target map.
 
-## Additional common-interface models
 
-The same `train.py` and `test.py` now support:
+### Meaning of `b`
+
+For the older statistics:
+
+```python
+cfg.sde_b_kind = 'variance'
+```
+
+because `b=Var[dX|X]` was saved.
+
+If your coefficient is the Ito diffusion amplitude in
+
+```text
+dX = a(X) dt + b(X) dW
+```
+
+use:
+
+```python
+cfg.sde_b_kind = 'diffusion'
+```
+
+Then the loss uses `b^2 * dt` as conditional variance.
+
+## SDE loss
+
+The informed versions use both architectural conditioning and the optional article-style SDE regularizer:
+
+```text
+loss = masked_MSE
+     + dynamic_weight * dynamic_loss
+     + sde_weight * sde_energy
+```
+
+For each forecast horizon, the SDE term is evaluated from the previous state. The first transition uses the last true input map; later transitions use the previous model prediction.
+
+Default:
+
+```python
+cfg.sde_weight = 1e-4
+cfg.sde_dt = 1.0
+cfg.dynamic_weight = 0.0
+```
+
+For an ablation with conditioning only:
 
 ```bat
-python -m Forecast_nn.train --model simvp
-python -m Forecast_nn.test  --model simvp
-
-python -m Forecast_nn.train --model fno
-python -m Forecast_nn.test  --model fno
+python -m Forecast_nn.train --model simvp_sde --sde-weight 0
 ```
 
-All common-interface models use the same tensors:
+For SDE-loss-only with the original SimVP architecture:
 
-- input `x`: `[B, T_in, C, H, W]`
-- mask: `[1,1,H,W]` or `[B,1,H,W]` (2-D and 3-D mask forms are also accepted)
-- output: `[B, T_out, C, H, W]`
+```bat
+python -m Forecast_nn.train --model simvp --sde-weight 1e-4
+```
 
-`simvp.py` is a SimVP-style CNN-only spatiotemporal model adapted to the U-Net map pipeline.
-`fno.py` is a 2-D Fourier Neural Operator with ordered history channels, ocean mask and coordinates.
+## Recommended informed runs
+
+SimVP:
+
+```bat
+python -m Forecast_nn.train ^
+  --model simvp_sde ^
+  --variable sensible ^
+  --sde-weight 1e-4 ^
+  --batch-size 16 ^
+  --num-workers 4 ^
+  --amp
+```
+
+U-Net + ConvLSTM:
+
+```bat
+python -m Forecast_nn.train ^
+  --model unet_convlstm_sde ^
+  --variable sensible ^
+  --sde-weight 1e-4 ^
+  --batch-size 16 ^
+  --num-workers 4 ^
+  --amp
+```
+
+FNO:
+
+```bat
+python -m Forecast_nn.train ^
+  --model fno_sde ^
+  --variable sensible ^
+  --sde-weight 1e-4 ^
+  --batch-size 16 ^
+  --num-workers 4 ^
+  --amp
+```
+
+The CLI can override the table path:
+
+```bat
+python -m Forecast_nn.train --model simvp_sde --sde-file "D:/.../my_sde_stats.npz"
+```
+
+## Testing and SSIM
+
+Run as before:
+
+```bat
+python -m Forecast_nn.test --model simvp_sde --variable sensible
+```
+
+Each XLSX now contains:
+
+```text
+MSE
+MAE
+RMSE
+SSIM
+Delta RMSE
+Delta correlation
+Predicted mean |delta|
+True mean |delta|
+```
+
+SSIM is computed locally with an 11x11 Gaussian window and averaged only over valid ocean pixels. It is exported as overall, per-horizon and per-sample SSIM.
+
+Old checkpoints and old metric workbooks remain usable; old workbooks simply have no SSIM column.
+
+## Unified metrics workbook
+
+After testing several models:
+
+```bat
+python -m Forecast_nn.aggregate_metrics
+```
+
+The script recursively finds all `metrics_*.xlsx` below `cfg.results_root` and saves:
+
+```text
+<results_root>/_summary/all_models_metrics.xlsx
+```
+
+Sheets:
+
+```text
+summary       one row per metrics workbook / method
+per_horizon   one row per horizon
+read_errors   any old/corrupt workbook that could not be parsed
+```
+
+The summary includes architecture parameters and SDE settings when present, so base and informed versions can be compared in one table.
+
+## Resume
+
+```bat
+python -m Forecast_nn.train --model simvp_sde --resume --epochs 15 --sde-weight 1e-4
+```
+
+The checkpoint contains the model, optimizer, AMP scaler, epoch counter and complete loss history.

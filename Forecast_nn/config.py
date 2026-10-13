@@ -1,8 +1,4 @@
-"""Central configuration for all Forecast_nn experiments.
-
-Edit this file for normal runs. The train/test scripts also expose a few CLI overrides
-(model, variable, epochs, batch size, learning rate, etc.) for quick experiments.
-"""
+"""Central configuration for all Forecast_nn experiments."""
 from pathlib import Path
 
 
@@ -18,24 +14,41 @@ class Config:
     }
     mask_file = root_path / 'DATA' / 'mask'
 
-    # Native source grid is 161x181. downsample=2 reproduces the old [::2, ::2]
-    # preprocessing and gives 81x91 maps.
     downsample = 2
     in_len = 30
     out_len = 3
     stride = 1
-
-    # The last test_steps are never used for training statistics or optimization.
     test_steps = 365
+
+    # -------------------------------------------------------------------------
+    # Ito-SDE information
+    # -------------------------------------------------------------------------
+    # These defaults point to the statistics files produced by the earlier
+    # SDE-Energy pipeline. Change the paths if your a/b tables live elsewhere.
+    # Expected legacy keys: bin_edges, a, b. Generic tables with
+    # values/centers + a/drift + b/variance/diffusion are also accepted.
+    sde_sources = {
+        'sensible': {
+            'file': root_path / 'DATA' / 'Fluxes' / 'sde_energy_stats_sensible_ds2_stride_1_bins_500.npz',
+        },
+        'latent': {
+            'file': root_path / 'DATA' / 'Fluxes' / 'sde_energy_stats_latent_ds2_stride_1_bins_500.npz',
+        },
+    }
+
+    # The old SDE-Energy statistics store b=Var[dX|X] in normalized units.
+    # If your b is the diffusion amplitude in dX=a dt+b dW, set 'diffusion'.
+    sde_b_kind = 'variance'  # 'variance' or 'diffusion'
+    sde_weight = 1e-4
+    sde_dt = 1.0
+    sde_eps = 1e-6
+    sde_feature_clip = 5.0
 
     # -------------------------------------------------------------------------
     # Model
     # -------------------------------------------------------------------------
-    # Registered models can be selected without changing train.py/test.py.
     model_name = 'unet_convlstm'
 
-    # Parameters are stored per model so future architectures can live behind the
-    # same train/test interface. New architectures only need a registry entry.
     model_params = {
         'unet_convlstm': {
             'base_channels': 16,
@@ -46,6 +59,17 @@ class Config:
             'use_coord_channels': True,
             'mask_features': True,
             'lstm_kernel': 3,
+        },
+        'unet_convlstm_sde': {
+            'base_channels': 16,
+            'depth': 3,
+            'dropout': 0.05,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
+            'lstm_kernel': 3,
+            'sde_condition_scale': 0.10,
         },
         'unet': {
             'base_channels': 16,
@@ -69,24 +93,48 @@ class Config:
             'spatial_kernel': 3,
             'horizon_embedding': True,
         },
-        'fno': {
-            'width': 48,
-
-            'modes_y': 14,
-            'modes_x': 14,
-
-            'layers': 3,
-            'projection_width': 96,
-
-            'dropout': 0.0,
-
+        'simvp_sde': {
+            'base_channels': 16,
+            'depth': 3,
+            'dropout': 0.05,
             'residual': True,
             'use_mask_channel': True,
             'use_coord_channels': True,
             'mask_features': True,
-
+            'temporal_blocks': 4,
+            'temporal_kernel': 3,
+            'spatial_kernel': 3,
+            'horizon_embedding': True,
+            'sde_condition_scale': 0.10,
+        },
+        'fno': {
+            'width': 48,
+            'modes_y': 14,
+            'modes_x': 14,
+            'layers': 3,
+            'projection_width': 96,
+            'dropout': 0.0,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
             'padding': 2,
-        }
+        },
+        'fno_sde': {
+            'width': 48,
+            'modes_y': 14,
+            'modes_x': 14,
+            'layers': 3,
+            'projection_width': 96,
+            'dropout': 0.0,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
+            'padding': 2,
+            # True: append a/b for all T_in days. False: only the last day.
+            'sde_history': True,
+        },
     }
 
     # -------------------------------------------------------------------------
@@ -101,23 +149,20 @@ class Config:
     fast_cuda = True
     seed = 2025
     log_every = 50
-
-    # Start with plain masked MSE for an interpretable architecture comparison.
-    # Set dynamic_weight > 0 only if you explicitly want to penalize temporal
-    # increments in addition to forecast values.
     dynamic_weight = 0.0
-
-    # Save an always-resumable checkpoint after each epoch.
     checkpoint_every = 1
 
     # -------------------------------------------------------------------------
     # Evaluation / plotting
     # -------------------------------------------------------------------------
-    plot_samples = (0,)  # zero-based sample IDs from the test dataset
+    plot_samples = (0,)
     base_date = '1979-01-01'
     plot_language = 'ru'
 
-    # All outputs from the common framework are grouped here.
+    # SSIM: standard constants with a masked Gaussian window.
+    ssim_window = 11
+    ssim_sigma = 1.5
+
     results_root = root_path / 'Forecast' / 'Results'
     stats_root = root_path / 'DATA' / 'Forecast_nn_stats'
 
@@ -127,9 +172,6 @@ cfg = Config()
 # -----------------------------------------------------------------------------
 # Legacy-model compatibility
 # -----------------------------------------------------------------------------
-# The old model files are preserved under Forecast_nn/models as requested. They
-# were written against the former cfg object, so the most common attributes are
-# kept here to make later adaptation easier. They are not used by the new U-Net.
 try:
     import torch.nn as nn
     cfg.LSTM_conv = nn.Conv2d
