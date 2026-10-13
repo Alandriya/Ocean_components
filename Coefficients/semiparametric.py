@@ -75,6 +75,14 @@ def count_semi_1d_AB(files_path_prefix: str,
     :param start_index: offset index when saving maps
     :return:
     """
+    """
+    A_t, B_t describe the observed transition
+
+        X_{t-1} -> X_t
+
+    Therefore the first valid coefficient is A_1/B_1.
+    """
+
     if not os.path.exists(files_path_prefix + path):
         os.mkdir(files_path_prefix + path)
 
@@ -91,48 +99,108 @@ def count_semi_1d_AB(files_path_prefix: str,
     # start_time = time.time()
     for t in tqdm.tqdm(range(time_start + 1, time_end)):
     # for t in range(time_start + 1, time_end):
+        global_t = t + start_index
         # print(f't = {t}')
         if os.path.exists(files_path_prefix + path + f'Semi_1d/daily/A_{t+start_index}.npy'):
             continue
-    
-        data_array, quantiles = scale_to_bins(data_array[t - 1], quantiles_amount)
-        data_set = np.unique(data_array[np.logical_not(np.isnan(data_array))].flat)
-        data_set = data_set[np.logical_not(np.isnan(data_set))]
-        for group in range(len(data_set)):
-            value_t0 = data_set[group]
-            # if np.isnan(value_t0):
-            #     continue
-            day_sample = (data_array[t][np.where(data_array == value_t0)] -
-                          data_array[t - 1][np.where(data_array == value_t0)]).flatten()
 
-            window = day_sample
-            # gm = GaussianMixture(n_components=n_components,
-            #                      tol=1e-6,
-            #                      covariance_type='spherical',
-            #                      max_iter=10000,
-            #                      init_params='random',
-            #                      n_init=30
-            #                      ).fit(window.reshape(-1, 1))
+    x_prev = data_array[t - 1]
+    x_curr = data_array[t]
 
-            gm = GaussianMixture(n_components=n_components,
-                                 tol=1e-4,
-                                 covariance_type='spherical',
-                                 max_iter=1000,
-                                 init_params='random',
-                                 n_init=10
-                                 ).fit(window.reshape(-1, 1))
-            means = gm.means_.flatten()
-            sigmas_squared = gm.covariances_.flatten()
-            weights = gm.weights_.flatten()
-            weights /= sum(weights)
+    # Binning is based only on X_{t-1}.
+    x_prev_q, quantiles = scale_to_bins(
+        x_prev.copy(),
+        quantiles_amount
+    )
 
-            a_sum = sum(means * weights)
-            b_sum = math.sqrt(sum(weights * (means ** 2 + sigmas_squared)))
+    # New maps for every time step.
+    a_map = np.full(
+        x_prev.shape,
+        np.nan,
+        dtype=np.float64
+    )
 
-            a_map[np.where(data_array == value_t0)] = a_sum
-            b_map[np.where(data_array == value_t0)] = b_sum
-            # if t == 1:
-            #     print(a_sum)
+    b_map = np.full(
+        x_prev.shape,
+        np.nan,
+        dtype=np.float64
+    )
+
+    valid = np.isfinite(x_prev_q)
+
+    data_set = np.unique(
+        x_prev_q[valid]
+    )
+
+    for value_t0 in data_set:
+
+        place = np.where(
+            x_prev_q == value_t0
+        )
+
+        # IMPORTANT:
+        # actual increment, not binned values
+        increments = (
+                x_curr[place]
+                - x_prev[place]
+        ).astype(np.float64)
+
+        increments = increments[
+            np.isfinite(increments)
+        ]
+
+        if increments.size == 0:
+            continue
+
+        # GMM cannot contain more components
+        # than available samples.
+        components = min(
+            n_components,
+            increments.size
+        )
+
+        gm = GaussianMixture(
+            n_components=components,
+            tol=1e-4,
+            covariance_type='spherical',
+            max_iter=1000,
+            init_params='random',
+            n_init=10,
+        ).fit(
+            increments.reshape(-1, 1)
+        )
+
+        means = gm.means_.reshape(-1)
+        variances = gm.covariances_.reshape(-1)
+        weights = gm.weights_.reshape(-1)
+
+        weights /= weights.sum()
+
+        # E[dX]
+        a_sum = np.sum(
+            weights * means
+        )
+
+        # E[dX^2]
+        second_moment = np.sum(
+            weights * (
+                    variances + means ** 2
+            )
+        )
+
+        # See explanation below:
+        # diffusion variance = E[dX^2] - E[dX]^2
+        diffusion_variance = max(
+            second_moment - a_sum ** 2,
+            0.0
+        )
+
+        b_sum = np.sqrt(
+            diffusion_variance
+        )
+
+        a_map[place] = a_sum
+        b_map[place] = b_sum
 
         # print('\n\n', flush=True)
         np.save(files_path_prefix + path + f'Semi_1d/daily/A_{t+start_index}.npy', a_map)
@@ -250,14 +318,15 @@ def count_semi_2d_AB(files_path_prefix: str,
                 # C11 = b11 * b11 + b12 * b12
                 # C22 = b21 * b21 + b22 * b22
                 # C12 = b11 * b21 + b12 * b22
-                c_map[0] = b_sum[0] **2 + b_sum[2]**2
-                c_map[1] = b_sum[1] **2 + b_sum[3]**2
-                c_map[2] = b_sum[0] * b_sum[3] + b_sum[2] * b_sum[1]
 
+                c_sum[0] = b_sum[0] ** 2 + b_sum[2] ** 2
+                c_sum[1] = b_sum[1] ** 2 + b_sum[3] ** 2
+                c_sum[2] = (b_sum[0] * b_sum[3]+ b_sum[2] * b_sum[1])
+
+                c_map[place] = c_sum
 
                 a_map[place] = a_sum
                 b_map[place] = b_sum
-                c_map[place] = c_sum
                 # if t == 1:
                 #     print(a_sum)
 
