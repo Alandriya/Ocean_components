@@ -70,7 +70,8 @@ def main():
     mean = np.asarray(checkpoint['mean'], dtype=np.float32)
     std = np.asarray(checkpoint['std'], dtype=np.float32)
     train_end = int(checkpoint['train_end_idx'])
-    run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
+    # run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
+    run_tag = build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
     conditioned = bool(checkpoint.get('sde_conditioning', model_uses_sde_conditioning(model_name)))
 
     data_file = Path(checkpoint.get('data_file', cfg.data_files[variable]))
@@ -194,7 +195,7 @@ def main():
     output_dir = Path(cfg.results_root) / model_name / variable / run_tag / 'test'
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, acc in methods.items():
-        path = output_dir / f'metrics_{name}.xlsx'
+        path = output_dir / f'metrics_{name}_{variable}.xlsx'
         save_metrics_xlsx(path, name, variable, run_tag, summaries[name], checkpoint, acc.sample_rows)
         print(f'  saved: {path}', flush=True)
 
