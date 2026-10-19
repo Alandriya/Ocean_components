@@ -6,7 +6,7 @@ Usage from repository root:
 Optional:
     python -m Forecast_nn.aggregate_metrics --root "D:/.../Forecast/Results" --output "D:/.../all_models.xlsx"
 
-The script is backward-compatible with older metric files that do not yet contain SSIM.
+The script is backward-compatible with older metric files that do not yet contain SSIM/PSNR.
 """
 import argparse
 from pathlib import Path
@@ -47,7 +47,7 @@ def _infer_model(path, root):
 def _preferred_columns(all_keys):
     preferred = [
         'Variable', 'model_name', 'Method', 'Run tag',
-        'Overall RMSE', 'Overall MAE', 'Overall MSE', 'Overall SSIM',
+        'Overall RMSE', 'Overall MAE', 'Overall MSE', 'Overall SSIM', 'Overall PSNR (dB)',
         'Delta RMSE', 'Delta correlation', 'Predicted mean |delta|', 'True mean |delta|',
         'downsample', 'grid_shape', 'in_len', 'out_len', 'stride', 'epochs',
         'learning_rate', 'dynamic_weight', 'sde_enabled', 'sde_weight', 'sde_b_kind', 'sde_dt',
@@ -146,7 +146,7 @@ def main():
             for cell in ws[r]:
                 cell.fill = neural_fill
 
-    hcols = ['Variable', 'model_name', 'Method', 'Run tag', 'Horizon', 'MSE', 'MAE', 'RMSE', 'SSIM', 'Source file']
+    hcols = ['Variable', 'model_name', 'Method', 'Run tag', 'Horizon', 'MSE', 'MAE', 'RMSE', 'SSIM', 'PSNR (dB)', 'Source file']
     wh.append(hcols)
     for row in horizon_rows:
         wh.append([row.get(c) for c in hcols])

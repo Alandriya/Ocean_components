@@ -16,7 +16,9 @@ def plot_training_curve(input_path, output_path=None, title=None):
     total = history['total_loss']
 
     fig, ax = plt.subplots(figsize=(9.5, 5.8))
-    ax.plot(epochs, total, linewidth=2, label='Total loss')
+    ax.plot(epochs, total, linewidth=2, label='Train total loss')
+    if 'val_loss' in history and len(history['val_loss']) == len(epochs):
+        ax.plot(epochs, history['val_loss'], linewidth=2, label='Validation loss')
     if 'mse' in history and len(history['mse']) == len(epochs):
         ax.plot(epochs, history['mse'], linewidth=1.8, label='MSE')
     if 'dynamic' in history and len(history['dynamic']) == len(epochs) and np.any(np.asarray(history['dynamic']) != 0):
@@ -35,6 +37,16 @@ def plot_training_curve(input_path, output_path=None, title=None):
     output_path = Path(output_path or Path(input_path).with_suffix('.png'))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=180, bbox_inches='tight')
+    if 'train_psnr' in history and 'val_psnr' in history and len(epochs):
+        fig2, ax2 = plt.subplots(figsize=(9.5, 5.8))
+        ax2.plot(epochs, history['train_psnr'], label='Train PSNR', linewidth=1.8)
+        ax2.plot(epochs, history['val_psnr'], label='Validation PSNR', linewidth=1.8)
+        ax2.set(xlabel='Epoch', ylabel='PSNR (dB)', title='Train / validation PSNR')
+        ax2.grid(True, alpha=0.25)
+        ax2.legend()
+        fig2.tight_layout()
+        fig2.savefig(output_path.with_name(output_path.stem + '_psnr.png'), dpi=180, bbox_inches='tight')
+        plt.close(fig2)
     plt.close(fig)
     return output_path
 

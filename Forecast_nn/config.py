@@ -18,7 +18,16 @@ class Config:
     in_len = 30
     out_len = 3
     stride = 1
-    test_steps = 365
+    # Dataset starts at 1979-01-01 (zero-based daily indices).
+    # 2023-12-31 is index 16435. Do not include the following 2024 observations.
+    base_date = '1979-01-01'
+    data_last_date = '2023-12-31'  # inclusive
+    val_steps = 730                # 2021-2022 with the default end date
+    test_steps = 365               # 2023 with the default end date
+    early_stopping_patience = 12
+    early_stopping_min_delta = 0.0  # physical RMSE units
+    psnr_percentiles = (0.1, 99.9) # fixed data range estimated from TRAIN only
+    psnr_max_sample_frames = 256
 
     # -------------------------------------------------------------------------
     # Ito-SDE information
@@ -167,7 +176,6 @@ class Config:
     # Evaluation / plotting
     # -------------------------------------------------------------------------
     plot_samples = (0,)
-    base_date = '1979-01-01'
     plot_language = 'ru'
 
     # SSIM: standard constants with a masked Gaussian window.

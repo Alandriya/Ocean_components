@@ -167,3 +167,61 @@ class OceanSequenceDataset(Dataset):
         x = torch.from_numpy(seq[:self.in_len].copy())
         y = torch.from_numpy(seq[self.in_len:].copy())
         return x, y
+
+
+def psnr_file(stats_root, variable, downsample, train_end, percentiles, max_frames):
+    low, high = (float(v) for v in percentiles)
+    return Path(stats_root) / (
+        f'psnr_{variable}_ds{downsample}_train{train_end}_'
+        f'p{low:g}-{high:g}_f{int(max_frames)}.npz'
+    )
+
+
+def load_or_create_psnr_ranges(data_file, mask, variable, downsample, train_end,
+                               stats_root, percentiles=(0.1, 99.9), max_frames=256,
+                               rebuild=False):
+    """Estimate channel-wise physical ranges from TRAIN samples only.
+
+    Percentiles are computed from deterministic, evenly spaced training frames,
+    rather than from held-out targets or each image (which would change the PSNR
+    reference from sample to sample). Returns fixed ranges per channel.
+    """
+    low, high = map(float, percentiles)
+    if not 0 <= low < high <= 100:
+        raise ValueError(f'Invalid PSNR percentiles: {percentiles}.')
+    if train_end <= 0 or int(max_frames) <= 0:
+        raise ValueError('Training interval and PSNR sample count must be positive.')
+    path = psnr_file(stats_root, variable, downsample, train_end,
+                     percentiles, max_frames)
+    if path.exists() and not rebuild:
+        with np.load(path) as f:
+            return f['data_range'].astype(np.float32), path
+
+    reader = OceanFieldReader(data_file, downsample)
+    if mask.shape != (reader.height, reader.width):
+        raise ValueError('PSNR mask/grid mismatch.')
+    indices = np.unique(np.linspace(0, train_end - 1,
+                                    num=min(train_end, int(max_frames)), dtype=np.int64))
+    samples = [[] for _ in range(reader.channels)]
+    for start in range(0, len(indices), 8):
+        values = reader.read_indices(indices[start:start + 8])
+        for c in range(reader.channels):
+            sea = values[:, c, mask].reshape(-1)
+            sea = sea[np.isfinite(sea)]
+            if sea.size:
+                samples[c].append(sea)
+    ranges = []
+    for c in range(reader.channels):
+        if not samples[c]:
+            raise ValueError(f'No valid ocean pixels for PSNR channel {c}.')
+        vals = np.concatenate(samples[c])
+        q_low, q_high = np.percentile(vals, [low, high])
+        width = float(q_high - q_low)
+        if not np.isfinite(width) or width <= 0:
+            raise ValueError(f'Non-positive PSNR data range for channel {c}: {width}.')
+        ranges.append(width)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    result = np.asarray(ranges, dtype=np.float32)
+    np.savez(path, data_range=result, percentiles=np.asarray([low, high]),
+             sampled_frames=indices)
+    return result, path

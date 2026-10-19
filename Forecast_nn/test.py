@@ -12,7 +12,8 @@ import torch
 from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
-from Forecast_nn.data import OceanFieldReader, OceanSequenceDataset, load_mask
+from Forecast_nn.data import (OceanFieldReader, OceanSequenceDataset, load_mask,
+                              load_or_create_psnr_ranges)
 from Forecast_nn.evaluation import (
     MetricAccumulator, build_run_tag, append_sde_run_tag,
     save_metrics_xlsx, save_plot_samples,
@@ -30,7 +31,12 @@ def parse_args():
     p.add_argument('--batch-size', type=int, default=cfg.batch_size)
     p.add_argument('--num-workers', type=int, default=cfg.num_workers)
     p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=cfg.amp)
-    p.add_argument('--checkpoint', default=None)
+    p.add_argument('--checkpoint', default=None,
+                   help='Override checkpoint path; default is best.pth for the matching experiment.')
+    p.add_argument('--end-date', type=str, default=cfg.data_last_date)
+    p.add_argument('--val-steps', type=int, default=cfg.val_steps)
+    p.add_argument('--test-steps', type=int, default=cfg.test_steps)
+    p.add_argument('--split', choices=('test', 'val'), default='test')
     p.add_argument('--plot-samples', default=','.join(map(str, cfg.plot_samples)))
     p.add_argument('--sde-weight', type=float, default=None, help='Only used to resolve the default *_sde run directory.')
     p.add_argument('--sde-b-kind', choices=('variance', 'diffusion'), default=cfg.sde_b_kind)
@@ -54,8 +60,9 @@ def main():
     default_run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if conditioned or default_sde_weight > 0:
         default_run_tag = append_sde_run_tag(default_run_tag, default_sde_weight, args.sde_b_kind, args.sde_loss_mode)
+    default_run_tag += f'_end{args.end_date.replace("-", "")}_val{args.val_steps}_test{args.test_steps}'
     default_run_dir = Path(cfg.results_root) / args.model / args.variable / default_run_tag
-    checkpoint_path = Path(args.checkpoint) if args.checkpoint else default_run_dir / 'checkpoint.pth'
+    checkpoint_path = Path(args.checkpoint) if args.checkpoint else default_run_dir / 'best.pth'
     if not checkpoint_path.exists():
         raise FileNotFoundError(f'Checkpoint not found: {checkpoint_path}')
 
@@ -70,13 +77,35 @@ def main():
     mean = np.asarray(checkpoint['mean'], dtype=np.float32)
     std = np.asarray(checkpoint['std'], dtype=np.float32)
     train_end = int(checkpoint['train_end_idx'])
-    # run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
-    run_tag = build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
+    val_start = int(checkpoint.get('val_start_idx', train_end))
+    test_start = int(checkpoint.get('test_start_idx', train_end))
+    run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
     conditioned = bool(checkpoint.get('sde_conditioning', model_uses_sde_conditioning(model_name)))
 
     data_file = Path(checkpoint.get('data_file', cfg.data_files[variable]))
+    if not data_file.exists():
+        data_file = Path(cfg.data_files[variable])
+    if not data_file.exists():
+        raise FileNotFoundError(f'Cannot find flux input file: {data_file}')
     mask = load_mask(cfg.mask_file, downsample)
     reader = OceanFieldReader(data_file, downsample)
+    if 'data_end_idx' in checkpoint:
+        data_end = int(checkpoint['data_end_idx'])
+        if data_end > reader.length:
+            raise ValueError('Data file is shorter than the checkpoint effective data end.')
+    else:
+        from datetime import date
+        data_end = min(reader.length, (date.fromisoformat(cfg.data_last_date) -
+                        date.fromisoformat(cfg.base_date)).days + 1)
+    if not 0 <= train_end <= val_start <= test_start < data_end:
+        raise ValueError('Incompatible split boundaries in checkpoint.')
+    psnr_ranges = checkpoint.get('psnr_ranges')
+    if psnr_ranges is None:
+        psnr_ranges, _ = load_or_create_psnr_ranges(
+            data_file, mask, variable, downsample, train_end, cfg.stats_root,
+            cfg.psnr_percentiles, cfg.psnr_max_sample_frames
+        )
+    psnr_ranges = np.asarray(psnr_ranges, dtype=np.float32).reshape(-1)
 
     sde_reader = None
     if conditioned:
@@ -95,11 +124,15 @@ def main():
             state_std=std,
         )
 
-    test_input_start = max(0, train_end - in_len * stride)
+    target_start, target_end = ((test_start, data_end) if args.split == 'test'
+                                else (val_start, test_start))
+    test_input_start = target_start - in_len * stride
+    if test_input_start < 0:
+        raise ValueError('Not enough historical context for evaluation split.')
     dataset_cls = SDEOceanSequenceDataset if conditioned else OceanSequenceDataset
     dataset_kwargs = {'sde_reader': sde_reader} if conditioned else {}
     test_data = dataset_cls(
-        data_file, mask, test_input_start, reader.length, in_len, out_len,
+        data_file, mask, test_input_start, target_end, in_len, out_len,
         mean, std, stride, downsample, **dataset_kwargs
     )
     loader = DataLoader(test_data, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=False))
@@ -110,7 +143,7 @@ def main():
     print(f'[runtime] device={device} AMP={use_amp} workers={args.num_workers} batch={args.batch_size}', flush=True)
     print(f'[model] {model_name}  variable={variable}  checkpoint={checkpoint_path}', flush=True)
     print(f'[model] SDE conditioning={conditioned}', flush=True)
-    print(f'[data] test target starts at frame {train_end}; sequences={len(test_data):,}; grid={mask.shape[0]}x{mask.shape[1]}', flush=True)
+    print(f'[data] {args.split} targets=[{target_start},{target_end}), sequences={len(test_data):,}; grid={mask.shape[0]}x{mask.shape[1]}', flush=True)
 
     model = build_model(model_name, in_len, out_len, reader.channels, model_kwargs)
     model.load_state_dict(checkpoint['model_state'])
@@ -119,7 +152,8 @@ def main():
     params = sum(p.numel() for p in model.parameters())
     print(f'[model] parameters={params:,}', flush=True)
 
-    acc_kwargs = dict(out_len=out_len, ssim_window=cfg.ssim_window, ssim_sigma=cfg.ssim_sigma)
+    acc_kwargs = dict(out_len=out_len, ssim_window=cfg.ssim_window, ssim_sigma=cfg.ssim_sigma,
+                      psnr_ranges=psnr_ranges)
     methods = {
         model_name: MetricAccumulator(**acc_kwargs),
         'historical_mean': MetricAccumulator(**acc_kwargs),
@@ -132,7 +166,7 @@ def main():
     processed = 0
     started = time.time()
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch_idx, batch in enumerate(loader, 1):
             if conditioned:
                 x, y, sde_features, _sde_last_coefficients = batch
@@ -169,7 +203,7 @@ def main():
                 sample_id = processed + local_idx
                 if sample_id in sample_ids:
                     saved['sample_id'].append(sample_id)
-                    saved['forecast_start_index'].append(train_end + sample_id)
+                    saved['forecast_start_index'].append(target_start + sample_id)
                     saved['input_last'].append(last_input[local_idx])
                     saved['truth'].append(truth[local_idx])
                     for name in (model_name, 'historical_mean', 'persistence'):
@@ -186,13 +220,13 @@ def main():
     summaries = {name: acc.summary() for name, acc in methods.items()}
     for name, m in summaries.items():
         print(
-            f'  {name:20s} RMSE={m["overall_rmse"]:.6g} MAE={m["overall_mae"]:.6g} SSIM={m["overall_ssim"]:.4f} '
+            f'  {name:20s} RMSE={m["overall_rmse"]:.6g} MAE={m["overall_mae"]:.6g} SSIM={m["overall_ssim"]:.4f} PSNR={m["overall_psnr"]:.3f}dB '
             f'delta_RMSE={m["delta_rmse"]:.6g} delta_corr={m["delta_correlation"]:.4f} '
             f'|delta| pred/true={m["pred_mean_abs_change"]:.4g}/{m["true_mean_abs_change"]:.4g}',
             flush=True
         )
 
-    output_dir = Path(cfg.results_root) / model_name / variable / run_tag / 'test'
+    output_dir = Path(cfg.results_root) / model_name / variable / run_tag / args.split
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, acc in methods.items():
         path = output_dir / f'metrics_{name}_{variable}.xlsx'

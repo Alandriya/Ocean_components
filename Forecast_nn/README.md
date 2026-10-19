@@ -350,3 +350,105 @@ python -m Forecast_nn.train ^
     --num-workers 4 ^
     --amp
 ```
+
+---
+
+## Chronological train / validation / test (updated pipeline)
+
+The effective daily series is cut at **2023-12-31 inclusive**, regardless of
+whether the input NPY contains observations from 2024 or later. The default
+calendar start is `1979-01-01`, with index 0 for that day, hence:
+
+| Index | Date |
+| ---: | --- |
+| 0 | 1979-01-01 |
+| 1 | 1979-01-02 (first available SDE A/B estimate) |
+| 16435 | 2023-12-31 (last included frame) |
+| 16436 | 2024-01-01 (excluded) |
+| 17106 | 2025-11-01 **if interpreted as a zero-based daily index** |
+
+The `1-17106` file-name suffix is retained as-is. Coefficient element 0 maps
+to flux index 1. For SDE runs, coefficient coverage is also checked; no future
+A/B maps are supplied to the network. If those file indices use a different
+calendar convention, correct their *alignment* first, not the flux dates.
+
+Defaults in `config.py`:
+
+- **Train**: 1979-01-01 ... 2020-12-31, target indices `[0, 15341)`
+- **Validation**: 2021-01-01 ... 2022-12-31, `[15341, 16071)`
+- **Test**: 2023-01-01 ... 2023-12-31, `[16071, 16436)`
+
+These are **target** intervals. Validation and test inputs may include the
+immediately preceding 30 days from the previous interval, because those days
+would have been observed at forecast initialization. Predictions are kept
+strictly within their own target intervals. Models receive no future fields.
+
+Normalization and SDE-feature statistics are estimated from train only.
+The fixed **PSNR reference range** is independently estimated per output
+channel from uniformly sampled *training* frames using the 0.1 and 99.9
+percentiles (default: up to 256 frames). No validation/test targets contribute
+to this range. PSNR is calculated in **physical units**, masked over ocean,
+and aggregated from MSE *before* converting to dB. Multi-channel overall PSNR
+is the arithmetic mean of the channel-level PSNRs, not a PSNR based on one
+shared range. Note that PSNR may be +infinity for exact predictions.
+
+### New training commands
+
+From the repository root:
+
+```bash
+python -m Forecast_nn.train --model simvp --variable sensible \
+  --epochs 100 --batch-size 16 --num-workers 4 --amp \
+  --end-date 2023-12-31 --val-steps 730 --test-steps 365 --patience 12
+```
+
+For the current scalar SDE-informed SimVP:
+
+```bash
+python -m Forecast_nn.train --model simvp_sde --variable sensible \
+  --epochs 100 --amp --end-date 2023-12-31 --val-steps 730 --test-steps 365
+```
+
+`best.pth` is saved when the **validation RMSE in W/m²** improves, `last.pth`
+stores the latest epoch, and `checkpoint.pth` duplicates the latest epoch for
+compatibility. `--resume` restores the latest checkpoint and the best metric.
+`--patience 0` disables early stopping; `--min-delta` is the minimum physical
+RMSE improvement required to reset the patience counter. The output directory
+includes `end..._val..._test...` to keep new checkpoints separate from older
+experiments.
+
+Training logs and `training_history.npz` now include train/validation RMSE and
+PSNR (dB), including per-horizon PSNR arrays. Plots are written to
+`training_curve.png` and `training_curve_psnr.png`.
+
+### Testing
+
+```bash
+python -m Forecast_nn.test --model simvp --variable sensible --amp
+# Or evaluate the validation interval using the same selected checkpoint:
+python -m Forecast_nn.test --model simvp --variable sensible --split val --amp
+# Explicit checkpoint (including older ones):
+python -m Forecast_nn.test --model simvp --checkpoint /path/to/best.pth
+```
+
+The test runner selects `best.pth` by default. It reads split boundaries and
+PSNR reference ranges from the checkpoint, so the evaluation matches training.
+For legacy checkpoints without PSNR metadata, the fixed range is reconstructed
+from **their training period only**. If a legacy checkpoint was trained on
+2023/2024 data, its results should **not** be considered a valid independent
+2023 test; retrain under the new split.
+
+Excel outputs include overall, per-horizon, per-channel,
+per-horizon-per-channel and per-sample PSNR. `aggregate_metrics.py` also retains
+PSNR when merging the workbooks.
+
+The current `*_sde` architectures are **scalar SDE-informed models**, not yet
+the full coupled `2 x 1` drift / `2 x 2` diffusion implementation. The
+chronological infrastructure is ready for this later extension, which will
+need its own joint-field data loader and covariance-aware training objective.
+
+Regression tests with synthetic data (no ERA5 download needed):
+
+```bash
+python -m pytest -q Forecast_nn/tests/test_pipeline_integration.py
+```

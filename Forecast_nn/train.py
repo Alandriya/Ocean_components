@@ -19,9 +19,11 @@ import torch
 from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
-from Forecast_nn.data import OceanFieldReader, OceanSequenceDataset, load_mask, load_or_create_normalization
-from Forecast_nn.evaluation import build_run_tag, append_sde_run_tag
+from Forecast_nn.data import (OceanFieldReader, OceanSequenceDataset, load_mask,
+                              load_or_create_normalization, load_or_create_psnr_ranges)
+from Forecast_nn.evaluation import build_run_tag, append_sde_run_tag, OnlineErrorMetrics
 from Forecast_nn.losses import forecast_loss
+from Forecast_nn.splits import resolve_splits
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.plotting.training_curve import plot_training_curve
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, gpu_memory_string, load_checkpoint
@@ -44,6 +46,14 @@ def parse_args():
     p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=cfg.amp)
     p.add_argument('--resume', action='store_true')
     p.add_argument('--rebuild-stats', action='store_true')
+    p.add_argument('--end-date', type=str, default=cfg.data_last_date,
+                   help='Inclusive last day, e.g. 2023-12-31. Must exist in the input series.')
+    p.add_argument('--val-steps', type=int, default=cfg.val_steps)
+    p.add_argument('--test-steps', type=int, default=cfg.test_steps)
+    p.add_argument('--patience', type=int, default=cfg.early_stopping_patience,
+                   help='Consecutive validation epochs without improved RMSE. 0 disables stopping.')
+    p.add_argument('--min-delta', type=float, default=cfg.early_stopping_min_delta,
+                   help='Minimum validation RMSE decrease for a new best checkpoint.')
 
     # None means: use cfg.sde_weight for *_sde models, otherwise 0.
     p.add_argument('--sde-weight', type=float, default=None)
@@ -84,6 +94,8 @@ def save_checkpoint(path, model, optimizer, scaler, epoch, history, metadata):
 
 def main():
     args = parse_args()
+    if args.epochs < 1 or args.patience < 0 or args.min_delta < 0:
+        raise ValueError('Require epochs >= 1, patience >= 0 and min_delta >= 0.')
     configure_runtime(cfg.seed, cfg.fast_cuda)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     use_amp = bool(args.amp and device.type == 'cuda')
@@ -106,25 +118,33 @@ def main():
     if device.type == 'cuda':
         print(f'[runtime] GPU={torch.cuda.get_device_name(device)}', flush=True)
 
-    print('\n[1/7] Data and split...', flush=True)
+    print('\n[1/7] Data and chronological split...', flush=True)
     mask = load_mask(cfg.mask_file, args.downsample)
     reader = OceanFieldReader(data_file, args.downsample)
-    train_end = reader.length - int(cfg.test_steps)
-    if train_end <= (cfg.in_len + cfg.out_len) * cfg.stride:
-        raise ValueError('Training period is too short after reserving test_steps.')
+    split = resolve_splits(reader.length, cfg.base_date, args.end_date,
+                           args.val_steps, args.test_steps, cfg.in_len, cfg.out_len, cfg.stride)
+    train_end, val_start, test_start, data_end = (
+        split.train_end, split.val_start, split.test_start, split.data_end
+    )
     print(f'  model={args.model}  variable={args.variable}', flush=True)
     print(f'  source={data_file}', flush=True)
-    print(f'  source shape={reader.data.shape}, layout={reader.layout}, time_steps={reader.length}', flush=True)
+    print(f'  source shape={reader.data.shape}, time_steps={reader.length}', flush=True)
+    print(f'  effective end date={args.end_date}, final target index={data_end-1}', flush=True)
     print(f'  grid=161x181 -> {reader.height}x{reader.width} (downsample={args.downsample})', flush=True)
     print(f'  ocean points={int(mask.sum())}/{mask.size} ({100*mask.mean():.1f}%)', flush=True)
-    print(f'  training frames=[0,{train_end}), held-out test frames=[{train_end},{reader.length})', flush=True)
+    print(f'  TRAIN targets=[0,{train_end}) | VAL targets=[{val_start},{test_start}) | '
+          f'TEST targets=[{test_start},{data_end})', flush=True)
 
-    print('\n[2/7] Normalization...', flush=True)
+    print('\n[2/7] Train-only normalization and PSNR data ranges...', flush=True)
     mean, std, stats_path = load_or_create_normalization(
         data_file, mask, args.variable, args.downsample, train_end, cfg.stats_root, args.rebuild_stats
     )
-    print(f'  stats={stats_path}', flush=True)
-    print(f'  mean={mean.tolist()}  std={std.tolist()}', flush=True)
+    psnr_ranges, psnr_path = load_or_create_psnr_ranges(
+        data_file, mask, args.variable, args.downsample, train_end, cfg.stats_root,
+        cfg.psnr_percentiles, cfg.psnr_max_sample_frames, args.rebuild_stats
+    )
+    print(f'  normalization={stats_path}; mean={mean.tolist()}; std={std.tolist()}', flush=True)
+    print(f'  PSNR ranges={psnr_ranges.tolist()} from {psnr_path}', flush=True)
 
     print('\n[3/7] Ito-SDE information...', flush=True)
     sde_reader = None
@@ -156,6 +176,9 @@ def main():
         )
         print(f'  source={source_to_serializable(sde_source)}', flush=True)
         print(f'  maps={sde_reader.describe()}', flush=True)
+        if sde_reader.last_flux_index < data_end - 1:
+            raise ValueError(f'SDE coefficients end at flux index {sde_reader.last_flux_index}, '
+                             f'but data end index is {data_end-1}. No future SDE maps may be used.')
         print(f'  feature_stats={sde_stats_path}', flush=True)
         print(
             f'  alignment: coefficient element 0 -> flux t={sde_reader.time_offset}; '
@@ -170,18 +193,21 @@ def main():
     else:
         print('  disabled for this run.', flush=True)
 
-    print('\n[4/7] Dataset and DataLoader...', flush=True)
+    print('\n[4/7] Train and validation DataLoaders...', flush=True)
     dataset_cls = SDEOceanSequenceDataset if sde_enabled else OceanSequenceDataset
-    dataset_kwargs = {}
-    if sde_enabled:
-        dataset_kwargs['sde_reader'] = sde_reader
+    dataset_kwargs = {'sde_reader': sde_reader} if sde_enabled else {}
     dataset = dataset_cls(
-        data_file, mask, 0, train_end, cfg.in_len, cfg.out_len,
-        mean, std, cfg.stride, args.downsample, **dataset_kwargs
+        data_file, mask, *split.dataset_bounds('train', cfg.in_len, cfg.stride),
+        cfg.in_len, cfg.out_len, mean, std, cfg.stride, args.downsample, **dataset_kwargs
+    )
+    val_data = dataset_cls(
+        data_file, mask, *split.dataset_bounds('val', cfg.in_len, cfg.stride),
+        cfg.in_len, cfg.out_len, mean, std, cfg.stride, args.downsample, **dataset_kwargs
     )
     loader = DataLoader(dataset, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=True))
-    print(f'  sequences={len(dataset):,}  batches/epoch={len(loader):,}', flush=True)
-    print(f'  input={cfg.in_len} days  output={cfg.out_len} days  stride={cfg.stride}', flush=True)
+    val_loader = DataLoader(val_data, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=False))
+    print(f'  train samples={len(dataset):,}, validation samples={len(val_data):,}', flush=True)
+    print(f'  input={cfg.in_len}, output={cfg.out_len}, stride={cfg.stride}', flush=True)
     if os.name == 'nt' and args.num_workers > 0:
         print('  Windows-safe lazy mmap workers are enabled.', flush=True)
 
@@ -192,8 +218,11 @@ def main():
     run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if sde_enabled:
         run_tag = append_sde_run_tag(run_tag, sde_weight, args.sde_b_kind, args.sde_loss_mode)
+    run_tag += f'_end{args.end_date.replace("-", "")}_val{args.val_steps}_test{args.test_steps}'
     run_dir = Path(cfg.results_root) / args.model / args.variable / run_tag
-    checkpoint_path = run_dir / 'checkpoint.pth'
+    last_path = run_dir / 'last.pth'
+    best_path = run_dir / 'best.pth'
+    checkpoint_path = run_dir / 'checkpoint.pth'  # last epoch, backward-compatible name
     history_path = run_dir / 'training_history.npz'
     curve_path = run_dir / 'training_curve.png'
 
@@ -202,13 +231,21 @@ def main():
     history = {
         'epoch': [], 'total_loss': [], 'mse': [], 'dynamic': [],
         'sde': [], 'sde_drift': [], 'lr': [], 'epoch_time_s': [],
+        'train_rmse': [], 'train_psnr': [], 'train_psnr_horizons': [], 'val_loss': [],
+        'val_rmse': [], 'val_psnr': [], 'val_psnr_horizons': [],
     }
     previous_epoch = 0
+    best_val_rmse = float('inf')
+    best_epoch = 0
+    epochs_without_improvement = 0
 
     if args.resume:
-        if not checkpoint_path.exists():
-            raise FileNotFoundError(f'Cannot resume: checkpoint not found: {checkpoint_path}')
-        checkpoint = load_checkpoint(checkpoint_path, map_location='cpu')
+        resume_path = last_path if last_path.exists() else checkpoint_path
+        if not resume_path.exists():
+            raise FileNotFoundError(f'Cannot resume: checkpoint not found: {resume_path}')
+        checkpoint = load_checkpoint(resume_path, map_location='cpu')
+        if checkpoint.get('data_end_idx') != data_end or checkpoint.get('val_start_idx') != val_start:
+            raise ValueError('Resume checkpoint uses different chronological split; refusing to mix experiments.')
         model.load_state_dict(checkpoint['model_state'])
         if 'optimizer_state' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -217,10 +254,13 @@ def main():
         if 'scaler_state' in checkpoint:
             scaler.load_state_dict(checkpoint['scaler_state'])
         previous_epoch = int(checkpoint.get('epoch', 0))
+        best_val_rmse = float(checkpoint.get('best_val_rmse', float('inf')))
+        best_epoch = int(checkpoint.get('best_epoch', 0))
+        epochs_without_improvement = int(checkpoint.get('epochs_without_improvement', 0))
         old_history = checkpoint.get('history', {})
         for key in history:
             history[key] = list(old_history.get(key, []))
-        print(f'  resumed from {checkpoint_path} at epoch {previous_epoch}', flush=True)
+        print(f'  resumed from {resume_path} at epoch {previous_epoch}', flush=True)
 
     params = sum(p.numel() for p in model.parameters())
     print(f'  run_tag={run_tag}', flush=True)
@@ -241,7 +281,15 @@ def main():
         'mean': mean,
         'std': std,
         'train_end_idx': train_end,
+        'val_start_idx': val_start,
+        'test_start_idx': test_start,
+        'data_end_idx': data_end,
+        'data_last_date': args.end_date,
         'total_time_steps': reader.length,
+        'psnr_ranges': psnr_ranges,
+        'psnr_percentiles': cfg.psnr_percentiles,
+        'psnr_stats_path': str(psnr_path),
+
         'downsample': args.downsample,
         'grid_shape': tuple(mask.shape),
         'in_len': cfg.in_len,
@@ -274,6 +322,7 @@ def main():
         total_sum = mse_sum = dyn_sum = sde_sum = drift_sum = 0.0
         batches = 0
         interval_started = time.time(); interval_samples = 0
+        train_metrics = OnlineErrorMetrics(cfg.out_len, std, psnr_ranges)
         if device.type == 'cuda':
             torch.cuda.reset_peak_memory_stats(device)
 
@@ -311,6 +360,7 @@ def main():
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
+            train_metrics.update(pred, y, mask_tensor)
 
             total_sum += loss.item()
             mse_sum += parts['mse'].item()
@@ -334,6 +384,41 @@ def main():
                 )
                 interval_started = now; interval_samples = 0
 
+        train_score = train_metrics.summary()
+        model.eval()
+        val_metrics = OnlineErrorMetrics(cfg.out_len, std, psnr_ranges)
+        val_loss_sum = 0.0
+        val_samples = 0
+        with torch.inference_mode():
+            for val_batch in val_loader:
+                if sde_enabled:
+                    vx, vy, vsde_features, vsde_last = val_batch
+                    vsde_features = vsde_features.to(device, non_blocking=True)
+                    vsde_last = vsde_last.to(device, non_blocking=True)
+                else:
+                    vx, vy = val_batch
+                    vsde_features = vsde_last = None
+                vx = vx.to(device, non_blocking=True)
+                vy = vy.to(device, non_blocking=True)
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    vpred = (model(vx, mask_tensor, sde_features=vsde_features)
+                             if uses_sde_conditioning else model(vx, mask_tensor))
+                vloss, _ = forecast_loss(
+                    vpred, vy, vx[:, -1], mask_tensor,
+                    dynamic_weight=args.dynamic_weight,
+                    sde_last_coefficients=vsde_last if sde_weight > 0 else None,
+                    sde_weight=sde_weight, sde_b_kind=args.sde_b_kind,
+                    sde_loss_mode=args.sde_loss_mode,
+                    sde_dt=args.sde_dt, sde_eps=args.sde_eps,
+                )
+                val_metrics.update(vpred, vy, mask_tensor)
+                val_loss_sum += float(vloss) * vx.size(0)
+                val_samples += vx.size(0)
+        val_score = val_metrics.summary()
+        if not np.isfinite(val_score['overall_rmse']):
+            raise FloatingPointError('Validation RMSE is non-finite; refusing to save an invalid best checkpoint.')
+        val_loss_value = val_loss_sum / max(val_samples, 1)
+
         epoch_seconds = time.time() - epoch_started
         history['epoch'].append(epoch)
         history['total_loss'].append(total_sum / batches)
@@ -343,6 +428,13 @@ def main():
         history['sde_drift'].append(drift_sum / batches)
         history['lr'].append(optimizer.param_groups[0]['lr'])
         history['epoch_time_s'].append(epoch_seconds)
+        history['train_rmse'].append(train_score['overall_rmse'])
+        history['train_psnr'].append(train_score['overall_psnr'])
+        history['train_psnr_horizons'].append(train_score['psnr'])
+        history['val_loss'].append(val_loss_value)
+        history['val_rmse'].append(val_score['overall_rmse'])
+        history['val_psnr'].append(val_score['overall_psnr'])
+        history['val_psnr_horizons'].append(val_score['psnr'])
 
         peak = torch.cuda.max_memory_allocated(device) / 1024**3 if device.type == 'cuda' else 0.0
         elapsed = time.time() - training_started
@@ -350,21 +442,52 @@ def main():
         print(
             f'  -> epoch {epoch:03d}: loss={history["total_loss"][-1]:.6f}, mse={history["mse"][-1]:.6f}, '
             f'dyn={history["dynamic"][-1]:.6f}, sde={history["sde"][-1]:.6f}, '
+            f'train_RMSE={train_score["overall_rmse"]:.5g} train_PSNR={train_score["overall_psnr"]:.3f} dB | '
+            f'val_loss={val_loss_value:.5g} val_RMSE={val_score["overall_rmse"]:.5g} '
+            f'val_PSNR={val_score["overall_psnr"]:.3f} dB | '
             f'time={epoch_seconds/60:.1f} min, peak_GPU={peak:.2f} GB, run ETA={remaining/60:.1f} min\n', flush=True
         )
 
-        if epoch % cfg.checkpoint_every == 0 or epoch == final_epoch:
-            save_checkpoint(checkpoint_path, model, optimizer, scaler, epoch, history, metadata)
+        # Rank checkpoints on physical validation RMSE, not the training loss.
+        improved = val_score['overall_rmse'] < best_val_rmse - args.min_delta
+        if improved:
+            best_val_rmse = val_score['overall_rmse']
+            best_epoch = epoch
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+        checkpoint_metadata = dict(metadata, best_val_rmse=best_val_rmse,
+                                   best_epoch=best_epoch,
+                                   epochs_without_improvement=epochs_without_improvement)
+        if improved:
+            save_checkpoint(best_path, model, optimizer, scaler, epoch, history, checkpoint_metadata)
+            print(f'  -> NEW BEST: epoch={epoch}, validation RMSE={best_val_rmse:.6g}', flush=True)
+        # Save last epoch (both names, for backwards compatibility).
+        if epoch % cfg.checkpoint_every == 0 or epoch == final_epoch or (
+            args.patience > 0 and epochs_without_improvement >= args.patience
+        ):
+            save_checkpoint(last_path, model, optimizer, scaler, epoch, history, checkpoint_metadata)
+            save_checkpoint(checkpoint_path, model, optimizer, scaler, epoch, history, checkpoint_metadata)
             run_dir.mkdir(parents=True, exist_ok=True)
             np.savez(history_path, **{k: np.asarray(v) for k, v in history.items()})
+        if args.patience > 0 and epochs_without_improvement >= args.patience:
+            print(f'  -> Early stopping: {epochs_without_improvement} epochs without '
+                  f'validation RMSE improvement; best epoch={best_epoch}', flush=True)
+            break
 
     print('[7/7] Final outputs...', flush=True)
-    save_checkpoint(checkpoint_path, model, optimizer, scaler, final_epoch, history, metadata)
+    final_epoch_reached = int(history['epoch'][-1])
+    final_metadata = dict(metadata, best_val_rmse=best_val_rmse, best_epoch=best_epoch,
+                          epochs_without_improvement=epochs_without_improvement)
+    save_checkpoint(last_path, model, optimizer, scaler, final_epoch_reached, history, final_metadata)
+    save_checkpoint(checkpoint_path, model, optimizer, scaler, final_epoch_reached, history, final_metadata)
     np.savez(history_path, **{k: np.asarray(v) for k, v in history.items()})
     plot_training_curve(history_path, curve_path, title=f'{args.model}: {args.variable}, ds={args.downsample}')
-    print(f'  checkpoint: {checkpoint_path}', flush=True)
+    print(f'  best checkpoint: {best_path} (epoch {best_epoch}, validation RMSE={best_val_rmse:.6g})', flush=True)
+    print(f'  last checkpoint: {last_path}', flush=True)
+    print(f'  compatibility checkpoint: {checkpoint_path}', flush=True)
     print(f'  history:    {history_path}', flush=True)
-    print(f'  curve:      {curve_path}', flush=True)
+    print(f'  curve:      {curve_path} (plus *_psnr.png)', flush=True)
     print(f'  total time: {(time.time()-training_started)/60:.1f} min', flush=True)
     print('=' * 96 + '\n', flush=True)
 
