@@ -6,6 +6,7 @@ from Forecast_nn.models.fno import FNOForecaster
 from Forecast_nn.models.unet_convlstm_sde import SDEUNetConvLSTMForecaster
 from Forecast_nn.models.simvp_sde import SDESimVPForecaster
 from Forecast_nn.models.fno_sde import SDEFNOForecaster
+from Forecast_nn.models.swin_gru import SwinGRUForecaster
 
 
 _MODEL_REGISTRY = {
@@ -16,6 +17,7 @@ _MODEL_REGISTRY = {
     'simvp_sde': SDESimVPForecaster,
     'fno': FNOForecaster,
     'fno_sde': SDEFNOForecaster,
+    'swin_gru': SwinGRUForecaster,
 }
 
 _SDE_CONDITIONED_MODELS = {'unet_convlstm_sde', 'simvp_sde', 'fno_sde'}

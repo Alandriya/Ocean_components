@@ -102,6 +102,50 @@ class OceanFieldReader:
         return self.read_indices(np.arange(start, end, dtype=np.int64))
 
 
+
+class OceanMultiFieldReader:
+    """Join flux histories along channel axis, without eagerly loading data."""
+    def __init__(self, data_files, downsample=1):
+        from types import SimpleNamespace
+        if len(data_files) != 2:
+            raise ValueError('Joint mode requires exactly two flux files')
+        self.readers = [OceanFieldReader(f, downsample) for f in data_files]
+        first = self.readers[0]
+        if any((r.length, r.height, r.width) != (first.length, first.height, first.width)
+               for r in self.readers[1:]):
+            raise ValueError('Joint flux files have different grids or time lengths')
+        self.height, self.width = first.height, first.width
+        self.length = first.length
+        self.channels = sum(r.channels for r in self.readers)
+        if self.channels != 2:
+            raise ValueError('Expected one sensible and one latent channel')
+        self.data = SimpleNamespace(shape=(self.length, self.channels, self.height, self.width))
+
+    def read_indices(self, indices):
+        return np.concatenate([r.read_indices(indices) for r in self.readers], axis=1)
+
+    def read_range(self, start, end):
+        return self.read_indices(np.arange(start, end, dtype=np.int64))
+
+
+def make_field_reader(data_file, downsample=1):
+    if isinstance(data_file, (list, tuple)):
+        return OceanMultiFieldReader(data_file, downsample)
+    return OceanFieldReader(data_file, downsample)
+
+
+def resolve_flux_source(variable, data_files):
+    """The two-channel task uses the same files and dates as solo experiments."""
+    if variable == 'joint':
+        return [str(data_files[v]) for v in ('sensible', 'latent')]
+    return str(data_files[variable])
+
+
+def source_exists(source):
+    if isinstance(source, (list, tuple)):
+        return all(Path(item).is_file() for item in source)
+    return Path(source).is_file()
+
 def estimate_normalization(reader, mask, start_idx, end_idx, chunk=32, verbose=True):
     sums = np.zeros(reader.channels, dtype=np.float64)
     sums2 = np.zeros(reader.channels, dtype=np.float64)
@@ -133,7 +177,7 @@ def load_or_create_normalization(data_file, mask, variable, downsample, train_en
     if path.exists() and not rebuild:
         with np.load(path) as f:
             return f['mean'].astype(np.float32), f['std'].astype(np.float32), path
-    reader = OceanFieldReader(data_file, downsample)
+    reader = make_field_reader(data_file, downsample)
     mean, std = estimate_normalization(reader, mask, 0, train_end, verbose=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(path, mean=mean, std=std)
@@ -143,7 +187,7 @@ def load_or_create_normalization(data_file, mask, variable, downsample, train_en
 class OceanSequenceDataset(Dataset):
     """Return normalized input/target sequences as [T,C,H,W]."""
     def __init__(self, data_file, mask, start_idx, end_idx, in_len, out_len, mean, std, stride=1, downsample=1):
-        self.reader = OceanFieldReader(data_file, downsample)
+        self.reader = make_field_reader(data_file, downsample)
         self.mask = mask.astype(bool)
         self.start_idx = int(start_idx)
         self.end_idx = min(int(end_idx), self.reader.length)
@@ -197,7 +241,7 @@ def load_or_create_psnr_ranges(data_file, mask, variable, downsample, train_end,
         with np.load(path) as f:
             return f['data_range'].astype(np.float32), path
 
-    reader = OceanFieldReader(data_file, downsample)
+    reader = make_field_reader(data_file, downsample)
     if mask.shape != (reader.height, reader.width):
         raise ValueError('PSNR mask/grid mismatch.')
     indices = np.unique(np.linspace(0, train_end - 1,

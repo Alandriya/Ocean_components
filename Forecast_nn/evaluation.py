@@ -21,34 +21,109 @@ def _excel_value(value):
 
 
 def _short(value):
+    """Compact, filesystem-safe number representation for experiment IDs."""
     if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, float):
-        return f'{value:g}'.replace('+', '')
-    return value
+        return str(int(value))
+    if isinstance(value, (float, np.floating)):
+        value = float(value)
+        decimal = f'{value:g}'
+        if not np.isfinite(value) or value == 0:
+            return decimal
+        mantissa, exponent = f'{value:.6e}'.split('e')
+        sci = f'{float(mantissa):g}e{int(exponent)}'
+        return sci if len(sci) < len(decimal) else decimal
+    return str(value)
 
 
 def build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_params):
-    aliases = {
-        'base_channels': 'base', 'depth': 'depth', 'dropout': 'drop',
-        'residual': 'res', 'use_mask_channel': 'mask',
-        'use_coord_channels': 'xy', 'mask_features': 'mf',
-        'temporal_blocks': 'tb', 'temporal_kernel': 'tk', 'spatial_kernel': 'sk',
-        'horizon_embedding': 'he', 'projection_width': 'proj',
-        'sde_condition_scale': 'sdec', 'sde_history': 'sdehist',
+    """Short experiment name, relative to results/<model>/<variable>/.
+
+    Always distinguish grid/history/horizon and the architecture's main size
+    hyperparameters. Include secondary settings ONLY when different from the
+    repository defaults. Unrecognized parameters are included verbatim to avoid
+    silently giving distinct future architectures identical names.
+
+    Split boundaries, dates and data file paths deliberately do not appear here;
+    they are recorded in checkpoint metadata instead.
+    """
+    name = str(model_name).lower()
+    params = dict(model_params)
+    parts = [f'ds{int(downsample)}', f'i{int(in_len)}', f'o{int(out_len)}']
+    if int(stride) != 1:
+        parts.append(f's{int(stride)}')
+
+    # Main architecture hyperparameters, included even when at default values.
+    if name == 'swin_gru':
+        core = [('base_channels', 'b'), ('temporal_tokens', 'tt'),
+                ('attention_depth', 'ad'), ('heads', 'h'), ('window_size', 'ws')]
+    elif name.startswith('fno'):
+        core = [('width', 'w'), ('modes_y', 'my'), ('modes_x', 'mx'), ('layers', 'l')]
+    elif name.startswith('simvp'):
+        core = [('base_channels', 'b'), ('depth', 'd'), ('temporal_blocks', 'tb')]
+    else:
+        core = [('base_channels', 'b'), ('depth', 'd')]
+
+    included = set()
+    for key, short_name in core:
+        if key in params:
+            parts.append(f'{short_name}{_short(params[key])}')
+            included.add(key)
+
+    # These settings are real ablation knobs; omit the defaults to keep names short.
+    defaults = {
+        'dropout': 0.0 if name.startswith('fno') else 0.05,
+        'residual': True,
+        'use_mask_channel': True,
+        'use_coord_channels': True,
+        'mask_features': True,
+        'lstm_kernel': 3,
+        'temporal_kernel': 3,
+        'spatial_kernel': 3,
+        'horizon_embedding': True,
+        'projection_width': 96,
+        'padding': 2,
+        'sde_condition_scale': 0.10,
+        'sde_history': True,
     }
-    parts = [f'ds{downsample}', f'in{in_len}', f'out{out_len}', f'st{stride}']
-    for key, value in model_params.items():
-        name = aliases.get(key, key)
-        parts.append(f'{name}{_short(value)}')
-    return '_'.join(map(str, parts))
+    aliases = {
+        'dropout': 'p', 'residual': 'r', 'use_mask_channel': 'mc',
+        'use_coord_channels': 'xy', 'mask_features': 'mf',
+        'lstm_kernel': 'k', 'temporal_kernel': 'tk', 'spatial_kernel': 'sk',
+        'horizon_embedding': 'he', 'projection_width': 'pw',
+        'padding': 'pad', 'sde_condition_scale': 'sc', 'sde_history': 'sh',
+    }
+    for key, value in params.items():
+        if key in included:
+            continue
+        if key in defaults:
+            if value != defaults[key]:
+                parts.append(f'{aliases[key]}{_short(value)}')
+        else:
+            # Do not hide future model settings from experiment identifiers.
+            parts.append(f'{key}{_short(value)}')
+    return '_'.join(parts)
 
 
 def append_sde_run_tag(run_tag, sde_weight, b_kind, loss_mode=None):
-    tag = f'{run_tag}_sdew{_short(float(sde_weight))}_sdeb{str(b_kind)}'
-    if loss_mode:
-        tag += f'_sdemode{str(loss_mode)}'
-    return tag
+    """Add only SDE loss/interpretation settings that change the experiment."""
+    if float(sde_weight) > 0:
+        run_tag += f'_sw{_short(float(sde_weight))}'
+    if str(b_kind) != 'diffusion':
+        run_tag += '_bv' if str(b_kind) == 'variance' else f'_b{b_kind}'
+    if float(sde_weight) > 0 and loss_mode and str(loss_mode) != 'first_step':
+        run_tag += '_ma' if str(loss_mode) == 'last_observed_all' else f'_m{loss_mode}'
+    return run_tag
+
+
+def add_run_id(run_tag, run_id=None):
+    """Optional user-supplied suffix for runs varying training/split settings."""
+    import re
+    if not run_id:
+        return run_tag
+    run_id = str(run_id)
+    if len(run_id) > 24 or not re.fullmatch(r'[A-Za-z0-9-]+', run_id):
+        raise ValueError('--run-id must contain 1-24 ASCII letters, numbers or hyphens.')
+    return f'{run_tag}_{run_id}'
 
 
 def _gaussian_kernel(size=11, sigma=1.5):

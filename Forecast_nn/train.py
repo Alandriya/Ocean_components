@@ -19,10 +19,11 @@ import torch
 from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
-from Forecast_nn.data import (OceanFieldReader, OceanSequenceDataset, load_mask,
+from Forecast_nn.data import (make_field_reader, resolve_flux_source, source_exists, OceanSequenceDataset, load_mask,
                               load_or_create_normalization, load_or_create_psnr_ranges)
-from Forecast_nn.evaluation import build_run_tag, append_sde_run_tag, OnlineErrorMetrics
+from Forecast_nn.evaluation import build_run_tag, append_sde_run_tag, add_run_id, OnlineErrorMetrics
 from Forecast_nn.losses import forecast_loss
+from Forecast_nn.logging_utils import tee_output, log_file_path, run_tag_from_args
 from Forecast_nn.splits import resolve_splits
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.plotting.training_curve import plot_training_curve
@@ -36,15 +37,24 @@ from Forecast_nn.sde import (
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument('--model', choices=available_models(), default=cfg.model_name)
-    p.add_argument('--variable', choices=tuple(cfg.data_files), default=cfg.variable)
+    # Only used by the new heavy hybrid; explicit flags also identify run folders.
+    p.add_argument('--base-channels', type=int, default=None)
+    p.add_argument('--temporal-tokens', type=int, default=None)
+    p.add_argument('--attention-depth', type=int, default=None)
+    p.add_argument('--heads', type=int, default=None)
+    p.add_argument('--window-size', type=int, default=None)
+    p.add_argument('--variable', choices=(*tuple(cfg.data_files), 'joint'), default=cfg.variable)
     p.add_argument('--epochs', type=int, default=cfg.epochs, help='Epochs in this invocation; with --resume they are additional.')
     p.add_argument('--batch-size', type=int, default=cfg.batch_size)
     p.add_argument('--lr', type=float, default=cfg.learning_rate)
     p.add_argument('--downsample', type=int, default=cfg.downsample)
     p.add_argument('--num-workers', type=int, default=cfg.num_workers)
     p.add_argument('--dynamic-weight', type=float, default=cfg.dynamic_weight)
+    p.add_argument('--grad-accum', type=int, default=1, help='Gradient accumulation steps (effective batch=batch-size * grad-accum).')
+    p.add_argument('--grad-clip', type=float, default=1.0, help='Maximum gradient norm, 0 disables clipping.')
     p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=cfg.amp)
     p.add_argument('--resume', action='store_true')
+    p.add_argument('--run-id', default='', help='Optional short suffix to separate runs with different training or split settings.')
     p.add_argument('--rebuild-stats', action='store_true')
     p.add_argument('--end-date', type=str, default=cfg.data_last_date,
                    help='Inclusive last day, e.g. 2023-12-31. Must exist in the input series.')
@@ -92,8 +102,9 @@ def save_checkpoint(path, model, optimizer, scaler, epoch, history, metadata):
     torch.save(payload, path)
 
 
-def main():
-    args = parse_args()
+def _run(args):
+    if args.grad_accum < 1 or args.grad_clip < 0:
+        raise ValueError('Require grad-accum >= 1 and grad-clip >= 0.')
     if args.epochs < 1 or args.patience < 0 or args.min_delta < 0:
         raise ValueError('Require epochs >= 1, patience >= 0 and min_delta >= 0.')
     configure_runtime(cfg.seed, cfg.fast_cuda)
@@ -104,8 +115,10 @@ def main():
     sde_weight = float(cfg.sde_weight if (args.sde_weight is None and uses_sde_conditioning) else (args.sde_weight or 0.0))
     sde_enabled = uses_sde_conditioning or sde_weight > 0.0
 
-    data_file = Path(cfg.data_files[args.variable])
-    if not data_file.exists():
+    if args.variable == 'joint' and sde_enabled:
+        raise ValueError('Joint 2-component SDE is not implemented yet; use --sde-weight 0.')
+    data_file = resolve_flux_source(args.variable, cfg.data_files)
+    if not source_exists(data_file):
         raise FileNotFoundError(f'Data file not found: {data_file}')
     if not Path(cfg.mask_file).exists():
         raise FileNotFoundError(f'Mask file not found: {cfg.mask_file}')
@@ -120,7 +133,7 @@ def main():
 
     print('\n[1/7] Data and chronological split...', flush=True)
     mask = load_mask(cfg.mask_file, args.downsample)
-    reader = OceanFieldReader(data_file, args.downsample)
+    reader = make_field_reader(data_file, args.downsample)
     split = resolve_splits(reader.length, cfg.base_date, args.end_date,
                            args.val_steps, args.test_steps, cfg.in_len, cfg.out_len, cfg.stride)
     train_end, val_start, test_start, data_end = (
@@ -213,18 +226,40 @@ def main():
 
     print('\n[5/7] Model and optimizer...', flush=True)
     model_params = dict(cfg.model_params[args.model])
+    overrides = {name: getattr(args, name) for name in ('base_channels', 'temporal_tokens', 'attention_depth', 'heads', 'window_size')
+                 if getattr(args, name) is not None}
+    if overrides and args.model != 'swin_gru':
+        raise ValueError('Heavy-model size flags are only supported for --model swin_gru.')
+    model_params.update(overrides)
     model_kwargs = dict(model_params)
     model = build_model(args.model, cfg.in_len, cfg.out_len, dataset.channels, model_params).to(device)
     run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if sde_enabled:
         run_tag = append_sde_run_tag(run_tag, sde_weight, args.sde_b_kind, args.sde_loss_mode)
-    run_tag += f'_end{args.end_date.replace("-", "")}_val{args.val_steps}_test{args.test_steps}'
+    run_tag = add_run_id(run_tag, args.run_id)
     run_dir = Path(cfg.results_root) / args.model / args.variable / run_tag
     last_path = run_dir / 'last.pth'
     best_path = run_dir / 'best.pth'
     checkpoint_path = run_dir / 'checkpoint.pth'  # last epoch, backward-compatible name
     history_path = run_dir / 'training_history.npz'
     curve_path = run_dir / 'training_curve.png'
+
+    # Chronological split is deliberately omitted from the short folder name.
+    # Refuse to overwrite a different split with the same identifier.
+    if not args.resume:
+        previous_path = last_path if last_path.exists() else best_path
+        if previous_path.exists():
+            previous = load_checkpoint(previous_path, map_location='cpu')
+            expected_bounds = (data_end, val_start, test_start)
+            actual_bounds = tuple(previous.get(key) for key in (
+                'data_end_idx', 'val_start_idx', 'test_start_idx'
+            ))
+            if actual_bounds != expected_bounds:
+                raise ValueError(
+                    f'Existing experiment {previous_path} uses split {actual_bounds}, '
+                    f'but requested split is {expected_bounds}. '
+                    'Use --run-id <short-name> to avoid overwriting that experiment.'
+                )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=cfg.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
@@ -277,7 +312,7 @@ def main():
         'model_name': args.model,
         'model_kwargs': model_kwargs,
         'variable': args.variable,
-        'data_file': str(data_file),
+        'data_file': data_file,
         'mean': mean,
         'std': std,
         'train_end_idx': train_end,
@@ -298,6 +333,8 @@ def main():
         'learning_rate': args.lr,
         'weight_decay': cfg.weight_decay,
         'dynamic_weight': args.dynamic_weight,
+        'grad_accum': args.grad_accum,
+        'grad_clip': args.grad_clip,
         'run_tag': run_tag,
         'sde_enabled': bool(sde_enabled),
         'sde_conditioning': bool(uses_sde_conditioning),
@@ -323,6 +360,7 @@ def main():
         batches = 0
         interval_started = time.time(); interval_samples = 0
         train_metrics = OnlineErrorMetrics(cfg.out_len, std, psnr_ranges)
+        optimizer.zero_grad(set_to_none=True)
         if device.type == 'cuda':
             torch.cuda.reset_peak_memory_stats(device)
 
@@ -337,7 +375,6 @@ def main():
                 sde_last_coefficients = None
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
-            optimizer.zero_grad(set_to_none=True)
 
             with torch.cuda.amp.autocast(enabled=use_amp):
                 if uses_sde_conditioning:
@@ -357,9 +394,18 @@ def main():
                 sde_eps=args.sde_eps,
             )
 
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            # Divide by actual microbatches in this accumulation group, including
+            # its possibly smaller last group.
+            group_first = ((batch_idx - 1) // args.grad_accum) * args.grad_accum
+            group_size = min(args.grad_accum, len(loader) - group_first)
+            scaler.scale(loss / group_size).backward()
+            if batch_idx % args.grad_accum == 0 or batch_idx == len(loader):
+                if args.grad_clip > 0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
             train_metrics.update(pred, y, mask_tensor)
 
             total_sum += loss.item()
@@ -490,6 +536,15 @@ def main():
     print(f'  curve:      {curve_path} (plus *_psnr.png)', flush=True)
     print(f'  total time: {(time.time()-training_started)/60:.1f} min', flush=True)
     print('=' * 96 + '\n', flush=True)
+
+
+def main():
+    """Run with real-time, append-only stdout/stderr duplication to Forecast_nn/logs."""
+    args = parse_args()
+    log_path = log_file_path("train", args.model, run_tag_from_args(args),
+                             variable=args.variable)
+    with tee_output(log_path):
+        _run(args)
 
 
 if __name__ == '__main__':

@@ -12,13 +12,14 @@ import torch
 from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
-from Forecast_nn.data import (OceanFieldReader, OceanSequenceDataset, load_mask,
+from Forecast_nn.data import (make_field_reader, resolve_flux_source, source_exists, OceanSequenceDataset, load_mask,
                               load_or_create_psnr_ranges)
 from Forecast_nn.evaluation import (
-    MetricAccumulator, build_run_tag, append_sde_run_tag,
+    MetricAccumulator, build_run_tag, append_sde_run_tag, add_run_id,
     save_metrics_xlsx, save_plot_samples,
 )
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
+from Forecast_nn.logging_utils import tee_output, log_file_path, run_tag_from_args
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, load_checkpoint
 from Forecast_nn.sde import SDEFieldReader, SDEOceanSequenceDataset
 
@@ -26,11 +27,18 @@ from Forecast_nn.sde import SDEFieldReader, SDEOceanSequenceDataset
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument('--model', choices=available_models(), default=cfg.model_name)
-    p.add_argument('--variable', choices=tuple(cfg.data_files), default=cfg.variable)
+    # Only used by the new heavy hybrid; explicit flags also identify run folders.
+    p.add_argument('--base-channels', type=int, default=None)
+    p.add_argument('--temporal-tokens', type=int, default=None)
+    p.add_argument('--attention-depth', type=int, default=None)
+    p.add_argument('--heads', type=int, default=None)
+    p.add_argument('--window-size', type=int, default=None)
+    p.add_argument('--variable', choices=(*tuple(cfg.data_files), 'joint'), default=cfg.variable)
     p.add_argument('--downsample', type=int, default=cfg.downsample)
     p.add_argument('--batch-size', type=int, default=cfg.batch_size)
     p.add_argument('--num-workers', type=int, default=cfg.num_workers)
     p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=cfg.amp)
+    p.add_argument('--run-id', default='', help='Optional run suffix matching the training command.')
     p.add_argument('--checkpoint', default=None,
                    help='Override checkpoint path; default is best.pth for the matching experiment.')
     p.add_argument('--end-date', type=str, default=cfg.data_last_date)
@@ -48,19 +56,23 @@ def parse_ids(text):
     return sorted({int(v.strip()) for v in text.split(',') if v.strip()}) if text else []
 
 
-def main():
-    args = parse_args()
+def _run(args):
     configure_runtime(cfg.seed, cfg.fast_cuda)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     use_amp = bool(args.amp and device.type == 'cuda')
 
     model_params = dict(cfg.model_params[args.model])
+    overrides = {name: getattr(args, name) for name in ('base_channels', 'temporal_tokens', 'attention_depth', 'heads', 'window_size')
+                 if getattr(args, name) is not None}
+    if overrides and args.model != 'swin_gru':
+        raise ValueError('Heavy-model size flags are only supported for --model swin_gru.')
+    model_params.update(overrides)
     conditioned = model_uses_sde_conditioning(args.model)
     default_sde_weight = float(cfg.sde_weight if (args.sde_weight is None and conditioned) else (args.sde_weight or 0.0))
     default_run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
     if conditioned or default_sde_weight > 0:
         default_run_tag = append_sde_run_tag(default_run_tag, default_sde_weight, args.sde_b_kind, args.sde_loss_mode)
-    default_run_tag += f'_end{args.end_date.replace("-", "")}_val{args.val_steps}_test{args.test_steps}'
+    default_run_tag = add_run_id(default_run_tag, args.run_id)
     default_run_dir = Path(cfg.results_root) / args.model / args.variable / default_run_tag
     checkpoint_path = Path(args.checkpoint) if args.checkpoint else default_run_dir / 'best.pth'
     if not checkpoint_path.exists():
@@ -82,13 +94,13 @@ def main():
     run_tag = checkpoint.get('run_tag') or build_run_tag(model_name, variable, downsample, in_len, out_len, stride, model_kwargs)
     conditioned = bool(checkpoint.get('sde_conditioning', model_uses_sde_conditioning(model_name)))
 
-    data_file = Path(checkpoint.get('data_file', cfg.data_files[variable]))
-    if not data_file.exists():
-        data_file = Path(cfg.data_files[variable])
-    if not data_file.exists():
+    data_file = checkpoint.get('data_file', resolve_flux_source(variable, cfg.data_files))
+    if not source_exists(data_file):
+        data_file = resolve_flux_source(variable, cfg.data_files)
+    if not source_exists(data_file):
         raise FileNotFoundError(f'Cannot find flux input file: {data_file}')
     mask = load_mask(cfg.mask_file, downsample)
-    reader = OceanFieldReader(data_file, downsample)
+    reader = make_field_reader(data_file, downsample)
     if 'data_end_idx' in checkpoint:
         data_end = int(checkpoint['data_end_idx'])
         if data_end > reader.length:
@@ -248,6 +260,15 @@ def main():
         print(f'  plotting data: {plot_file}', flush=True)
         print(f'  plot command: python -m Forecast_nn.plotting.forecast_comparison --input "{plot_file}" --method all', flush=True)
     print('=' * 96 + '\n', flush=True)
+
+
+def main():
+    """Run with real-time, append-only stdout/stderr duplication to Forecast_nn/logs."""
+    args = parse_args()
+    log_path = log_file_path("test", args.model, run_tag_from_args(args),
+                             variable=args.variable, split=args.split)
+    with tee_output(log_path):
+        _run(args)
 
 
 if __name__ == '__main__':

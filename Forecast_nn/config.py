@@ -140,6 +140,18 @@ class Config:
             'mask_features': True,
             'padding': 2,
         },
+        'swin_gru': {
+            'base_channels': 64,
+            'temporal_tokens': 8,
+            'attention_depth': 2,
+            'heads': 8,
+            'window_size': 4,
+            'dropout': 0.05,
+            'residual': True,
+            'use_mask_channel': True,
+            'use_coord_channels': True,
+            'mask_features': True,
+        },
         'fno_sde': {
             'width': 48,
             'modes_y': 14,

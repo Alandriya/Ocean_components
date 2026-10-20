@@ -36,6 +36,61 @@ Forecast_nn/
     └── forecast_comparison.py
 ```
 
+## Text logs (train and test)
+
+Each invocation of `python -m Forecast_nn.train` or `python -m Forecast_nn.test`
+prints to the terminal **and simultaneously** writes its stdout and stderr to
+`Forecast_nn/logs/`. The folder is created automatically. No new CLI options
+are needed.
+
+By default, a sensible-flux U-Net + ConvLSTM run writes:
+
+```text
+Forecast_nn/logs/train_unet_convlstm_ds2_i30_o3_b16_d3.txt
+Forecast_nn/logs/test_unet_convlstm_ds2_i30_o3_b16_d3.txt
+```
+
+For `--variable latent` or `--variable joint`, `_latent` or `_joint` is appended
+before `.txt` so their logs cannot collide. `test.py --split val` appends `_val`.
+Existing compact run tags, including optional `--run-id`, model size and SDE
+suffixes, are reused verbatim. Paths to saved model checkpoints are unchanged.
+
+Logs are **appended** on subsequent starts and `--resume`, rather than overwritten.
+Every invocation starts with a timestamp, the command line and the log path;
+uncaught Python tracebacks are also logged. The log is flushed during execution,
+so it can be viewed live on the cluster with `tail -f`.
+
+## Compact experiment folder names
+
+Results continue to live under `results_root/<model>/<variable>/<run_tag>/`.
+The run tag now contains **only short, relevant hyperparameters**. For example:
+
+- U-Net + ConvLSTM: `ds2_i30_o3_b16_d3`
+- SimVP: `ds2_i30_o3_b16_d3_tb4`
+- FNO: `ds2_i30_o3_w48_my14_mx14_l3`
+- SimVP + SDE: `ds2_i30_o3_b16_d3_tb4_sw1e-4`
+
+Here `ds` is downsampling, `i` input history, `o` output horizon,
+`b` base channels, `d` depth, `tb` temporal blocks, `w` FNO width,
+`my/mx` Fourier modes, `l` FNO blocks, `sw` SDE-loss weight.
+Stride is included only if it is not 1. Non-default dropout, kernel sizes,
+mask/coordinate flags and other architecture switches appear only when changed.
+
+**Date/split information (`_end..._val..._test...`) is no longer added to names.**
+The full settings (including train/validation/test boundaries, dates, and
+model hyperparameters) are still stored in `best.pth` and `last.pth`.
+When an existing folder has a different chronological split, training refuses
+to overwrite it. To keep independent runs with different splits, random seeds or
+optimizer settings, use a short explicit `--run-id`:
+
+```bash
+python -m Forecast_nn.train --model simvp --run-id seed2
+python -m Forecast_nn.test --model simvp --run-id seed2
+```
+
+Existing experiments with older long names are **not automatically moved or
+renamed**. Pass `--checkpoint /path/to/old/best.pth` to evaluate an old run.
+
 ## Registered models
 
 Base models:
@@ -413,9 +468,8 @@ python -m Forecast_nn.train --model simvp_sde --variable sensible \
 stores the latest epoch, and `checkpoint.pth` duplicates the latest epoch for
 compatibility. `--resume` restores the latest checkpoint and the best metric.
 `--patience 0` disables early stopping; `--min-delta` is the minimum physical
-RMSE improvement required to reset the patience counter. The output directory
-includes `end..._val..._test...` to keep new checkpoints separate from older
-experiments.
+RMSE improvement required to reset the patience counter. The output directory uses compact architecture tags; chronological split
+boundaries are stored inside each checkpoint rather than in the directory name.
 
 Training logs and `training_history.npz` now include train/validation RMSE and
 PSNR (dB), including per-horizon PSNR arrays. Plots are written to
@@ -444,11 +498,116 @@ PSNR when merging the workbooks.
 
 The current `*_sde` architectures are **scalar SDE-informed models**, not yet
 the full coupled `2 x 1` drift / `2 x 2` diffusion implementation. The
-chronological infrastructure is ready for this later extension, which will
-need its own joint-field data loader and covariance-aware training objective.
+new `joint` data mode supports two simultaneous flux channels but **not yet**
+the full coupled 2x2 stochastic drift/diffusion loss. That is a separate model extension.
 
 Regression tests with synthetic data (no ERA5 download needed):
 
 ```bash
 python -m pytest -q Forecast_nn/tests/test_pipeline_integration.py
 ```
+
+
+## New heavy deterministic model: `swin_gru` (CNN + attention + ConvGRU)
+
+Implementation: [`models/swin_gru.py`](models/swin_gru.py). This is a new,
+standalone hybrid **inspired by**, but NOT an exact reimplementation of,
+SwinLSTM or Swin Transformer. There are no downloaded pretrained weights.
+
+Design:
+
+1. A shared CNN encoder encodes **every** historical frame at scales 1/2,
+   1/4, 1/8, including a mask/coordinate option and masking of land features.
+2. Learned **temporal cross-attention** compresses all `in_len` historical
+   bottleneck frames to `temporal_tokens` ordered latent states without
+   making tokens for every full-resolution space-time pixel.
+3. A **ConvGRU** recurrent cell consumes these states; local window self-attention
+   with alternating regular and shifted windows mixes spatial information.
+4. U-Net-like skip features from the **last observed frame** are decoded once
+   for each requested horizon, with horizon embeddings, to direct residual
+   predictions relative to the last observed day.
+5. Predicts deterministically: no SDE regularization, future inputs, sampling,
+   ERA5 forecasts or physical coefficient maps are used.
+
+The default size is about **7.5 million parameters** in the `joint` case.
+Long sequences and spatial attention are computationally expensive; use an
+initial per-GPU batch size of **2–4**, rather than the old global default 16,
+then measure GPU memory and increase if possible. The trainer currently uses
+**one GPU per invocation**; it does **not** contain distributed data-parallel
+logic. Gradient accumulation lets you reach a larger effective batch size on
+one GPU.
+
+### Option A: the original single-field input
+
+```bash
+python -m Forecast_nn.train --model swin_gru --variable sensible \
+  --epochs 100 --lr 1e-4 --batch-size 2 --grad-accum 8 \
+  --num-workers 4 --grad-clip 1 --patience 15 --amp
+
+python -m Forecast_nn.test --model swin_gru --variable sensible --batch-size 2 --amp
+```
+
+### Option B: both historical fluxes, **joint** prediction (recommended)
+
+```bash
+python -m Forecast_nn.train --model swin_gru --variable joint \
+  --epochs 100 --lr 1e-4 --batch-size 2 --grad-accum 8 \
+  --num-workers 4 --grad-clip 1 --patience 15 --amp
+
+python -m Forecast_nn.test --model swin_gru --variable joint --batch-size 2 --amp
+```
+
+`joint` reads the existing `sensible` and `latent` files given in `config.py`
+without duplication or temporal re-interpolation. Both files must have the
+same number of frames and identical grids; the loader channels are
+`[sensible, latent]`. Means, standard deviations and PSNR ranges are calculated
+**per channel from training data only**. The last date is still 2023-12-31.
+The test and persistence baselines use the same two channels and dates.
+Do not use `--variable joint` with the legacy `*_sde` models: those use a
+single-component SDE and must be generalized separately.
+
+### Architectural experiments from the CLI
+
+All size overrides are **specific to** `--model swin_gru`:
+
+```bash
+python -m Forecast_nn.train --model swin_gru --variable joint \
+  --base-channels 48 --temporal-tokens 6 --attention-depth 2 \
+  --heads 8 --window-size 4 --run-id compact \
+  --lr 1e-4 --batch-size 4 --grad-accum 4 --epochs 100 --amp
+
+python -m Forecast_nn.test --model swin_gru --variable joint \
+  --base-channels 48 --temporal-tokens 6 --attention-depth 2 \
+  --heads 8 --window-size 4 --run-id compact --batch-size 4 --amp
+```
+
+For experiments with altered architecture settings, provide the same
+architectural flags and `--run-id` during testing, or specify
+`--checkpoint path/to/best.pth` explicitly. Architecture arguments are stored
+inside the checkpoint and are not inferred from the current config when
+loading a checkpoint explicitly.
+
+Example default compact tag:
+`ds2_i30_o3_b64_tt8_ad2_h8_ws4` inside
+`Results/swin_gru/joint/`.
+
+Gradient accumulation (`--grad-accum`, default 1) and gradient clipping
+(`--grad-clip`, default 1) are also available for existing models.
+The effective batch has approximately `batch-size * grad-accum` examples.
+
+### Tests
+
+```bash
+python -m pytest -q Forecast_nn/tests
+```
+
+The tests include masked/odd-sized shape checks, gradient flow through temporal
+and window attention, a two-field reader, an end-to-end joint-field
+training/validation/test loop, PSNR and persisted `best.pth` metadata.
+They use synthetic data, not ERA5; production speed, GPU RAM, and forecast
+accuracy must still be measured on the actual cluster.
+
+Original methodology references:
+- [Liu et al., Swin Transformer, ICCV 2021](https://arxiv.org/abs/2103.14030)
+- [Tang et al., SwinLSTM, ICCV 2023](https://openaccess.thecvf.com/content/ICCV2023/html/Tang_SwinLSTM_Improving_Spatiotemporal_Prediction_Accuracy_using_Swin_Transformer_and_LSTM_ICCV_2023_paper.html)
+- [PyTorch Scaled Dot Product Attention](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html)
