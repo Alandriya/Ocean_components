@@ -262,7 +262,7 @@ def _run(args):
                 )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=cfg.weight_decay)
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     history = {
         'epoch': [], 'total_loss': [], 'mse': [], 'dynamic': [],
         'sde': [], 'sde_drift': [], 'lr': [], 'epoch_time_s': [],
@@ -376,7 +376,7 @@ def _run(args):
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
 
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 if uses_sde_conditioning:
                     pred = model(x, mask_tensor, sde_features=sde_features)
                 else:
@@ -446,7 +446,7 @@ def _run(args):
                     vsde_features = vsde_last = None
                 vx = vx.to(device, non_blocking=True)
                 vy = vy.to(device, non_blocking=True)
-                with torch.cuda.amp.autocast(enabled=use_amp):
+                with torch.amp.autocast("cuda", enabled=use_amp):
                     vpred = (model(vx, mask_tensor, sde_features=vsde_features)
                              if uses_sde_conditioning else model(vx, mask_tensor))
                 vloss, _ = forecast_loss(

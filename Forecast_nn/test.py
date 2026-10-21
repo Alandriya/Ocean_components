@@ -188,7 +188,7 @@ def _run(args):
                 sde_features = None
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 if conditioned:
                     nn_pred = model(x, mask_tensor, sde_features=sde_features)
                 else:
