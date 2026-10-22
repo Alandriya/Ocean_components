@@ -5,6 +5,8 @@
 *.log
 DATA/
 logs/
+Forecast/
+Forecast_nn/logs/
 
 Forecast_nn/darts_logs/*
 .idea/misc.xml
