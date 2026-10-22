@@ -1,6 +1,6 @@
 """Duplicate CLI stdout/stderr to readable experiment logs without muting the console.
 
-Logs live in Forecast_nn/logs (next to this module). Files are appended on
+Logs live in Forecast/logs (next to Forecast_nn). Files are appended on
 resume/repeated runs; each invocation starts with an explicit timestamp marker.
 """
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
@@ -81,7 +81,7 @@ def run_tag_from_args(args):
 
 
 def log_file_path(stage, model, run_tag, variable='sensible', split='test'):
-    """Make short, collision-resistant names in Forecast_nn/logs.
+    """Make short, collision-resistant names in Forecast/logs.
 
     Sensible (the default) follows the requested exact example; latent and joint
     get an explicit suffix so their logs never overwrite sensible runs.
@@ -93,4 +93,4 @@ def log_file_path(stage, model, run_tag, variable='sensible', split='test'):
         stem += f'_{variable}'
     if stage == 'test' and split != 'test':
         stem += f'_{split}'
-    return Path(__file__).resolve().parent / 'logs' / f'{stem}.txt'
+    return Path(__file__).resolve().parent.parent / 'Forecast' / 'logs' / f'{stem}.txt'
