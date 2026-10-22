@@ -4,6 +4,7 @@
 *.ini
 *.log
 DATA/
+logs/
 
 Forecast_nn/darts_logs/*
 .idea/misc.xml

@@ -16,7 +16,7 @@ from Forecast_nn.data import (make_field_reader, resolve_flux_source, source_exi
                               load_or_create_psnr_ranges)
 from Forecast_nn.evaluation import (
     MetricAccumulator, build_run_tag, append_sde_run_tag, add_run_id,
-    save_metrics_xlsx, save_plot_samples,
+    save_metrics_json, save_plot_samples,
 )
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.logging_utils import tee_output, log_file_path, run_tag_from_args
@@ -241,8 +241,8 @@ def _run(args):
     output_dir = Path(cfg.results_root) / model_name / variable / run_tag / args.split
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, acc in methods.items():
-        path = output_dir / f'metrics_{name}_{variable}.xlsx'
-        save_metrics_xlsx(path, name, variable, run_tag, summaries[name], checkpoint, acc.sample_rows)
+        path = output_dir / f'metrics_{name}_{variable}.json'
+        save_metrics_json(path, name, variable, run_tag, summaries[name], checkpoint, acc.sample_rows)
         print(f'  saved: {path}', flush=True)
 
     if saved['sample_id']:

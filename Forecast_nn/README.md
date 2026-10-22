@@ -21,7 +21,7 @@ Forecast_nn/
 ├── evaluation.py                # RMSE/MAE/MSE/SSIM + temporal diagnostics
 ├── train.py
 ├── test.py
-├── aggregate_metrics.py         # all metrics_*.xlsx -> one comparison workbook
+├── aggregate_metrics.py         # metrics_*.json -> consolidated JSON + CSV
 ├── models/
 │   ├── unet_convlstm.py
 │   ├── simvp.py
@@ -285,54 +285,57 @@ The CLI can override the table path:
 python -m Forecast_nn.train --model simvp_sde --sde-file "D:/.../my_sde_stats.npz"
 ```
 
-## Testing and SSIM
+## Testing, SSIM and PSNR (no openpyxl dependency)
 
-Run as before:
+Run as before from the repository root:
 
-```bat
-python -m Forecast_nn.test --model simvp_sde --variable sensible
+```bash
+python -m Forecast_nn.test --model swin_gru --variable sensible --batch-size 2 --amp
 ```
 
-Each XLSX now contains:
+Each test produces three JSON reports (model, historical_mean, persistence)
+with separate per-sample CSV files. For example:
 
 ```text
-MSE
-MAE
-RMSE
-SSIM
-Delta RMSE
-Delta correlation
-Predicted mean |delta|
-True mean |delta|
+<results_root>/swin_gru/sensible/<run_tag>/test/
+    metrics_swin_gru_sensible.json
+    metrics_swin_gru_sensible_per_sample.csv
+    metrics_historical_mean_sensible.json
+    metrics_historical_mean_sensible_per_sample.csv
+    metrics_persistence_sensible.json
+    metrics_persistence_sensible_per_sample.csv
 ```
 
-SSIM is computed locally with an 11x11 Gaussian window and averaged only over valid ocean pixels. It is exported as overall, per-horizon and per-sample SSIM.
+JSON contains overall MSE, MAE, RMSE, SSIM, PSNR (dB), temporal-change
+metrics, checkpoint metadata and statistics by horizon and channel. The CSV
+contains one row per forecast sample and horizon. SSIM uses the internal
+masked NumPy implementation; `scikit-image` is **not required**. PSNR ranges
+come only from the training period. Nonfinite numbers (e.g. perfect-match
+PSNR = +infinity) are written as JSON `null` or empty CSV cells.
 
-Old checkpoints and old metric workbooks remain usable; old workbooks simply have no SSIM column.
+Training/validation logging, `.npz` curves, `best.pth` and `last.pth` are
+unchanged. No `openpyxl` or `xarray` is needed for train/test.
 
-## Unified metrics workbook
+## Aggregate all models without Excel
 
-After testing several models:
-
-```bat
+```bash
 python -m Forecast_nn.aggregate_metrics
+# or: python -m Forecast_nn.aggregate_metrics --root /path/to/Forecast/Results
 ```
 
-The script recursively finds all `metrics_*.xlsx` below `cfg.results_root` and saves:
+New outputs:
 
 ```text
-<results_root>/_summary/all_models_metrics.xlsx
+<results_root>/_summary/all_models_metrics.json
+<results_root>/_summary/all_models_metrics_summary.csv
+<results_root>/_summary/all_models_metrics_per_horizon.csv
+<results_root>/_summary/all_models_metrics_read_errors.csv
 ```
 
-Sheets:
-
-```text
-summary       one row per metrics workbook / method
-per_horizon   one row per horizon
-read_errors   any old/corrupt workbook that could not be parsed
-```
-
-The summary includes architecture parameters and SDE settings when present, so base and informed versions can be compared in one table.
+Old `.xlsx` metric files remain on disk, but the no-dependency aggregator
+**only** reads new `metrics_*.json` files. Re-run `test.py` for an older model
+checkpoint to generate JSON metrics; the old `.pth` checkpoint format is
+unmodified. CSV files can be opened in Excel or text editors.
 
 ## Resume
 
@@ -611,3 +614,19 @@ Original methodology references:
 - [Liu et al., Swin Transformer, ICCV 2021](https://arxiv.org/abs/2103.14030)
 - [Tang et al., SwinLSTM, ICCV 2023](https://openaccess.thecvf.com/content/ICCV2023/html/Tang_SwinLSTM_Improving_Spatiotemporal_Prediction_Accuracy_using_Swin_Transformer_and_LSTM_ICCV_2023_paper.html)
 - [PyTorch Scaled Dot Product Attention](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html)
+
+## HPC FRCCSC: use the pre-installed NVIDIA container (no pip install)
+
+The cluster provides `docker-id` and the tested base image
+`nvcr.io/nvidia/pytorch:25.02-py3` (PyTorch 2.7, CUDA 12.8, A100).
+The standard `train.py` / `test.py` do **not** need `openpyxl`, `skimage` or
+`xarray`. Example job templates live in the companion `cluster_docker_id/`
+folder. Set Linux paths in your own `config.py` before running.
+
+```bash
+mkdir -p /home/aosipova/EM_ocean/Forecast_nn/logs
+cd /home/aosipova/EM_ocean
+sbatch cluster_docker_id/train_swin_gru.sbatch
+# after best.pth is produced:
+sbatch cluster_docker_id/test_swin_gru.sbatch
+```

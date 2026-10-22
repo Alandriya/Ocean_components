@@ -1,23 +1,51 @@
-"""Model-agnostic metrics, XLSX export and saved plotting samples."""
+"""Model-agnostic metrics, JSON/CSV export and saved plotting samples."""
 from pathlib import Path
+import csv
+import json
+import math
 import numpy as np
 import torch
 
 
-def _excel_value(value):
-    if isinstance(value, np.generic):
-        return value.item()
+def to_jsonable(value):
+    """Convert NumPy and other numeric metadata to strict, portable JSON.
+
+    Non-finite metrics (e.g. infinite PSNR for a perfect prediction) become null.
+    """
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, np.ndarray):
-        value = value.tolist()
-    if isinstance(value, (tuple, list)):
-        if len(value) == 2 and all(isinstance(v, (int, np.integer)) for v in value):
-            return f'{int(value[0])}x{int(value[1])}'
-        return ', '.join(str(_excel_value(v)) for v in value)
+        return to_jsonable(value.tolist())
+    if isinstance(value, np.generic):
+        return to_jsonable(value.item())
+    if isinstance(value, (list, tuple)):
+        return [to_jsonable(item) for item in value]
     if isinstance(value, dict):
-        return ', '.join(f'{k}={_excel_value(v)}' for k, v in value.items())
-    return value
+        return {str(key): to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, (str, int, bool)) or value is None:
+        return value
+    raise TypeError(f'Cannot serialize {type(value).__name__} as JSON')
+
+
+def write_csv(path, headers, rows):
+    """Write a UTF-8 CSV file, readable in text editors or spreadsheet programs."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('w', encoding='utf-8', newline='') as stream:
+        writer = csv.writer(stream)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow([_csv_value(v) for v in row])
+    return path
+
+
+def _csv_value(value):
+    value = to_jsonable(value)
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False, allow_nan=False)
+    return '' if value is None else value
 
 
 def _short(value):
@@ -362,79 +390,73 @@ class MetricAccumulator:
         }
 
 
-def save_metrics_xlsx(path, method, variable, run_tag, metrics, checkpoint, sample_rows):
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
-    except ImportError as exc:
-        raise ImportError('XLSX export requires openpyxl: pip install openpyxl') from exc
+def save_metrics_json(path, method, variable, run_tag, metrics, checkpoint, sample_rows):
+    """Write a compact JSON report and its per-sample CSV, no Excel dependency.
 
+    All metric calculations are unchanged; only storage format differs. The
+    checkpoint object is filtered to human-readable metadata (never tensor
+    weights or optimizer state). Full checkpoint data remains in best.pth.
+    """
     path = Path(path)
+    if path.suffix.lower() != '.json':
+        raise ValueError('Metrics report path must end in .json')
     path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'summary'
-    fill = PatternFill('solid', fgColor='D9EAF7')
-    ws.append(['Parameter', 'Value'])
-    for cell in ws[1]:
-        cell.font = Font(bold=True); cell.fill = fill
 
-    rows = [
-        ('Variable', variable), ('Method', method), ('Run tag', run_tag),
-        ('Overall MSE', metrics['overall_mse']), ('Overall MAE', metrics['overall_mae']),
-        ('Overall RMSE', metrics['overall_rmse']), ('Overall SSIM', metrics['overall_ssim']),
-        ('Overall PSNR (dB)', metrics['overall_psnr']), ('PSNR ranges', metrics['psnr_ranges']),
-        ('Delta RMSE', metrics['delta_rmse']), ('Predicted mean |delta|', metrics['pred_mean_abs_change']),
-        ('True mean |delta|', metrics['true_mean_abs_change']), ('Delta correlation', metrics['delta_correlation']),
+    metadata_keys = (
+        'model_name', 'model_kwargs', 'downsample', 'grid_shape', 'in_len',
+        'out_len', 'stride', 'train_end_idx', 'val_start_idx',
+        'test_start_idx', 'data_end_idx', 'data_last_date', 'best_epoch',
+        'best_val_rmse', 'epochs', 'learning_rate', 'dynamic_weight',
+        'sde_enabled', 'sde_weight', 'sde_b_kind', 'sde_loss_mode',
+        'sde_time_offset', 'sde_dt', 'sde_source', 'run_tag',
+    )
+    scalar_metrics = {
+        key: value for key, value in metrics.items()
+        if np.asarray(value).ndim == 0
+    }
+    per_horizon = [
+        {
+            'horizon': t + 1,
+            'mse': metrics['mse'][t],
+            'mae': metrics['mae'][t],
+            'rmse': metrics['rmse'][t],
+            'ssim': metrics['ssim'][t],
+            'psnr_db': metrics['psnr'][t],
+        }
+        for t in range(len(metrics['mse']))
     ]
-    for key in (
-        'model_name', 'downsample', 'grid_shape', 'in_len', 'out_len', 'stride',
-        'train_end_idx', 'val_start_idx', 'test_start_idx', 'data_end_idx',
-        'data_last_date', 'best_epoch', 'best_val_rmse', 'epochs',
-        'learning_rate', 'dynamic_weight', 'sde_enabled',
-        'sde_weight', 'sde_b_kind', 'sde_loss_mode', 'sde_time_offset', 'sde_dt', 'sde_source',
-    ):
-        if key in checkpoint:
-            rows.append((key, checkpoint.get(key)))
-    for key, value in checkpoint.get('model_kwargs', {}).items():
-        rows.append((key, value))
-    for row in rows:
-        ws.append([_excel_value(v) for v in row])
-    ws.column_dimensions['A'].width = 30; ws.column_dimensions['B'].width = 42
+    per_channel = [
+        {'channel': c, 'psnr_range': width, 'psnr_db': val}
+        for c, (width, val) in enumerate(zip(metrics['psnr_ranges'], metrics['psnr_per_channel']))
+    ]
+    per_horizon_channel = [
+        {'horizon': t + 1, 'channel': c, 'psnr_db': value}
+        for t, row in enumerate(metrics['psnr_per_horizon_channel'])
+        for c, value in enumerate(row)
+    ]
 
-    wh = wb.create_sheet('per_horizon')
-    wh.append(['Horizon', 'MSE', 'MAE', 'RMSE', 'SSIM', 'PSNR (dB)'])
-    for cell in wh[1]:
-        cell.font = Font(bold=True); cell.fill = fill
-    for t in range(len(metrics['mse'])):
-        wh.append([
-            t + 1, float(metrics['mse'][t]), float(metrics['mae'][t]),
-            float(metrics['rmse'][t]), float(metrics['ssim'][t]), float(metrics['psnr'][t]),
-        ])
+    sample_path = path.with_name(f'{path.stem}_per_sample.csv')
+    write_csv(sample_path,
+              ['sample', 'horizon', 'mse', 'mae', 'rmse', 'ssim', 'psnr_db'],
+              sample_rows)
 
-    wc = wb.create_sheet('per_channel')
-    wc.append(['Channel', 'PSNR range', 'Overall PSNR (dB)'])
-    for c, (width, psnr) in enumerate(zip(metrics['psnr_ranges'], metrics['psnr_per_channel'])):
-        wc.append([c, float(width), float(psnr)])
-    wch = wb.create_sheet('per_horizon_channel')
-    wch.append(['Horizon', 'Channel', 'PSNR (dB)'])
-    for t, row in enumerate(metrics['psnr_per_horizon_channel']):
-        for c, value in enumerate(row):
-            wch.append([t + 1, c, float(value)])
-
-    wsamp = wb.create_sheet('per_sample')
-    wsamp.append(['Sample', 'Horizon', 'MSE', 'MAE', 'RMSE', 'SSIM', 'PSNR (dB)'])
-    for cell in wsamp[1]:
-        cell.font = Font(bold=True); cell.fill = fill
-    for row in sample_rows:
-        wsamp.append([_excel_value(v) for v in row])
-
-    for sheet in (ws, wh, wc, wch, wsamp):
-        sheet.freeze_panes = 'A2'
-        for row in sheet.iter_rows():
-            for cell in row:
-                cell.alignment = Alignment(vertical='center')
-    wb.save(path)
+    payload = {
+        'schema_version': 1,
+        'method': method,
+        'variable': variable,
+        'run_tag': run_tag,
+        'summary': scalar_metrics,
+        'psnr_ranges': metrics['psnr_ranges'],
+        'per_horizon': per_horizon,
+        'per_channel': per_channel,
+        'per_horizon_channel': per_horizon_channel,
+        'checkpoint': {key: checkpoint[key] for key in metadata_keys if key in checkpoint},
+        'per_sample_csv': sample_path.name,
+    }
+    with path.open('w', encoding='utf-8') as stream:
+        json.dump(to_jsonable(payload), stream, ensure_ascii=False, indent=2, allow_nan=False)
+        stream.write('\n')
+    return path
 
 
 def save_plot_samples(path, records, metadata):
