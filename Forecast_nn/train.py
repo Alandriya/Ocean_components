@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from Forecast_nn.joint_sde import JointSDEReader, JointSDEDataset, joint_drift_loss
 from Forecast_nn.config import cfg
 from Forecast_nn.data import (make_field_reader, resolve_flux_source, source_exists, OceanSequenceDataset, load_mask,
                               load_or_create_normalization, load_or_create_psnr_ranges)
@@ -67,6 +68,10 @@ def parse_args():
 
     # None means: use cfg.sde_weight for *_sde models, otherwise 0.
     p.add_argument('--sde-weight', type=float, default=None)
+    p.add_argument('--joint-a-file', default=None, help='Full 2-channel historical drift A array for joint loss.')
+    p.add_argument('--joint-b-file', default=None, help='Full 4-channel historical B matrix, row-major B11,B12,B21,B22.')
+    p.add_argument('--joint-b-layout', choices=('row_major', 'column_major'), default='row_major')
+    p.add_argument('--joint-cov-floor', type=float, default=0.1, help='Ridge added to normalized covariance for stable joint drift loss.')
     p.add_argument('--sde-a-file', default=None, help='Override the configured A coefficient NPY file.')
     p.add_argument('--sde-b-file', default=None, help='Override the configured B coefficient NPY file.')
     p.add_argument('--sde-time-offset', type=int, default=None, help='Flux index represented by coefficient element 0; default comes from config (1).')
@@ -115,8 +120,15 @@ def _run(args):
     sde_weight = float(cfg.sde_weight if (args.sde_weight is None and uses_sde_conditioning) else (args.sde_weight or 0.0))
     sde_enabled = uses_sde_conditioning or sde_weight > 0.0
 
-    if args.variable == 'joint' and sde_enabled:
-        raise ValueError('Joint 2-component SDE is not implemented yet; use --sde-weight 0.')
+    joint_loss_only = args.variable == 'joint' and sde_weight > 0 and not uses_sde_conditioning
+    if args.variable == 'joint' and uses_sde_conditioning:
+        raise ValueError('Joint feature-conditioned *_sde architecture is not implemented; use --model simvp with --joint-a-file/--joint-b-file and --sde-weight.')
+    if joint_loss_only and (not args.joint_a_file or not args.joint_b_file):
+        raise ValueError('Joint SDE loss requires BOTH --joint-a-file and --joint-b-file (full A2/B4 maps).')
+    if args.joint_cov_floor <= 0:
+        raise ValueError('--joint-cov-floor must be > 0')
+    # The joint SDE loss has its own coefficient reader; the old SDE path remains unmodified.
+    sde_enabled = sde_enabled and not joint_loss_only
     data_file = resolve_flux_source(args.variable, cfg.data_files)
     if not source_exists(data_file):
         raise FileNotFoundError(f'Data file not found: {data_file}')
@@ -161,10 +173,19 @@ def _run(args):
 
     print('\n[3/7] Ito-SDE information...', flush=True)
     sde_reader = None
+    joint_reader = None
     sde_source = None
     sde_feature_stats = None
     sde_stats_path = None
-    if sde_enabled:
+    if joint_loss_only:
+        joint_reader = JointSDEReader(args.joint_a_file, args.joint_b_file, args.downsample,
+                                      mask.shape, std, b_layout=args.joint_b_layout)
+        sde_source = {'a_file': args.joint_a_file, 'b_file': args.joint_b_file,
+                      'time_offset': joint_reader.time_offset, 'b_layout': args.joint_b_layout}
+        if joint_reader.a.length + joint_reader.time_offset < data_end:
+            raise ValueError('Joint SDE coefficients do not cover the final observed field')
+        print(f'  joint loss-only: {sde_source}; covariance_floor={args.joint_cov_floor}', flush=True)
+    elif sde_enabled:
         sde_source = _sde_source(
             args.variable, args.sde_a_file, args.sde_b_file, args.sde_time_offset
         )
@@ -217,6 +238,9 @@ def _run(args):
         data_file, mask, *split.dataset_bounds('val', cfg.in_len, cfg.stride),
         cfg.in_len, cfg.out_len, mean, std, cfg.stride, args.downsample, **dataset_kwargs
     )
+    if joint_loss_only:
+        dataset = JointSDEDataset(dataset, joint_reader)
+        val_data = JointSDEDataset(val_data, joint_reader)
     loader = DataLoader(dataset, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=True))
     val_loader = DataLoader(val_data, **make_loader_kwargs(args.batch_size, args.num_workers, device, shuffle=False))
     print(f'  train samples={len(dataset):,}, validation samples={len(val_data):,}', flush=True)
@@ -234,7 +258,7 @@ def _run(args):
     model_kwargs = dict(model_params)
     model = build_model(args.model, cfg.in_len, cfg.out_len, dataset.channels, model_params).to(device)
     run_tag = build_run_tag(args.model, args.variable, args.downsample, cfg.in_len, cfg.out_len, cfg.stride, model_params)
-    if sde_enabled:
+    if sde_enabled or joint_loss_only:
         run_tag = append_sde_run_tag(run_tag, sde_weight, args.sde_b_kind, args.sde_loss_mode)
     run_tag = add_run_id(run_tag, args.run_id)
     run_dir = Path(cfg.results_root) / args.model / args.variable / run_tag
@@ -262,7 +286,7 @@ def _run(args):
                 )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=cfg.weight_decay)
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
     history = {
         'epoch': [], 'total_loss': [], 'mse': [], 'dynamic': [],
         'sde': [], 'sde_drift': [], 'lr': [], 'epoch_time_s': [],
@@ -336,7 +360,9 @@ def _run(args):
         'grad_accum': args.grad_accum,
         'grad_clip': args.grad_clip,
         'run_tag': run_tag,
-        'sde_enabled': bool(sde_enabled),
+        'sde_enabled': bool(sde_enabled or joint_loss_only),
+        'sde_joint_loss_only': bool(joint_loss_only),
+        'joint_cov_floor': args.joint_cov_floor,
         'sde_conditioning': bool(uses_sde_conditioning),
         'sde_weight': float(sde_weight),
         'sde_b_kind': args.sde_b_kind,
@@ -365,7 +391,12 @@ def _run(args):
             torch.cuda.reset_peak_memory_stats(device)
 
         for batch_idx, batch in enumerate(loader, 1):
-            if sde_enabled:
+            if joint_loss_only:
+                x, y, joint_a, joint_b = batch
+                joint_a = joint_a.to(device, non_blocking=True)
+                joint_b = joint_b.to(device, non_blocking=True)
+                sde_features = sde_last_coefficients = None
+            elif sde_enabled:
                 x, y, sde_features, sde_last_coefficients = batch
                 sde_features = sde_features.to(device, non_blocking=True)
                 sde_last_coefficients = sde_last_coefficients.to(device, non_blocking=True)
@@ -376,7 +407,7 @@ def _run(args):
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
 
-            with torch.amp.autocast("cuda", enabled=use_amp):
+            with torch.amp.autocast('cuda', enabled=use_amp):
                 if uses_sde_conditioning:
                     pred = model(x, mask_tensor, sde_features=sde_features)
                 else:
@@ -393,6 +424,13 @@ def _run(args):
                 sde_dt=args.sde_dt,
                 sde_eps=args.sde_eps,
             )
+
+            if joint_loss_only:
+                jloss = joint_drift_loss(pred, x[:, -1], joint_a, joint_b, mask_tensor,
+                                         covariance_floor=args.joint_cov_floor, dt=args.sde_dt)
+                loss = loss + sde_weight * jloss
+                parts['sde'] = jloss.detach()
+                parts['sde_drift'] = jloss.detach()
 
             # Divide by actual microbatches in this accumulation group, including
             # its possibly smaller last group.
@@ -437,7 +475,12 @@ def _run(args):
         val_samples = 0
         with torch.inference_mode():
             for val_batch in val_loader:
-                if sde_enabled:
+                if joint_loss_only:
+                    vx, vy, vjoint_a, vjoint_b = val_batch
+                    vjoint_a = vjoint_a.to(device, non_blocking=True)
+                    vjoint_b = vjoint_b.to(device, non_blocking=True)
+                    vsde_features = vsde_last = None
+                elif sde_enabled:
                     vx, vy, vsde_features, vsde_last = val_batch
                     vsde_features = vsde_features.to(device, non_blocking=True)
                     vsde_last = vsde_last.to(device, non_blocking=True)
@@ -446,7 +489,7 @@ def _run(args):
                     vsde_features = vsde_last = None
                 vx = vx.to(device, non_blocking=True)
                 vy = vy.to(device, non_blocking=True)
-                with torch.amp.autocast("cuda", enabled=use_amp):
+                with torch.amp.autocast('cuda', enabled=use_amp):
                     vpred = (model(vx, mask_tensor, sde_features=vsde_features)
                              if uses_sde_conditioning else model(vx, mask_tensor))
                 vloss, _ = forecast_loss(
@@ -457,6 +500,10 @@ def _run(args):
                     sde_loss_mode=args.sde_loss_mode,
                     sde_dt=args.sde_dt, sde_eps=args.sde_eps,
                 )
+                if joint_loss_only:
+                    vloss = vloss + sde_weight * joint_drift_loss(
+                        vpred, vx[:, -1], vjoint_a, vjoint_b, mask_tensor,
+                        covariance_floor=args.joint_cov_floor, dt=args.sde_dt)
                 val_metrics.update(vpred, vy, mask_tensor)
                 val_loss_sum += float(vloss) * vx.size(0)
                 val_samples += vx.size(0)
