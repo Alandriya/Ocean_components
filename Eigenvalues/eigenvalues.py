@@ -1,297 +1,194 @@
+"""Quantile-conditioned second increment moments and spectral reconstructions.
+
+Algorithm follows translation_corrected_eigenvector_article_ru.tex, section 3.3.
+IMPORTANT: B_ij is a conditional second moment, not a centered covariance.
+For identical fields and disjoint bins B is diagonal by construction.
+"""
 from __future__ import annotations
+
 import datetime
-import os
+from itertools import combinations_with_replacement
+from pathlib import Path
 import numpy as np
 
-
-def scale_to_bins(arr, bins=100):
-    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
-
-    arr_scaled = np.zeros_like(arr)
-    arr_scaled[np.isnan(arr)] = np.nan
-    # for j in tqdm.tqdm(range(bins - 1)):
-    for j in range(bins - 1):
-        arr_scaled[np.where((np.logical_not(np.isnan(arr))) & (quantiles[j] <= arr) & (arr < quantiles[j + 1]))] = \
-            (quantiles[j] + quantiles[j + 1]) / 2
-
-    quantiles += [np.nanmax(arr)]
-
-    return arr_scaled, quantiles
+from Data_processing.data_processing import scale_to_bins, quantile_bin_indices
 
 
-def get_eig(b_matrix: np.ndarray,
-            names: tuple):
+def get_eig(b_matrix: np.ndarray, names: tuple):
+    """Symmetric eigenpairs for X-X; singular values and LEFT vectors for X-Y.
+
+    For mixed fields the returned spectrum consists of sigma, NOT sigma**2.
+    To obtain right vectors use ``np.linalg.svd`` explicitly.
     """
-    Counts eigenvalues for the covariances matrix B for two cases: if both the variables in the data arrays are the
-    same, e.g. (Flux, Flux) and for different, e.g. (Flux, SST)
-    :param b_matrix: np.array with shape (n_bins, n_bins), two-dimensional
-    :param names: tuple with names of the data, e.g. ('Flux', 'SST'), ('Flux', 'Flux')
-    :return:
-    """
-    if names[0] == names[1]:
-        # Same-variable matrix.
-        covariance = 0.5 * (b_matrix + b_matrix.T)
-    else:
-        # Left covariance for the first variable.
-        covariance = b_matrix @ b_matrix.T
-
-    # Eliminate tiny numerical asymmetry.
-    covariance = 0.5 * (covariance + covariance.T)
-
-    # eigh is intended for symmetric matrices.
-    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
-
-    # Sort from largest eigenvalue to smallest.
-    order = np.argsort(eigenvalues)[::-1]
-
-    eigenvalues = eigenvalues[order]
-    eigenvectors = eigenvectors[:, order]
-
-    # Remove small negative values caused by numerical roundoff.
-    eigenvalues = np.clip(eigenvalues, 0.0, None)
-
-    return eigenvalues, eigenvectors
+    b = np.asarray(b_matrix, dtype=float)
+    if b.ndim != 2 or b.shape[0] != b.shape[1]:
+        raise ValueError("b_matrix must be square")
+    if not np.all(np.isfinite(b)):
+        raise ValueError("b_matrix must be finite")
+    if names[0] != names[1]:
+        u, sigma, _ = np.linalg.svd(b, full_matrices=False)
+        return sigma, u
+    b = 0.5 * (b + b.T)
+    values, vectors = np.linalg.eigh(b)
+    order = np.argsort(values)[::-1]
+    # Do not silently clip physically significant negative eigenvalues.
+    return values[order], vectors[:, order]
 
 
 def get_bins(values, quantiles):
-    """
-    Convert field values to bin indices.
-    Invalid values receive bin index -1.
-    """
-    values = np.asarray(values, dtype=float)
-    quantiles = np.asarray(quantiles, dtype=float)
+    """Quantile bins (-1 for invalid values)."""
+    return quantile_bin_indices(values, quantiles)
 
-    bins = np.searchsorted(
-        quantiles,
-        values,
-        side="right",
-    ) - 1
 
-    # Include values exactly equal to the final bin boundary.
-    bins[values == quantiles[-1]] = len(quantiles) - 2
-    invalid = (~np.isfinite(values) | (bins < 0)| (bins >= len(quantiles) - 1))
-    bins[invalid] = -1
-
-    return bins
-
-def matrix_to_map(
-    matrix,
-    field1,
-    field2,
-    quantiles1,
-    quantiles2,
-    spatial_shape,
-):
-    """
-    Map an n_bins x n_bins matrix to the geographical grid: map[p] = matrix[bin1[p], bin2[p]]
-    """
-    bins1 = get_bins(field1, quantiles1)
-    bins2 = get_bins(field2, quantiles2)
-
-    valid = ((bins1 >= 0) & (bins2 >= 0) & np.isfinite(field1) & np.isfinite(field2))
-
-    result = np.full(field1.shape[0], np.nan)
-    result[valid] = matrix[bins1[valid], bins2[valid],]
+def matrix_to_map(matrix, field1, field2, quantiles1, quantiles2, spatial_shape):
+    """Map B_N[i(p), j(p)] to geography, ignoring invalid observations."""
+    a = np.asarray(field1).reshape(-1)
+    b = np.asarray(field2).reshape(-1)
+    if a.size != b.size or a.size != int(np.prod(spatial_shape)):
+        raise ValueError("Fields must match spatial_shape")
+    i, j = get_bins(a, quantiles1), get_bins(b, quantiles2)
+    good = (i >= 0) & (j >= 0)
+    result = np.full(a.size, np.nan, dtype=float)
+    result[good] = matrix[i[good], j[good]]
     return result.reshape(spatial_shape)
 
-def bin_values_to_map(
-    bin_values,
-    field,
-    quantiles,
-    spatial_shape,
-):
-    """
-    Maps one value per bin to the geographical grid:
-        map[p] = bin_values[bin[p]]
-    This is used for the diagonal b^2 reconstruction.
-    """
-    bins = get_bins(field, quantiles)
 
-    valid = ((bins >= 0) & np.isfinite(field))
-
-    result = np.full(field.shape[0], np.nan)
-    result[valid] = bin_values[bins[valid]]
+def bin_values_to_map(bin_values, field, quantiles, spatial_shape):
+    """Map a value associated with each quantile interval to geography."""
+    values = np.asarray(field).reshape(-1)
+    if values.size != int(np.prod(spatial_shape)):
+        raise ValueError("Field must match spatial_shape")
+    bins = get_bins(values, quantiles)
+    good = bins >= 0
+    result = np.full(values.size, np.nan)
+    result[good] = np.asarray(bin_values)[bins[good]]
     return result.reshape(spatial_shape)
+
+
+def _moment_matrix(x0, x1, y0, y1, edges_x, edges_y, dt):
+    """Vectorized equivalent of 1/dt * mean(delta_x*delta_y) per joint cell.
+
+    Cells with zero finite pairs are assigned 0 to preserve legacy output
+    semantics. They are *unobserved*, not measured zero diffusion.
+    Returns B and observation counts, enabling diagnostics.
+    """
+    nx, ny = len(edges_x) - 1, len(edges_y) - 1
+    i, j = get_bins(x0, edges_x), get_bins(y0, edges_y)
+    dx = x1 - x0
+    dy = y1 - y0
+    valid = (i >= 0) & (j >= 0) & np.isfinite(dx) & np.isfinite(dy)
+    cells = i[valid] * ny + j[valid]
+    counts = np.bincount(cells, minlength=nx * ny)
+    weighted = np.bincount(cells, weights=dx[valid] * dy[valid], minlength=nx * ny)
+    b = np.divide(weighted, counts * dt, out=np.zeros(nx * ny, dtype=float), where=counts != 0)
+    return b.reshape(nx, ny), counts.reshape(nx, ny)
 
 
 def count_eigenvalues_pair(
     files_path_prefix: str,
     array1: np.ndarray,
     array2: np.ndarray,
-    array1_quantiles: list,
-    array2_quantiles: list,
+    array1_quantiles,
+    array2_quantiles,
     n_bins: int,
     offset: int,
     names: tuple,
     spatial_shape: tuple,
     dt: float = 1.0,
     n_components: int = 3,
+    overwrite: bool = False,
+    save_counts: bool = False,
 ):
-    """
-    Counts the Karhunen-Loeve decomposition for the pair of two variables, e.g. sensible and latent fluxes
-    :param files_path_prefix: path to the working directory
-    :param array1: array with shape (height*width, n_days): e.g. (29141, 1410)
-    :param array2: array with shape (height*width, n_days): e.g. (29141, 1410)
-    :param array1_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
-    :param array2_quantiles: list with length = n_bins + 1 of the quantiles built by scale_to_bins function
-    :param n_bins: amount of bins to divide the values of each array
-    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
-    :param names: tuple with names of the data arrays, e.g. ('Flux', 'SST')
-    :param spatial_shape: shape of the map, e.g. (161, 181)
-    :param dt: time step
-    :param n_components: amount of eigenvalues and eigenvectors to get
-    :return:
-    """
-    if not os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}'):
-        os.mkdir(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}')
+    """Save spectra/reconstructions for consecutive days of two fields.
 
-    for t in range(array1.shape[1]-1):
-        if (t + offset) % 100 == 0:
-            print(f'Counting timestep {t + offset}')
-        if os.path.exists(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy'):
+    Fields: (n_grid_cells,n_days). ``offset`` is the ONE-based index of
+    day t=0 relative to 1979-01-01 (1979-01-01 = 1, 2019-01-01 = 14611).
+    Files have suffix ``offset+t`` and describe increments from day t to t+1.
+    The final day of a block has no next observation and produces no file.
+
+    Identical variables: eigh(B_sym), C_N = E_N Lambda_N E_N.T.
+    Distinct variables: svd(B), B_N = U_N Sigma_N V_N.T.
+    Quantiles are computed once per input period (not once per day).
+    """
+    x = np.asarray(array1)
+    y = np.asarray(array2)
+    if x.ndim != 2 or y.ndim != 2 or x.shape != y.shape:
+        raise ValueError(f"Fields must have identical (space,time) shapes: {x.shape}, {y.shape}")
+    if x.shape[0] != int(np.prod(spatial_shape)) or x.shape[1] < 2:
+        raise ValueError("Unexpected spatial shape or fewer than two days")
+    if dt <= 0 or not np.isfinite(dt):
+        raise ValueError("dt must be finite and positive")
+    if not (1 <= n_components <= n_bins):
+        raise ValueError("Require 1 <= n_components <= n_bins")
+    if len(array1_quantiles) != n_bins + 1 or len(array2_quantiles) != n_bins + 1:
+        raise ValueError("Quantile boundary lengths must equal n_bins+1")
+    if len(names) != 2:
+        raise ValueError("names must contain exactly two field names")
+    same = names[0] == names[1]
+    destination = Path(files_path_prefix) / 'Eigenvalues' / f'{names[0]}-{names[1]}'
+    destination.mkdir(parents=True, exist_ok=True)
+
+    for t in range(x.shape[1] - 1):
+        idx = t + offset
+        required = ('eigenvalues', 'eigenvectors', 'Cn', 'Cn_map', 'B2_map', 'B_map') if same else (
+            'singular_values', 'left_singularvectors', 'right_singularvectors', 'Bn', 'Bn_map')
+        if not overwrite and all((destination / f'{stem}_{idx}.npy').exists() for stem in required):
             continue
-
-        b_matrix = np.zeros((n_bins, n_bins))
-        for i in range(0, n_bins):
-            for j in range(0, n_bins):
-                joint_points = np.where(
-                    (array1_quantiles[i] <= array1[:, t])
-                    & (array1[:, t] < array1_quantiles[i + 1])
-                    & (array2_quantiles[j] <= array2[:, t])
-                    & (array2[:, t] < array2_quantiles[j + 1])
-                )[0]
-                dx = array1[joint_points, t + 1] - array1[joint_points, t]
-                dy = array2[joint_points, t + 1] - array2[joint_points, t]
-
-                b_matrix[i, j] = np.mean(dx * dy) / dt
-
-        b_matrix = np.nan_to_num(b_matrix)
-        N = n_components
-        # if same variable
-        if names[0] == names[1]:
-            # count eigenvalues
-            b_matrix = 0.5 * (b_matrix + b_matrix.T) # A covariance matrix must be symmetric.
-            eigenvalues, eigenvectors = np.linalg.eigh(b_matrix)
-            # Sort from largest to smallest.
-            order = np.argsort(eigenvalues)[::-1]
-
-            eigenvalues = eigenvalues[order]
-            eigenvectors = eigenvectors[:, order]
-
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvalues_{t + offset}.npy', eigenvalues)
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigenvectors_{t + offset}.npy', eigenvectors)
-
-            C_N = (eigenvectors[:, :N] * eigenvalues[:N]) @ eigenvectors[:, :N].T
-            """
-            C_N = np.zeros((eigenvectors.shape[0], eigenvectors.shape[0]))
-            for k in range(N):
-                eigenvalue = eigenvalues[k]
-                eigenvector = eigenvectors[:, k]
-            
-                C_N += eigenvalue * np.outer(eigenvector, eigenvector)
-            """
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_{t + offset}.npy', C_N)
-            C_N_map = matrix_to_map(
-                matrix=C_N,
-                field1=array1[:, t],
-                field2=array2[:, t],
-                quantiles1=array1_quantiles,
-                quantiles2=array2_quantiles,
-                spatial_shape=spatial_shape,
-            )
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Cn_map_{t + offset}.npy', C_N_map)
-            # --------------------------------------------------------
-            # Reconstructed b^2:
-            # b2_bins[j] = C_N[j, j]
-            # This is the diagonal of the reconstructed covariance.
-            # --------------------------------------------------------
-
-            b2_bins = np.diag(C_N)
-            b2_map = bin_values_to_map(
-                bin_values=b2_bins,
-                field=array1[:, t],
-                quantiles=array1_quantiles,
-                spatial_shape=spatial_shape,
-            )
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B2_map_{t + offset}.npy', b2_map)
-            # Diffusion amplitude b = sqrt(b^2).
-            b_map = np.sqrt(np.clip(b2_map, 0.0, None))
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/B_map_{t + offset}.npy', b_map)
+        if idx % 100 == 0:
+            print(f'{names[0]}-{names[1]}: step {idx}', flush=True)
+        b, counts = _moment_matrix(x[:, t], x[:, t + 1], y[:, t], y[:, t + 1],
+                                   array1_quantiles, array2_quantiles, dt)
+        if save_counts:
+            np.save(destination / f'counts_{idx}.npy', counts)
+        if same:
+            b = 0.5 * (b + b.T)
+            values, vectors = get_eig(b, names)
+            np.save(destination / f'eigenvalues_{idx}.npy', values)
+            np.save(destination / f'eigenvectors_{idx}.npy', vectors)
+            c_n = (vectors[:, :n_components] * values[:n_components]) @ vectors[:, :n_components].T
+            np.save(destination / f'Cn_{idx}.npy', c_n)
+            np.save(destination / f'Cn_map_{idx}.npy', matrix_to_map(
+                c_n, x[:, t], y[:, t], array1_quantiles, array2_quantiles, spatial_shape))
+            b2 = bin_values_to_map(np.diag(c_n), x[:, t], array1_quantiles, spatial_shape)
+            np.save(destination / f'B2_map_{idx}.npy', b2)
+            np.save(destination / f'B_map_{idx}.npy', np.sqrt(np.clip(b2, 0.0, None)))
         else:
-            # if different variables
-            U, singular_values, Vt = np.linalg.svd(
-                b_matrix,
-                full_matrices=False,
-            )
-            # Rank-N cross-matrix reconstruction:
-            # B_N = sum_k s_k * u_k * v_k.T
-            B_N = ( U[:, :N] * singular_values[:N]) @ Vt[:N, :]
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Bn_{t + offset}.npy', B_N)
-            B_N_map = matrix_to_map(
-                matrix=B_N,
-                field1=array1[:, t],
-                field2=array2[:, t],
-                quantiles1=array1_quantiles,
-                quantiles2=array2_quantiles,
-                spatial_shape=spatial_shape,
-            )
-            np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/Bn_map_{t + offset}.npy', B_N_map)
-    return
+            u, sigma, vt = np.linalg.svd(b, full_matrices=False)
+            np.save(destination / f'singular_values_{idx}.npy', sigma)
+            np.save(destination / f'left_singularvectors_{idx}.npy', u)
+            np.save(destination / f'right_singularvectors_{idx}.npy', vt.T)
+            b_n = (u[:, :n_components] * sigma[:n_components]) @ vt[:n_components, :]
+            np.save(destination / f'Bn_{idx}.npy', b_n)
+            np.save(destination / f'Bn_map_{idx}.npy', matrix_to_map(
+                b_n, x[:, t], y[:, t], array1_quantiles, array2_quantiles, spatial_shape))
 
 
-def count_eigenvalues_triplets(files_path_prefix: str,
-                               flux_array: np.ndarray,
-                               SST_array: np.ndarray,
-                               press_array: np.ndarray,
-                               spatial_shape: tuple,
-                               offset: int = 0,
-                               n_bins: int = 100,
-                               ):
-    """
-    Counts and plots eigenvalues and eigenvectors for pairs Flux-Flux, SST-SST, Flux-SST, Flux-Pressure for time range
-    offset: offset + len(data_array)
-    :param files_path_prefix: path to the working directory
-    :param flux_array: array with shape (height*width, n_days): e.g. (29141, 1410) with flux values
-    :param SST_array: array with shape (height*width, n_days): e.g. (29141, 1410) with SST values
-    :param press_array: array with shape (height*width, n_days): e.g. (29141, 1410) with pressure values
-    :param spatial_shape: shape of the map, e.g. (161, 181)
-    :param offset: shift of the beginning of the data arrays in days from 01.01.1979, for 01.01.2019 is 14610
-    :param n_bins: amount of bins to divide the values of each array
-    :return:
-    """
+def count_eigenvalues_all(files_path_prefix, fields, spatial_shape, offset,
+                          n_bins=100, n_components=3, dt=1.0, overwrite=False,
+                          save_counts=False):
+    """All unordered pairs with repetition, e.g. 4 fields -> 10 pairs."""
+    fields = {name: np.asarray(data) for name, data in fields.items()}
+    if not fields:
+        raise ValueError('No fields provided')
+    if len({data.shape for data in fields.values()}) != 1:
+        raise ValueError('All field shapes must match')
+    quantiles = {name: scale_to_bins(data, n_bins)[1] for name, data in fields.items()}
+    for left, right in combinations_with_replacement(fields, 2):
+        count_eigenvalues_pair(files_path_prefix, fields[left], fields[right],
+                               quantiles[left], quantiles[right], n_bins, offset,
+                               (left, right), spatial_shape, dt, n_components,
+                               overwrite=overwrite, save_counts=save_counts)
 
-    flux_array_grouped, quantiles_flux = scale_to_bins(flux_array, n_bins)
-    SST_array_grouped, quantiles_sst = scale_to_bins(SST_array, n_bins)
-    press_array_grouped, quantiles_press = scale_to_bins(press_array, n_bins)
 
-    if not os.path.exists(files_path_prefix + f'Eigenvalues'):
-        os.mkdir(files_path_prefix + f'Eigenvalues')
-
-    # flux-flux
-    count_eigenvalues_pair(files_path_prefix, flux_array, flux_array, quantiles_flux, quantiles_flux, n_bins,
-                           offset, ('Flux', 'Flux'), spatial_shape)
-
-    # sst-sst
-    count_eigenvalues_pair(files_path_prefix, SST_array, SST_array, quantiles_sst, quantiles_sst, n_bins,
-                           offset, ('SST', 'SST'), spatial_shape)
-
-    # press-press
-    count_eigenvalues_pair(files_path_prefix, press_array, press_array, quantiles_press, quantiles_press, n_bins,
-                           offset, ('Pressure', 'Pressure'), spatial_shape)
-
-    # flux-sst
-    count_eigenvalues_pair(files_path_prefix, flux_array, SST_array, quantiles_flux, quantiles_sst, n_bins,
-                           offset, ('Flux', 'SST'), spatial_shape)
-
-    # flux-pressure
-    count_eigenvalues_pair(files_path_prefix, flux_array, press_array, quantiles_flux, quantiles_press, n_bins,
-                           offset, ('Flux', 'Pressure'), spatial_shape)
-
-    # sst-pressure
-    count_eigenvalues_pair(files_path_prefix, SST_array, press_array, quantiles_sst, quantiles_press, n_bins,
-                           offset, ('SST', 'Pressure'), spatial_shape)
-
-    return
+def count_eigenvalues_triplets(files_path_prefix: str, flux_array: np.ndarray,
+                               SST_array: np.ndarray, press_array: np.ndarray,
+                               spatial_shape: tuple, offset: int = 0,
+                               n_bins: int = 100, n_components: int = 3,
+                               overwrite: bool = False):
+    """Legacy wrapper for all six distinct/self pairs of Flux, SST, Pressure."""
+    count_eigenvalues_all(files_path_prefix,
+                          {'Flux': flux_array, 'SST': SST_array, 'Pressure': press_array},
+                          spatial_shape, offset, n_bins, n_components, overwrite=overwrite)
 
 
 def count_mean_year(files_path_prefix: str,
@@ -356,9 +253,9 @@ def get_trends(files_path_prefix: str,
             print(f'Missing eigen0_{t}')
             continue
         matrix = np.load(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}/eigen0_{t}.npy')
-        max_eigenvector[t] = np.nanmax(matrix)
-        min_eigenvector[t] = np.nanmin(matrix)
-        mean_eigenvector[t] = np.nanmean(matrix)
+        max_eigenvector[t - t_start] = np.nanmax(matrix)
+        min_eigenvector[t - t_start] = np.nanmin(matrix)
+        mean_eigenvector[t - t_start] = np.nanmean(matrix)
 
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_max.npy', max_eigenvector)
     np.save(files_path_prefix + f'Eigenvalues/{names[0]}-{names[1]}_trends_min.npy', min_eigenvector)

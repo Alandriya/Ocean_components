@@ -261,8 +261,8 @@ def parallel_AB(cpu_count: int, filename_sensible: str, filename_latent: str, of
     end = sensible_array.shape[1]
     delta = (end - start + cpu_count // 2) // cpu_count
 
-    sensible_array = scale_to_bins(sensible_array)
-    latent_array = scale_to_bins(latent_array)
+    sensible_array, _ = scale_to_bins(sensible_array)
+    latent_array, _ = scale_to_bins(latent_array)
 
     borders = [[start + delta*i, start + delta*(i+1)] for i in range(cpu_count)]
     masks = [mask for b in borders]

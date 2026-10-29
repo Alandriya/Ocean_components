@@ -223,32 +223,47 @@ def load_ABCFE(files_path_prefix: str,
     return a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, e_timelist, borders
 
 
-def scale_to_bins(arr, bins=100):
-    quantiles = list(np.nanquantile(arr, np.linspace(0, 1, bins, endpoint=False)))
-    # quantiles = sorted(quantiles)
+def quantile_bin_indices(values: np.ndarray, quantiles) -> np.ndarray:
+    """Indices for [q_i,q_{i+1}), including the final maximum.
 
-    arr_scaled = np.zeros_like(arr)
-    arr_scaled[np.isnan(arr)] = np.nan
-    quantiles += [np.nanmax(arr)]
-    # for j in tqdm.tqdm(range(bins - 1)):
-    for j in range(bins):
-        if j < bins - 1:
-            mask = (
-                    np.logical_not(np.isnan(arr))
-                    & (quantiles[j] <= arr)
-                    & (arr < quantiles[j + 1])
-            )
-        else:
-            mask = (
-                    np.logical_not(np.isnan(arr))
-                    & (quantiles[j] <= arr)
-                    & (arr <= quantiles[j + 1])
-            )
+    Repeated quantile boundaries yield empty intervals; a tied observation
+    is assigned to the highest applicable interval. Non-finite / out-of-range
+    observations receive -1. This rule is shared by scaling and eigenvalues.
+    """
+    values = np.asarray(values, dtype=float)
+    edges = np.asarray(quantiles, dtype=float)
+    if edges.ndim != 1 or edges.size < 2 or not np.all(np.isfinite(edges)):
+        raise ValueError("quantiles must be finite, one-dimensional boundaries")
+    if np.any(np.diff(edges) < 0):
+        raise ValueError("quantiles must be non-decreasing")
+    indices = np.searchsorted(edges, values, side="right") - 1
+    n_bins = edges.size - 1
+    # Right-inclusive only for the global maximum.
+    indices = np.where(values == edges[-1], n_bins - 1, indices)
+    valid = np.isfinite(values) & (values >= edges[0]) & (values <= edges[-1])
+    valid &= (indices >= 0) & (indices < n_bins)
+    return np.where(valid, indices, -1).astype(np.intp, copy=False)
 
-        arr_scaled[mask] = (
-                                   quantiles[j] + quantiles[j + 1]
-                           ) / 2
-    return arr_scaled, quantiles
+
+def scale_to_bins(arr: np.ndarray, bins: int = 100):
+    """Quantile discretization over all finite values in ``arr``.
+
+    Returns a float array of interval midpoints and a list of ``bins+1``
+    non-decreasing edges. NaN/inf -> NaN. Ties stay in a single bin;
+    empty intervals are allowed when the data have few unique values.
+    """
+    if not isinstance(bins, (int, np.integer)) or isinstance(bins, (bool, np.bool_)) or bins < 1:
+        raise ValueError("bins must be a positive integer")
+    arr = np.asarray(arr, dtype=float)
+    valid = np.isfinite(arr)
+    if not np.any(valid):
+        raise ValueError("No finite values to calculate quantiles")
+    edges = np.quantile(arr[valid], np.linspace(0.0, 1.0, bins + 1))
+    indices = quantile_bin_indices(arr, edges)
+    scaled = np.full(arr.shape, np.nan, dtype=float)
+    good = indices >= 0
+    scaled[good] = edges[indices[good]] + (edges[indices[good] + 1] - edges[indices[good]]) / 2
+    return scaled, edges.tolist()
 
 
 def load_prepare_fluxes(sensible_filename: str,
@@ -277,8 +292,8 @@ def load_prepare_fluxes(sensible_filename: str,
                                 block_size=(1, pack_len),
                                 func=np.mean, )
     if prepare:
-        sensible_array = scale_to_bins(sensible_array)
-        latent_array = scale_to_bins(latent_array)
+        sensible_array, _ = scale_to_bins(sensible_array)
+        latent_array, _ = scale_to_bins(latent_array)
     return sensible_array, latent_array
 
 
