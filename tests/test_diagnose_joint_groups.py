@@ -6,8 +6,15 @@ from pathlib import Path
 
 import numpy as np
 
-from aligned_common import prepare_pair_transition
-from diagnose_joint_groups import diagnose_joint_groups
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from Coefficients.common import prepare_pair_transition
+from Coefficients.runner import diagnose_joint_groups
 
 
 class JointGroupDiagnosticsTests(unittest.TestCase):
@@ -92,5 +99,3 @@ class JointGroupDiagnosticsTests(unittest.TestCase):
                                       bins_list=(3,), n_transitions=1, make_plots=False)
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)

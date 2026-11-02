@@ -16,7 +16,7 @@ or fewer than three observations; the output is NaN at those positions.
 from pathlib import Path
 import warnings
 import numpy as np
-from Coefficients.aligned_common import load_water_mask, unpack_b_matrix
+from Coefficients.common import load_water_mask, unpack_b_matrix
 
 
 def _stack_fields(a_timelist, b_timelist):

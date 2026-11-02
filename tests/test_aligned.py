@@ -6,17 +6,24 @@ import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
-from aligned_common import (
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from Coefficients.common import (
     load_water_mask, load_series, load_pair_series, prepare_transition,
     prepare_pair_transition, unpack_b_matrix, covariance_to_diffusion,
 )
-from nonparametric_aligned import (
+from Coefficients.nonparametric import (
     estimate_np, estimate_np_2d, count_1d_nonparam, count_2d_nonparam,
 )
-from semiparametric_aligned import (
+from Coefficients.semiparametric import (
     estimate_sp, estimate_sp_2d, count_semi_1d_AB, count_semi_2d_AB,
 )
-from coefficients_cf import (
+from Coefficients.coefficients_cf import (
     compute_c, compute_f, compute_fs, count_cf_from_daily,
     count_c_coeff, count_fraction, count_f_separate_coeff,
 )
@@ -148,5 +155,3 @@ class AlignedTests(unittest.TestCase):
         self.assertAlmostEqual(fs[1,0,1],1/4)
 
 
-if __name__ == '__main__':
-    unittest.main(verbosity=2)

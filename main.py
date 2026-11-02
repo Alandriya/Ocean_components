@@ -8,9 +8,8 @@ from Plotting.plot_eigenvalues import plot_eigenvalues
 from Data_processing.data_processing import scale_to_bins
 from datetime import date, timedelta
 import numpy as np
-from Coefficients.aligned_common import load_series, load_water_mask
-from Coefficients.runner import run_decade_coefficients
-from Coefficients.diagnose_joint_groups import diagnose_joint_groups
+from Coefficients.common import load_series, load_water_mask
+from Coefficients.runner import run_decade_coefficients, diagnose_joint_groups
 
 
 if __name__ == "__main__":
@@ -89,6 +88,7 @@ if __name__ == "__main__":
             thresholds=(2, 10, 20, 30),
             plot_bins=15,
             make_plots=True,
+
         )
     else:
         # Switch diagnostic_only to False to calculate the full decade.
@@ -106,10 +106,12 @@ if __name__ == "__main__":
             n_init=n_init,
             dt=dt,
             overwrite=overwrite,
+            resume=True,
             chunk_transitions=chunk_transitions,
             run_1d=run_1d,
             run_2d=run_2d,
             n_bins_2d=n_bins_2d,
+
         )
 
     # Intentionally stop here; this is the original main workflow switch.
