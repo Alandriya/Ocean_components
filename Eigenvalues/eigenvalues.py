@@ -10,6 +10,7 @@ import datetime
 from itertools import combinations_with_replacement
 from pathlib import Path
 import numpy as np
+import os
 
 from Data_processing.data_processing import scale_to_bins, quantile_bin_indices
 
