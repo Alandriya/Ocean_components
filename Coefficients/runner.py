@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import tempfile
+import time
 from typing import Iterable, Tuple
 
 import numpy as np
@@ -257,6 +258,26 @@ def run_decade_coefficients(
     print(f'All coefficient calculations finished. Output: {prefix/base}', flush=True)
 
 
+def _format_collection_time(seconds: float) -> str:
+    """Format elapsed/estimated time as HH:MM:SS."""
+    total = max(0, int(round(seconds)))
+    hours, remainder = divmod(total, 3600)
+    minutes, remaining_seconds = divmod(remainder, 60)
+    return f'{hours:02d}:{minutes:02d}:{remaining_seconds:02d}'
+
+
+def _collection_progress(stage: str, completed: int, total: int, started_at: float) -> None:
+    """Print an ETA based on the observed speed of the current operation."""
+    elapsed = max(0.0, time.perf_counter() - started_at)
+    eta = elapsed * (total - completed) / completed if completed else float('nan')
+    eta_text = _format_collection_time(eta) if completed else 'estimating...'
+    print(
+        f'  {stage}: {completed}/{total} ({completed / total:.0%}); '
+        f'elapsed {_format_collection_time(elapsed)}; ETA {eta_text}',
+        flush=True,
+    )
+
+
 def collect_daily_coefficients(
     files_path_prefix: str,
     *,
@@ -266,6 +287,7 @@ def collect_daily_coefficients(
     end_label: int,
     coefficients=None,
     overwrite: bool = False,
+    show_progress: bool = True,
 ) -> dict[str, Path]:
     """Stack daily coefficient maps over an inclusive range of saved labels.
 
@@ -276,6 +298,10 @@ def collect_daily_coefficients(
     A has shape (days,2,H,W) and B has shape (days,4,H,W) in channel order
     [00,11,01,10]. Large outputs are written via memory mapping and then
     atomically moved into place, so they do not need to fit in RAM.
+
+    With show_progress=True, report input validation and writing progress,
+    including an approximate ETA based on observed throughput. The ETA for
+    validation and writing is reported separately because their speeds differ.
     """
     allowed = ('Nonparametric', 'Semiparametric',
                'Nonparametric_2d', 'Semiparametric_2d')
@@ -298,6 +324,14 @@ def collect_daily_coefficients(
     # Check the complete input range before writing any output files.
     definitions = []
     n_days = end_label - start_label + 1
+    total_checks = n_days * len(coefficients)
+    check_count = 0
+    validation_started = time.perf_counter()
+    last_validation_update = validation_started
+    validation_interval = max(1, (total_checks + 4) // 5)
+    if show_progress:
+        print(f'[{method}] Checking {n_days} daily maps for each of '
+              f'{len(coefficients)} coefficient(s)...', flush=True)
     for field in coefficients:
         filenames = [daily / f'{field}_{label}.npy'
                      for label in range(start_label, end_label + 1)]
@@ -328,6 +362,15 @@ def collect_daily_coefficients(
                     f'expected {shape}, {dtype}'
                 )
             del arr
+            check_count += 1
+            now = time.perf_counter()
+            if show_progress and (
+                check_count == total_checks
+                or check_count % validation_interval == 0
+                or now - last_validation_update >= 30
+            ):
+                _collection_progress('Checking inputs', check_count, total_checks, validation_started)
+                last_validation_update = now
         definitions.append((field, filenames, shape, dtype))
 
     outputs = {}
@@ -335,8 +378,16 @@ def collect_daily_coefficients(
         destination = parent / f'{field}_{start_label}-{end_label}.npy'
         if destination.exists() and not overwrite:
             outputs[field] = destination
+            if show_progress:
+                print(f'[{method}] {field}: merged file already exists; skipping: '
+                      f'{destination}', flush=True)
             continue
         temp_name = None
+        write_started = time.perf_counter()
+        last_write_update = write_started
+        write_interval = max(1, (n_days + 9) // 10)
+        if show_progress:
+            print(f'[{method}] Collecting {field}: {n_days} days -> {destination.name}', flush=True)
         try:
             with tempfile.NamedTemporaryFile(
                 dir=parent, prefix=f'.{field}_{start_label}-{end_label}_',
@@ -350,6 +401,15 @@ def collect_daily_coefficients(
                 current = np.load(filename, mmap_mode='r', allow_pickle=False)
                 combined[day_index] = current
                 del current
+                now = time.perf_counter()
+                processed = day_index + 1
+                if show_progress and (
+                    processed == n_days
+                    or processed % write_interval == 0
+                    or now - last_write_update >= 30
+                ):
+                    _collection_progress(f'Writing {field}', processed, n_days, write_started)
+                    last_write_update = now
             combined.flush()
             del combined
             os.replace(temp_name, destination)
@@ -358,7 +418,10 @@ def collect_daily_coefficients(
             if temp_name is not None:
                 Path(temp_name).unlink(missing_ok=True)
         outputs[field] = destination
-        print(f'Saved merged {field}: {destination} ({n_days} days)', flush=True)
+        if show_progress:
+            print(f'[{method}] Saved merged {field}: {destination} '
+                  f'({n_days} days; {_format_collection_time(time.perf_counter() - write_started)})',
+                  flush=True)
     return outputs
 
 
@@ -376,8 +439,12 @@ def collect_period_coefficients(
     run_2d: bool = True,
     methods: Tuple[str, ...] = ('np', 'sp'),
     overwrite: bool = False,
+    show_progress: bool = True,
 ) -> dict[str, dict[str, Path]]:
-    """Merge every enabled estimator/method for an inclusive label range."""
+    """Merge every enabled estimator/method for an inclusive label range.
+
+    Report individual coefficient ETAs and overall method-level progress.
+    """
     methods = _validate_methods(methods)
     if not run_1d and not run_2d:
         raise ValueError('At least one of run_1d or run_2d must be True')
@@ -398,12 +465,26 @@ def collect_period_coefficients(
             targets.append(('2d/sp', branch, 'Semiparametric_2d'))
 
     result = {}
-    for key, branch, method in targets:
+    started_at = time.perf_counter()
+    if show_progress:
+        print(f'Starting merged collection: {len(targets)} method(s), '
+              f'{end_label - start_label + 1} days each.', flush=True)
+    for index, (key, branch, method) in enumerate(targets, start=1):
+        if show_progress:
+            print(f'Method {index}/{len(targets)}: {key} ({method})', flush=True)
         result[key] = collect_daily_coefficients(
             files_path_prefix, path=str(branch), method=method,
             start_label=start_label, end_label=end_label,
-            overwrite=overwrite,
+            overwrite=overwrite, show_progress=show_progress,
         )
+        if show_progress:
+            elapsed = time.perf_counter() - started_at
+            left = len(targets) - index
+            estimated = elapsed * left / index
+            print(f'Methods completed: {index}/{len(targets)}; '
+                  f'elapsed {_format_collection_time(elapsed)}; '
+                  f'approximate remaining {_format_collection_time(estimated)} '
+                  f'(based on average method time).', flush=True)
     return result
 
 
