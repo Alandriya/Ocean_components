@@ -87,11 +87,6 @@ def run_eigenvalues_for_period(files_path_prefix, start_year=2019, end_year=None
             "first_index": offset, "last_index": offset + days - 2}
 
 
-def run_historical_eigenvalues(files_path_prefix, **kwargs):
-    """Explicit opt-in: run all four earlier ten-year files."""
-    return [run_eigenvalues_for_period(files_path_prefix, year, year + 10, **kwargs)
-            for year in (1979, 1989, 1999, 2009)]
-
 
 def run_distribution_workflow(files_path_prefix, start_year=2019, end_year=2026,
                               b_type="simple", include_isolines=False,
