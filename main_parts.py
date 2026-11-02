@@ -16,10 +16,11 @@ from Eigenvalues.eigenvalues import count_eigenvalues_all
 
 SPATIAL_SHAPE = (161, 181)
 FIELD_PATHS = {
-    "sensible": ("DATA/Fluxes/sensible_grouped_{period}.npy", "Fluxes/sensible_grouped_{period}.npy"),
-    "latent": ("DATA/Fluxes/latent_grouped_{period}.npy", "Fluxes/latent_grouped_{period}.npy"),
+    # "sensible": ("DATA/Fluxes/sensible_{period}_grouped.npy", "Fluxes/sensible_{period}_grouped.npy"),
+    # "latent": ("DATA/Fluxes/latent_{period}_grouped.npy", "Fluxes/latent_{period}_grouped.npy"),
+    "Flux": ("DATA/Fluxes/Flux_{period}_grouped.npy", "Fluxes/Flux_{period}_grouped.npy"),
     "SST": ("DATA/SST/SST_{period}_grouped.npy", "SST/SST_{period}_grouped.npy"),
-    "Pressure": ("DATA/Pressure/PRESS_{period}_grouped.npy", "Pressure/PRESS_{period}_grouped.npy"),
+    "Pressure": ("DATA/Pressure/Pressure_{period}_grouped.npy", "Pressure/Pressure_{period}_grouped.npy"),
 }
 
 
