@@ -24,12 +24,13 @@ import numpy as np
 
 
 VARIABLES = {
-    "sshf": ("Fluxes", "sensible"),
-    "slhf": ("Fluxes", "latent"),
+    "avg_ishf": ("Fluxes", "sensible"),
+    "avg_ilhf": ("Fluxes", "latent"),
     "sst": ("SST", "SST"),
     "sp": ("Pressure", "Pressure"),
+
 }
-FLUX_VARIABLES = frozenset(("sshf", "slhf"))
+FLUX_VARIABLES = frozenset(("avg_ishf", "avg_ilhf"))
 
 
 def _eccodes():
@@ -456,10 +457,10 @@ def convert_era5_grib(
     # Per-variable sidecars allow independent conversions with the same period.
     # Keep the historical shared sidecar naming for explicit batch runs.
     sidecar_label = f"{period_label}_{names[0]}" if len(names) == 1 else period_label
-    metadata_path = root / "DATA" / f"ERA5_{sidecar_label}_metadata.json"
-    date_path = root / "DATA" / f"ERA5_{sidecar_label}_dates.npy"
-    lat_path = root / "DATA" / f"ERA5_{sidecar_label}_latitudes.npy"
-    lon_path = root / "DATA" / f"ERA5_{sidecar_label}_longitudes.npy"
+    metadata_path = root / "DATA" / "ERA5_metadata" / f"ERA5_{sidecar_label}_metadata.json"
+    date_path = root / "DATA" / "ERA5_metadata" / f"ERA5_{sidecar_label}_dates.npy"
+    lat_path = root / "DATA" / "ERA5_metadata" / f"ERA5_{sidecar_label}_latitudes.npy"
+    lon_path = root / "DATA" / "ERA5_metadata" / f"ERA5_{sidecar_label}_longitudes.npy"
     destinations = [*paths.values(), date_path, metadata_path, lat_path, lon_path]
     if derive_flux:
         destinations.append(flux_path)

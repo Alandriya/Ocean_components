@@ -18,6 +18,7 @@ from Data_processing.mean_year import save_mean_year
 from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
 from Functional.stationary import estimate_stationary_characteristics
 from Functional.copula_workflows import estimate_copula_characteristics
+from Data_processing.grib import convert_era5_grib
 
 PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
            (2009, 2019), (2019, 2026))
@@ -174,7 +175,63 @@ def run_selected_task(task, **settings):
                                                names=names, sample_size=settings["sample_size"],
                                                empirical_bins=settings["empirical_bins"],
                                                checkerboard_bins=settings["checkerboard_bins"])
-    raise ValueError(f"Unsupported numeric task: {task}")
+    elif task == 'grib':
+        grib_files = [Path(root) / "DATA" / "GRIB" / "data.grib",]
+
+        ocean_mask = Path(root) / "DATA" / "mask"
+        if not ocean_mask.is_file():
+            ocean_mask = None
+
+        # variables = ("sst", "sp", "avg_ishf", "avg_ilhf")
+        report = convert_era5_grib(
+            grib_files=grib_files,
+            output_root=Path(root),
+            variable= "avg_ishf",
+            period_label="2019-2026",
+            hours=(0, 6, 12, 18),
+            spatial_stride="auto",
+            mask=ocean_mask,
+            flux_units="native",  # Preserve J m-2 for historic comparisons.
+            output_dtype="float32",
+            sum_dtype="float64",
+            derive_flux=True,
+            overwrite=False,
+        )
+    elif task == 'grib-check':
+        old = np.load(Path(root) / "DATA" / "Fluxes" / "Sensible_1979-1989_grouped_old.npy")
+        new = np.load(Path(root) / "DATA" / "Fluxes" / "sensible_1979-1989_grouped.npy")
+        dates = np.load(Path(root) / "DATA/ERA5_metadata/ERA5_1979-1989_avg_ishf_dates.npy").astype("datetime64[D]")
+        old_start = np.datetime64("2019-01-01")
+        old_indices = (dates - old_start).astype("timedelta64[D]").astype(int)
+        new_indices = np.flatnonzero((old_indices >= 0) & (old_indices < old.shape[1]))
+
+        assert old.ndim == new.ndim == 2
+        assert old.shape[0] == new.shape[0]
+        assert len(new_indices) > 0, "No overlapping dates"
+
+        mismatches = 0
+        max_error = 0.0
+
+        for start in range(0, old.shape[0], 256):
+            stop = start + 256
+
+            a = old[start:stop, old_indices[new_indices]]
+            b = new[start:stop, new_indices]
+
+            equal = np.isclose(a, b, rtol=1e-5, atol=1e-4, equal_nan=True)
+            mismatches += np.count_nonzero(~equal)
+
+            valid = np.isfinite(a) & np.isfinite(b)
+            if valid.any():
+                max_error = max(max_error, float(np.max(np.abs(a[valid] - b[valid]))))
+
+        print("Overlap:", dates[new_indices[0]], dates[new_indices[-1]])
+        print("Mismatching cells:", mismatches)
+        print("Maximum absolute error:", max_error)
+        print("Arrays match:", mismatches == 0)
+
+    else:
+        raise ValueError(f"Unsupported numeric task: {task}")
 
 
 def main():
@@ -183,12 +240,13 @@ def main():
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
 
-    task = "coefficients"
-    start_year = 1989
+    task = 'grib'
+    # task = "coefficients"
+    start_year = 1979
     end_year = start_year + 10
     if start_year == 2019:
         end_year = 2026
-    n_bins = 250
+    n_bins = 144
     n_components = 3
     n_init = 10
     run_1d = False
@@ -198,9 +256,9 @@ def main():
     diagnostic_days = 7
     chunk_transitions = 7
     dt = 1.0
-    overwrite = False
+    overwrite = True
     names = ("sensible", "latent")
-    method = "np"
+    method = "sp"
     periods = PERIODS
     save_counts = False
     spectral_variables = ("Flux", "SST", "Pressure")
