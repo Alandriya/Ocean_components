@@ -8,11 +8,13 @@ from pathlib import Path
 
 import numpy as np
 
+from Coefficients.collection import normalize_methods
 from Coefficients.common import coerce_series, load_water_mask
 from Coefficients.runner import diagnose_joint_groups, run_decade_coefficients, collect_period_coefficients
 from Coefficients.bridges import run_boundary_workflow
+from Coefficients.parallel import run_parallel_period
 from Coefficients.derived_workflows import run_continuous_cf
-from Data_processing.io import (load_field, read_ocean_mask, start_label,
+from Data_processing.io import (load_field, field_candidates, read_ocean_mask, start_label,
                                 dates_from_labels)
 from Data_processing.mean_year import save_mean_year
 from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
@@ -49,39 +51,49 @@ def run_selected_task(task, **settings):
     periods = settings.get("periods", PERIODS)
 
     if task == "coefficients":
-        array1 = load_field(root, names[0], start_year, end_year)
-        array2 = load_field(root, names[1], start_year, end_year)
+        coefficient_methods = normalize_methods(settings.get("coefficient_methods", "both"))
         offset = start_label(start_year)
         if settings["diagnostic_only"]:
+            array1 = load_field(root, names[0], start_year, end_year)
+            array2 = load_field(root, names[1], start_year, end_year)
             return diagnose_joint_groups(
                 array1=array1, array2=array2, mask=mask,
-                out_dir=str(Path(root) / "Coefficients" /
-                            f"aligned_{start_year}-{end_year}" / "group_diagnostics"),
+                out_dir=str(Path(root) / "Plots" / "Diagnostics" /
+                            f"{start_year}-{end_year}" / "group_diagnostics"),
                 bins_list=(10, 12, 15, 18, 20),
                 n_transitions=settings["diagnostic_days"],
                 time_start=0, index_offset=offset,
                 min_group_size=2, thresholds=(2, 10, 20, 30),
                 plot_bins=15, make_plots=False,
             )
-        # Preserve the existing decade estimator call and its numerical arguments.
-        run_decade_coefficients(
-            files_path_prefix=str(root), array1=array1, array2=array2, mask=mask,
-            names=names, start_year=start_year, end_year=end_year,
-            start_index=offset, n_bins=settings["n_bins"],
-            n_components=settings["n_components"], n_init=settings["n_init"],
-            dt=settings["dt"], overwrite=overwrite, resume=True,
+        source_files = []
+        for name in names:
+            file = next((candidate for candidate in
+                         field_candidates(root, name, start_year, end_year)
+                         if candidate.is_file()), None)
+            if file is None:
+                raise FileNotFoundError(f"Missing input NPY for variable {name}")
+            source_files.append(str(file.resolve()))
+        return run_parallel_period(
+            files_path_prefix=root,
+            source_files=source_files,
+            mask=mask,
+            names=names,
+            start_year=start_year,
+            end_year=end_year,
+            start_index=offset,
+            parallel_workers=settings.get("parallel_workers", 4),
+            methods=coefficient_methods,
+            n_bins=settings["n_bins"],
+            n_bins_2d=n_bins_2d,
+            n_components=settings["n_components"],
+            n_init=settings["n_init"],
             chunk_transitions=settings["chunk_transitions"],
-            run_1d=settings["run_1d"], run_2d=settings["run_2d"],
-            n_bins_2d=n_bins_2d,
-        )
-        return collect_period_coefficients(
-            files_path_prefix=str(root), names=names,
-            start_year=start_year, end_year=end_year,
-            start_label=offset + 1,
-            end_label=offset + coerce_series(array1).shape[0] - 1,
-            n_bins_2d=n_bins_2d,
-            run_1d=settings["run_1d"], run_2d=settings["run_2d"],
-            methods=("np", "sp"), overwrite=overwrite,
+            dt=settings["dt"],
+            run_1d=settings["run_1d"],
+            run_2d=settings["run_2d"],
+            overwrite=overwrite,
+            delete_daily_after_collect=settings.get("delete_daily_after_collect", True),
         )
     if task == "bridge_coefficients":
         return run_boundary_workflow(root, periods, names, n_bins_2d=n_bins_2d,
@@ -176,7 +188,7 @@ def run_selected_task(task, **settings):
                                                empirical_bins=settings["empirical_bins"],
                                                checkerboard_bins=settings["checkerboard_bins"])
     elif task == 'grib':
-        grib_files = [Path(root) / "DATA" / "GRIB" / "data.grib",]
+        grib_files = [Path(root) / "DATA" / "GRIB" / "sensible+latent_2009-2019.grib",]
 
         ocean_mask = Path(root) / "DATA" / "mask"
         if not ocean_mask.is_file():
@@ -188,7 +200,7 @@ def run_selected_task(task, **settings):
             output_root=Path(root),
             # variable= "avg_slhtf",
             variables=("avg_ishf", "avg_slhtf"),
-            period_label="1979-1989",
+            period_label="2009-2019",
             hours=(0, 6, 12, 18),
             spatial_stride="auto",
             mask=ocean_mask,
@@ -241,9 +253,15 @@ def main():
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
 
-    task = 'grib'
-    # task = "coefficients"
-    start_year = 2019
+    # task = 'grib'
+    task = "coefficients"
+    start_year = 1989
+    parallel_workers = 4
+    chunk_transitions = 7
+
+    overwrite = False
+    delete_daily_after_collect = False
+
     end_year = start_year + 10
     if start_year == 2019:
         end_year = 2026
@@ -258,6 +276,7 @@ def main():
     chunk_transitions = 7
     dt = 1.0
     overwrite = True
+    coefficient_methods = "sp"
     names = ("sensible", "latent")
     method = "sp"
     periods = PERIODS

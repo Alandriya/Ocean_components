@@ -15,6 +15,9 @@ from pathlib import Path
 import numpy as np
 
 from Data_processing.io import BASE_DATE, load_field, read_ocean_mask, start_label
+from Coefficients.collection import (
+    coefficient_source, load_coefficient_source, period_dir,
+)
 
 METHOD_FOLDERS = {"np": "Nonparametric_2d", "sp": "Semiparametric_2d"}
 
@@ -40,7 +43,7 @@ def period_daily_dir(root, period, names, n_bins_2d, method):
     pathlib.Path
         Existing method-specific daily output directory.
     """
-    return (Path(root) / "Coefficients" / f"aligned_{period[0]}-{period[1]}" /
+    return (period_dir(root, *period) /
             f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" /
             METHOD_FOLDERS[method] / "daily")
 
@@ -225,11 +228,15 @@ def assemble_continuous_coefficients(files_path_prefix, periods, names=("sensibl
         source_files = {}
         keys = ("A", "B", "B_with_reg") if method == "sp" else ("A", "B")
         for key in keys:
-            filenames = [((period_daily_dir(files_path_prefix, period, names, n_bins_2d, method)
-                           if period is not None else
-                           bridge_daily_dir(files_path_prefix, names, n_bins_2d, method)) /
-                          f"{key}_{label}.npy") for label, period in records]
-            missing = next((path for path in filenames if not path.is_file()), None)
+            filenames = [
+                (coefficient_source(files_path_prefix, period, names,
+                                    n_bins_2d, method, key, label)
+                 if period is not None else
+                 (bridge_daily_dir(files_path_prefix, names, n_bins_2d, method) /
+                  f"{key}_{label}.npy", None))
+                for label, period in records
+            ]
+            missing = next((path for path, _ in filenames if not path.is_file()), None)
             if missing is not None:
                 raise FileNotFoundError(f"Missing coefficient for a continuous series: {missing}")
             source_files[key] = filenames
@@ -240,7 +247,7 @@ def assemble_continuous_coefficients(files_path_prefix, periods, names=("sensibl
         for key, filenames in source_files.items():
             output = parent / f"{key}_{labels[0]}-{labels[-1]}.npy"
             if not output.exists() or overwrite:
-                first = np.load(filenames[0], mmap_mode="r", allow_pickle=False)
+                first = load_coefficient_source(filenames[0])
                 shape, dtype = first.shape, first.dtype
                 n_channels = 2 if key == "A" else 4
                 if len(shape) != 3 or shape[0] != n_channels:
@@ -251,10 +258,10 @@ def assemble_continuous_coefficients(files_path_prefix, periods, names=("sensibl
                         temp_path = Path(handle.name)
                     merged = np.lib.format.open_memmap(temp_path, mode="w+", dtype=dtype,
                                                        shape=(len(filenames), *shape))
-                    for step, path in enumerate(filenames):
-                        array = np.load(path, mmap_mode="r", allow_pickle=False)
+                    for step, item in enumerate(filenames):
+                        array = load_coefficient_source(item)
                         if array.shape != shape or array.dtype != dtype:
-                            raise ValueError(f"Incompatible coefficient array: {path}")
+                            raise ValueError(f"Incompatible coefficient array: {item[0]}")
                         merged[step] = array
                     merged.flush()
                     del merged
