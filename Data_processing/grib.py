@@ -447,6 +447,7 @@ def convert_era5_grib(
         sources, names, desired_hours, first, last,
         skip_incomplete_last_day=skip_incomplete_last_day,
     )
+    print(f"actual_first_date: {days[0].isoformat()}")
     if derive_flux and not set(FLUX_VARIABLES).issubset(names):
         derive_flux = False
     paths = {
@@ -473,6 +474,7 @@ def convert_era5_grib(
     codes = _eccodes()
     n_days = len(days)
     day_index = {value: index for index, value in enumerate(days)}
+
     with tempfile.TemporaryDirectory(prefix=".era5_daily_", dir=root if root.exists() else None) as work:
         temporary_root = Path(work)
         accumulators = {}
@@ -546,7 +548,7 @@ def convert_era5_grib(
             )
             del accumulators[name]
         if derive_flux:
-            _make_flux_sum(paths["sshf"], paths["slhf"], flux_path,
+            _make_flux_sum(paths["avg_ishf"], paths["avg_slhtf"], flux_path,
                            overwrite=overwrite, dtype=output_dtype,
                            block_pixels=block_pixels)
         date_path.parent.mkdir(parents=True, exist_ok=True)
@@ -577,6 +579,7 @@ def convert_era5_grib(
             "input_files": [str(item) for item in sources],
             "metadata_file": str(metadata_path),
         }
+
         metadata_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(f"ERA5 completed: {n_days:,} days, output {grid_shape}", flush=True)
         return report
