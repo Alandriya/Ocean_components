@@ -25,12 +25,12 @@ import numpy as np
 
 VARIABLES = {
     "avg_ishf": ("Fluxes", "sensible"),
-    "avg_ilhf": ("Fluxes", "latent"),
+    "avg_slhtf": ("Fluxes", "latent"),
     "sst": ("SST", "SST"),
     "sp": ("Pressure", "Pressure"),
 
 }
-FLUX_VARIABLES = frozenset(("avg_ishf", "avg_ilhf"))
+FLUX_VARIABLES = frozenset(("avg_ishf", "avg_slhtf"))
 
 
 def _eccodes():

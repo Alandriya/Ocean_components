@@ -182,12 +182,13 @@ def run_selected_task(task, **settings):
         if not ocean_mask.is_file():
             ocean_mask = None
 
-        # variables = ("sst", "sp", "avg_ishf", "avg_ilhf")
+        # variables = ("sst", "sp", "avg_ishf", "avg_slhtf")
         report = convert_era5_grib(
             grib_files=grib_files,
             output_root=Path(root),
-            variable= "avg_ishf",
-            period_label="2019-2026",
+            # variable= "avg_slhtf",
+            variables=("avg_ishf", "avg_slhtf"),
+            period_label="1979-1989",
             hours=(0, 6, 12, 18),
             spatial_stride="auto",
             mask=ocean_mask,
@@ -242,7 +243,7 @@ def main():
 
     task = 'grib'
     # task = "coefficients"
-    start_year = 1979
+    start_year = 2019
     end_year = start_year + 10
     if start_year == 2019:
         end_year = 2026
