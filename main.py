@@ -8,11 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
-from Coefficients.collection import normalize_methods
 from Coefficients.common import coerce_series, load_water_mask
-from Coefficients.runner import diagnose_joint_groups, run_decade_coefficients, collect_period_coefficients
-from Coefficients.bridges import run_boundary_workflow
+from Coefficients.runner import diagnose_joint_groups
 from Coefficients.parallel import run_parallel_period
+from Coefficients.collection import normalize_methods
+from Coefficients.bridges import run_boundary_workflow
 from Coefficients.derived_workflows import run_continuous_cf
 from Data_processing.io import (load_field, field_candidates, read_ocean_mask, start_label,
                                 dates_from_labels)
@@ -20,7 +20,6 @@ from Data_processing.mean_year import save_mean_year
 from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
 from Functional.stationary import estimate_stationary_characteristics
 from Functional.copula_workflows import estimate_copula_characteristics
-from Data_processing.grib import convert_era5_grib
 
 PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
            (2009, 2019), (2019, 2026))
@@ -99,7 +98,9 @@ def run_selected_task(task, **settings):
         return run_boundary_workflow(root, periods, names, n_bins_2d=n_bins_2d,
                                      n_components=settings["n_components"],
                                      n_init=settings["n_init"], dt=settings["dt"],
-                                     mask=mask, overwrite=overwrite)
+                                     mask=mask,
+                                     methods=normalize_methods(settings.get("coefficient_methods", "both")),
+                                     overwrite=overwrite)
     if task == "derived_cf":
         return run_continuous_cf(root, names, n_bins_2d=n_bins_2d,
                                  method=settings["method"], mask=mask,
@@ -122,10 +123,10 @@ def run_selected_task(task, **settings):
         from Data_processing.sde_conditions import run_all
 
         source = {
-            "a_pattern": f"Coefficients/aligned_{{period}}/2d_bins_{n_bins_2d}/"
-                         "{left}_{right}/Nonparametric_2d/daily/A_{index}.npy",
-            "b_pattern": f"Coefficients/aligned_{{period}}/2d_bins_{n_bins_2d}/"
-                         "{left}_{right}/Nonparametric_2d/daily/B_{index}.npy",
+            "a_pattern": f"Coefficients/{{period}}/2d_bins_{n_bins_2d}/"
+                         "{left}_{right}/Semiparametric_2d/A_{index1}-{}.npy",
+            "b_pattern": f"Coefficients/{{period}}/2d_bins_{n_bins_2d}/"
+                         "{left}_{right}/Semiparametric_2d/B_{index}.npy",
             "layout": "first", "diffusion": "matrix",
         }
         field_paths = {
@@ -154,14 +155,27 @@ def run_selected_task(task, **settings):
             timestamps = [date(start_year, 1, 1) + timedelta(days=i)
                           for i in range(len(values))]
         elif source in ("Coefficients", "Derived"):
-            folder = (Path(root) / "Coefficients" / "continuous" /
-                      f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" /
-                      ("Nonparametric_2d" if settings["method"] == "np" else "Semiparametric_2d"))
-            source_files = list(folder.glob(f"{name}_*-*.npy"))
-            if len(source_files) != 1:
-                raise FileNotFoundError(f"Expected one {name} continuous array: {source_files}")
-            values = np.load(source_files[0], mmap_mode="r")
-            first_label = int(source_files[0].stem.removeprefix(f"{name}_").split("-")[0])
+            method = settings["method"]
+            # Prefer the canonical full-period A/B arrays from the manifest.
+            manifest_path = (Path(root) / "Coefficients" / "continuous" /
+                             f"manifest_{names[0]}_{names[1]}_{n_bins_2d}.json")
+            coefficient_names = ("A", "B", "B_with_reg")
+            if source == "Coefficients" and name in coefficient_names and manifest_path.is_file():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                filename = Path(manifest["methods"][method][name])
+                first_label = int(manifest["first_label"])
+            else:
+                folder = (Path(root) / "Coefficients" / "continuous" /
+                          f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" /
+                          ("Nonparametric_2d" if method == "np" else "Semiparametric_2d"))
+                source_files = list(folder.glob(f"{name}_*-*.npy"))
+                if len(source_files) != 1:
+                    raise FileNotFoundError(
+                        f"Expected one {name} continuous array: {source_files}"
+                    )
+                filename = source_files[0]
+                first_label = int(filename.stem.removeprefix(f"{name}_").split("-")[0])
+            values = np.load(filename, mmap_mode="r")
             timestamps = dates_from_labels(first_label, len(values), convention="end")
         elif source == "Eigenvalues":
             pair = settings["spectral_pair"]
@@ -187,64 +201,47 @@ def run_selected_task(task, **settings):
                                                names=names, sample_size=settings["sample_size"],
                                                empirical_bins=settings["empirical_bins"],
                                                checkerboard_bins=settings["checkerboard_bins"])
-    elif task == 'grib':
-        grib_files = [Path(root) / "DATA" / "GRIB" / "sensible+latent_2009-2019.grib",]
-
+    if task == "grib":
+        from Data_processing.grib import convert_era5_grib
+        grib_files = [Path(root) / "DATA" / "GRIB" / "data.grib"]
         ocean_mask = Path(root) / "DATA" / "mask"
         if not ocean_mask.is_file():
             ocean_mask = None
-
-        # variables = ("sst", "sp", "avg_ishf", "avg_slhtf")
-        report = convert_era5_grib(
+        return convert_era5_grib(
             grib_files=grib_files,
             output_root=Path(root),
-            # variable= "avg_slhtf",
             variables=("avg_ishf", "avg_slhtf"),
-            period_label="2009-2019",
-            hours=(0, 6, 12, 18),
-            spatial_stride="auto",
-            mask=ocean_mask,
-            flux_units="native",  # Preserve J m-2 for historic comparisons.
-            output_dtype="float32",
-            sum_dtype="float64",
-            derive_flux=True,
-            overwrite=False,
+            period_label=f"{start_year}-{end_year}",
+            hours=(0, 6, 12, 18), spatial_stride="auto",
+            mask=ocean_mask, flux_units="native",
+            output_dtype="float32", sum_dtype="float64",
+            derive_flux=True, overwrite=False,
         )
-    elif task == 'grib-check':
-        old = np.load(Path(root) / "DATA" / "Fluxes" / "Sensible_1979-1989_grouped_old.npy")
-        new = np.load(Path(root) / "DATA" / "Fluxes" / "sensible_1979-1989_grouped.npy")
-        dates = np.load(Path(root) / "DATA/ERA5_metadata/ERA5_1979-1989_avg_ishf_dates.npy").astype("datetime64[D]")
-        old_start = np.datetime64("2019-01-01")
+    if task == "grib-check":
+        old = np.load(Path(root) / "DATA" / "Fluxes" /
+                      "Sensible_1979-1989_grouped_old.npy", mmap_mode="r")
+        new = np.load(Path(root) / "DATA" / "Fluxes" /
+                      "sensible_1979-1989_grouped.npy", mmap_mode="r")
+        dates = np.load(Path(root) / "DATA" / "ERA5_metadata" /
+                        "ERA5_1979-1989_avg_ishf_dates.npy").astype("datetime64[D]")
+        old_start = np.datetime64("1979-01-01")
         old_indices = (dates - old_start).astype("timedelta64[D]").astype(int)
         new_indices = np.flatnonzero((old_indices >= 0) & (old_indices < old.shape[1]))
-
-        assert old.ndim == new.ndim == 2
-        assert old.shape[0] == new.shape[0]
-        assert len(new_indices) > 0, "No overlapping dates"
-
-        mismatches = 0
-        max_error = 0.0
-
-        for start in range(0, old.shape[0], 256):
-            stop = start + 256
-
-            a = old[start:stop, old_indices[new_indices]]
-            b = new[start:stop, new_indices]
-
-            equal = np.isclose(a, b, rtol=1e-5, atol=1e-4, equal_nan=True)
-            mismatches += np.count_nonzero(~equal)
-
+        if old.ndim != 2 or new.ndim != 2 or old.shape[0] != new.shape[0] or not len(new_indices):
+            raise ValueError("GRIB arrays are incompatible or have no overlapping dates")
+        mismatch = 0
+        maximum_error = 0.0
+        for first in range(0, old.shape[0], 256):
+            a = old[first:first + 256, old_indices[new_indices]]
+            b = new[first:first + 256, new_indices]
+            mismatch += np.count_nonzero(~np.isclose(
+                a, b, rtol=1e-5, atol=1e-4, equal_nan=True))
             valid = np.isfinite(a) & np.isfinite(b)
             if valid.any():
-                max_error = max(max_error, float(np.max(np.abs(a[valid] - b[valid]))))
-
-        print("Overlap:", dates[new_indices[0]], dates[new_indices[-1]])
-        print("Mismatching cells:", mismatches)
-        print("Maximum absolute error:", max_error)
-        print("Arrays match:", mismatches == 0)
-
-    else:
-        raise ValueError(f"Unsupported numeric task: {task}")
+                maximum_error = max(maximum_error, float(np.max(np.abs(a[valid] - b[valid]))))
+        return {"mismatching_cells": int(mismatch),
+                "maximum_absolute_error": maximum_error}
+    raise ValueError(f"Unsupported numeric task: {task}")
 
 
 def main():
@@ -252,15 +249,20 @@ def main():
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
+    start_year = 2009
+    
+    # task = "coefficients"
 
-    # task = 'grib'
-    task = "coefficients"
-    start_year = 1989
-    parallel_workers = 4
-    chunk_transitions = 7
 
+    # task = "bridge_coefficients"
+
+    task = "bbt"
+
+    coefficient_methods = "both"  # "np", "sp" или "both"
+    bbt_period = "1979-2026"
+    bbt_chunk_days = 32
     overwrite = False
-    delete_daily_after_collect = False
+
 
     end_year = start_year + 10
     if start_year == 2019:
@@ -274,11 +276,13 @@ def main():
     diagnostic_only = False
     diagnostic_days = 7
     chunk_transitions = 7
+    parallel_workers = 8  # Use 1 for sequential execution.
+    coefficient_methods = "sp"  # "np", "sp", "both" or ("np", "sp").
     dt = 1.0
-    overwrite = True
-    coefficient_methods = "sp"
+    overwrite = False
+    delete_daily_after_collect = False
     names = ("sensible", "latent")
-    method = "sp"
+    method = "sp"  # Used by derived_cf and mean_year; not the NP/SP calculation selector.
     periods = PERIODS
     save_counts = False
     spectral_variables = ("Flux", "SST", "Pressure")

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from Plotting.workflows import (
-    plot_variables, plot_spectral_modes, plot_mean_year, coefficient_frames,
-    coefficient_video, plot_stationary_distributions, plot_copula_results,
+    plot_spectral_modes, coefficient_video, plot_copula_results,
 )
+from Plotting.map_workflows import (
+    plot_variables, plot_mean_year, coefficient_frames,
+)
+from Plotting.stationary_plots import plot_stationary_distributions
 
 
 def main():
@@ -30,7 +33,8 @@ def main():
     fps = 5
 
     if task == "variables":
-        return plot_variables(files_path_prefix, start_year, end_year, day=day)
+        return plot_variables(files_path_prefix, start_year, end_year,
+                              start=first_day, stop=last_day)
     if task == "eigenvalues":
         return plot_spectral_modes(files_path_prefix, start_year, end_year,
                                    names=spectral_names, first_day=first_day,
