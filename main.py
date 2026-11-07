@@ -31,7 +31,7 @@ def run_selected_task(task, **settings):
     Parameters
     ----------
     task : str
-        One of coefficients, bridge_coefficients, derived_cf, eigenvalues,
+        One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
         collect_eigenvalues, sde_conditions, mean_year, stationary, copulas.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
@@ -48,6 +48,22 @@ def run_selected_task(task, **settings):
     n_bins_2d = settings["n_bins_2d"]
     overwrite = settings["overwrite"]
     periods = settings.get("periods", PERIODS)
+
+    if task == "bbt":
+        from Coefficients.bbt import BBT
+
+        # Process the assembled, time-first B array in bounded disk chunks.
+        period = settings.get("bbt_period", "1979-2026")
+        pair = f"{names[0]}_{names[1]}"
+        folder = Path(root) / "Coefficients" / period / pair
+        results = {}
+        for method in normalize_methods(settings.get("coefficient_methods", "both")):
+            results[method] = BBT(
+                folder / f"B_{period}_{method}.npy",
+                chunk_days=settings.get("bbt_chunk_days", 32),
+                overwrite=overwrite,
+            )
+        return results
 
     if task == "coefficients":
         coefficient_methods = normalize_methods(settings.get("coefficient_methods", "both"))
@@ -203,28 +219,42 @@ def run_selected_task(task, **settings):
                                                checkerboard_bins=settings["checkerboard_bins"])
     if task == "grib":
         from Data_processing.grib import convert_era5_grib
-        grib_files = [Path(root) / "DATA" / "GRIB" / "data.grib"]
+        grib_files = settings.get(
+            "grib_files", (Path(root) / "DATA" / "GRIB" / "data.grib",)
+        )
         ocean_mask = Path(root) / "DATA" / "mask"
         if not ocean_mask.is_file():
             ocean_mask = None
         return convert_era5_grib(
             grib_files=grib_files,
             output_root=Path(root),
-            variables=("avg_ishf", "avg_slhtf"),
+            variables=settings.get("grib_variables", ("avg_ishf", "avg_slhtf")),
             period_label=f"{start_year}-{end_year}",
-            hours=(0, 6, 12, 18), spatial_stride="auto",
-            mask=ocean_mask, flux_units="native",
-            output_dtype="float32", sum_dtype="float64",
-            derive_flux=True, overwrite=False,
+            hours=settings.get("grib_hours", (0, 6, 12, 18)),
+            spatial_stride=settings.get("grib_spatial_stride", "auto"),
+            mask=ocean_mask,
+            flux_units=settings.get("grib_flux_units", "native"),
+            output_dtype=settings.get("grib_output_dtype", "float32"),
+            sum_dtype=settings.get("grib_sum_dtype", "float64"),
+            derive_flux=settings.get("grib_derive_flux", True),
+            overwrite=settings.get("grib_overwrite", False),
         )
     if task == "grib-check":
-        old = np.load(Path(root) / "DATA" / "Fluxes" /
-                      "Sensible_1979-1989_grouped_old.npy", mmap_mode="r")
-        new = np.load(Path(root) / "DATA" / "Fluxes" /
-                      "sensible_1979-1989_grouped.npy", mmap_mode="r")
-        dates = np.load(Path(root) / "DATA" / "ERA5_metadata" /
-                        "ERA5_1979-1989_avg_ishf_dates.npy").astype("datetime64[D]")
-        old_start = np.datetime64("1979-01-01")
+        # Paths are relative to files_path_prefix unless explicitly absolute.
+        def resolve_input(value):
+            candidate = Path(value)
+            return candidate if candidate.is_absolute() else Path(root) / candidate
+
+        old = np.load(resolve_input(settings.get(
+            "grib_check_old", "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
+        )), mmap_mode="r")
+        new = np.load(resolve_input(settings.get(
+            "grib_check_new", "DATA/Fluxes/sensible_1979-1989_grouped.npy"
+        )), mmap_mode="r")
+        dates = np.load(resolve_input(settings.get(
+            "grib_check_dates", "DATA/ERA5_metadata/ERA5_1979-1989_avg_ishf_dates.npy"
+        ))).astype("datetime64[D]")
+        old_start = np.datetime64(settings.get("grib_check_old_start", "1979-01-01"))
         old_indices = (dates - old_start).astype("timedelta64[D]").astype(int)
         new_indices = np.flatnonzero((old_indices >= 0) & (old_indices < old.shape[1]))
         if old.ndim != 2 or new.ndim != 2 or old.shape[0] != new.shape[0] or not len(new_indices):
@@ -235,7 +265,10 @@ def run_selected_task(task, **settings):
             a = old[first:first + 256, old_indices[new_indices]]
             b = new[first:first + 256, new_indices]
             mismatch += np.count_nonzero(~np.isclose(
-                a, b, rtol=1e-5, atol=1e-4, equal_nan=True))
+                a, b,
+                rtol=settings.get("grib_check_rtol", 1e-5),
+                atol=settings.get("grib_check_atol", 1e-4),
+                equal_nan=True))
             valid = np.isfinite(a) & np.isfinite(b)
             if valid.any():
                 maximum_error = max(maximum_error, float(np.max(np.abs(a[valid] - b[valid]))))
@@ -245,65 +278,123 @@ def run_selected_task(task, **settings):
 
 
 def main():
-    """Provide editable parameters and run the explicitly selected numeric task."""
+    """Configure numerical workflows and run the selected task."""
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
     start_year = 2009
-    
+
+    # --------------------------------------------------------------------------
+    # COEFFICIENTS: estimate daily NP/SP drift and diffusion coefficients.
     # task = "coefficients"
-
-
-    # task = "bridge_coefficients"
-
-    task = "bbt"
-
-    coefficient_methods = "both"  # "np", "sp" или "both"
-    bbt_period = "1979-2026"
-    bbt_chunk_days = 32
-    overwrite = False
-
-
-    end_year = start_year + 10
-    if start_year == 2019:
-        end_year = 2026
-    n_bins = 144
-    n_components = 3
-    n_init = 10
     run_1d = False
     run_2d = True
-    n_bins_2d = 12
     diagnostic_only = False
     diagnostic_days = 7
     chunk_transitions = 7
-    parallel_workers = 8  # Use 1 for sequential execution.
-    coefficient_methods = "sp"  # "np", "sp", "both" or ("np", "sp").
-    dt = 1.0
-    overwrite = False
+    parallel_workers = 8  # Use 1 to disable multiprocessing.
     delete_daily_after_collect = False
-    names = ("sensible", "latent")
-    method = "sp"  # Used by derived_cf and mean_year; not the NP/SP calculation selector.
-    periods = PERIODS
-    save_counts = False
-    spectral_variables = ("Flux", "SST", "Pressure")
-    spectral_pair = ("Flux", "Flux")
+
+    # --------------------------------------------------------------------------
+    # BRIDGE COEFFICIENTS: calculate cross-period transitions and assemble them.
+    # task = "bridge_coefficients"
+    # Uses periods, names, coefficient_methods, n_bins_2d, n_components,
+    # n_init, dt and overwrite from the shared settings section below.
+
+    # --------------------------------------------------------------------------
+    # BBT: multiply each assembled two-dimensional diffusion matrix by its transpose.
+    task = "bbt"
+    bbt_period = "1979-2026"
+    bbt_chunk_days = 32
+
+    # --------------------------------------------------------------------------
+    # DERIVED CF: calculate C, F and FS from the continuous coefficient series.
+    # task = "derived_cf"
     correlation_window = 14
     mean_width = 7
+
+    # --------------------------------------------------------------------------
+    # EIGENVALUES: calculate period-level eigenvalues and singular values.
+    # task = "eigenvalues"
+    save_counts = False
+
+    # --------------------------------------------------------------------------
+    # COLLECT EIGENVALUES: assemble spectral series across multiple periods.
+    # task = "collect_eigenvalues"
+    # Uses spectral_variables, periods and overwrite from shared settings.
+
+    # --------------------------------------------------------------------------
+    # SDE CONDITIONS: check conditions for the estimated stochastic model.
+    # task = "sde_conditions"
     sde_variables = ("sensible", "latent", "SST", "Pressure")
     sde_pairs = None
     window_days = 1000
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
-    mean_year_source = "Variables"
+
+    # --------------------------------------------------------------------------
+    # MEAN YEAR: compute a mean annual profile from a selected data source.
+    # task = "mean_year"
+    mean_year_source = "Variables"  # Variables, Coefficients, Derived, Eigenvalues
     mean_year_name = "sensible"
+    spectral_pair = ("Flux", "Flux")  # Used when mean_year_source is Eigenvalues.
+
+    # --------------------------------------------------------------------------
+    # STATIONARY: fit numerical stationary distribution characteristics.
+    # task = "stationary"
     b_type = "simple"
+
+    # --------------------------------------------------------------------------
+    # COPULAS: estimate dependence and joint-distribution characteristics.
+    # task = "copulas"
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
 
-    # Only numerical tasks that require a spatial mask load it.
+    # --------------------------------------------------------------------------
+    # GRIB: convert ERA5 GRIB messages into daily arrays.
+    # task = "grib"
+    grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "data.grib",)
+    grib_variables = ("avg_ishf", "avg_slhtf")
+    grib_hours = (0, 6, 12, 18)
+    grib_spatial_stride = "auto"
+    grib_flux_units = "native"
+    grib_output_dtype = "float32"
+    grib_sum_dtype = "float64"
+    grib_derive_flux = True
+    grib_overwrite = False
+
+    # --------------------------------------------------------------------------
+    # GRIB CHECK: compare the reprocessed daily array with the historical one.
+    # task = "grib-check"
+    grib_check_old = "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
+    grib_check_new = "DATA/Fluxes/sensible_1979-1989_grouped.npy"
+    grib_check_dates = "DATA/ERA5_metadata/ERA5_1979-1989_avg_ishf_dates.npy"
+    grib_check_old_start = "1979-01-01"
+    grib_check_rtol = 1e-5
+    grib_check_atol = 1e-4
+
+    # ==========================================================================
+    # SHARED SETTINGS: used by several numerical tasks.
+    # Keep the input root and start_year at the beginning of this function.
+    end_year = 2026 if start_year == 2019 else start_year + 10
+    names = ("sensible", "latent")
+    periods = PERIODS
+    coefficient_methods = "sp"  # Effective value in the supplied script; np/sp/both.
+    method = "sp"  # Used by derived_cf and mean_year, not by NP/SP estimation.
+    n_bins = 144  # Coefficients and eigenvalues.
+    n_bins_2d = 12  # Coefficients, bridges, CF, SDE and mean-year workflows.
+    n_components = 3  # Coefficients, bridges and eigenvalues.
+    n_init = 10  # Coefficients and bridges.
+    dt = 1.0  # Time increment for coefficient and spectral estimators.
+    overwrite = False
+    spectral_variables = ("Flux", "SST", "Pressure")  # Spectral tasks.
+
+    # Load a spatial mask only for workflows that require it.
     mask = (load_water_mask(read_ocean_mask(files_path_prefix))
-            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year") else None)
+            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year")
+            else None)
+
     settings = locals().copy()
     settings.pop("task", None)
     return run_selected_task(task, **settings)

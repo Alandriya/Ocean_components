@@ -12,25 +12,57 @@ from Plotting.stationary_plots import plot_stationary_distributions
 
 
 def main():
-    """Select and run a visualization task using editable local parameters."""
+    """Configure visualization workflows and run the selected plotting task."""
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    task = "variables"
     start_year = 1989
-    end_year = 2019 if start_year == 2009 else (2026 if start_year == 2019 else start_year + 10)
-    names = ("sensible", "latent")
+
+    # --------------------------------------------------------------------------
+    # VARIABLES: maps of fluxes, sea-surface temperature and pressure.
+    task = "variables"
+    # Uses first_day and last_day from the shared section below.
+
+    # --------------------------------------------------------------------------
+    # EIGENVALUES: visualize saved eigenvalue and singular-value modes.
+    # task = "eigenvalues"
     spectral_names = ("Flux", "SST")
     n_bins = 250
     n_modes = 3
-    n_bins_2d = 12
-    method = "np"
-    coefficient = "A"
-    first_day = 0
-    last_day = 5
-    day = 0
+
+    # --------------------------------------------------------------------------
+    # MEAN YEAR: visualize the annual climatology of a selected variable.
+    # task = "mean_year"
     mean_year_source = "Variables"
     mean_year_name = "sensible"
+
+    # --------------------------------------------------------------------------
+    # COEFFICIENT FRAMES: render A/B/C/F/FS maps for a selected time interval.
+    # task = "coefficient_frames"
+    n_bins_2d = 12
+
+    # --------------------------------------------------------------------------
+    # VIDEOS: combine previously generated coefficient frames into a video.
+    # task = "videos"
     fps = 5
+
+    # --------------------------------------------------------------------------
+    # STATIONARY: draw individual stationary distributions for the fluxes.
+    # task = "stationary"
+    # Uses names and the selected period from shared settings.
+
+    # --------------------------------------------------------------------------
+    # COPULAS: visualize saved copula and joint-density results.
+    # task = "copulas"
+    # Uses names and the selected period from shared settings.
+
+    # ==========================================================================
+    # SHARED SETTINGS: used by multiple plotting tasks.
+    end_year = 2019 if start_year == 2009 else (2026 if start_year == 2019 else start_year + 10)
+    names = ("sensible", "latent")
+    first_day = 0  # First frame or observation (inclusive).
+    last_day = 5  # Last frame or observation (exclusive).
+    method = "np"  # Used by coefficient_frames and videos.
+    coefficient = "A"  # Used by coefficient_frames and videos.
 
     if task == "variables":
         return plot_variables(files_path_prefix, start_year, end_year,
