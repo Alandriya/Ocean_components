@@ -291,7 +291,8 @@ def run_selected_task(task, **settings):
             chunk_days=32,
             overwrite=False,
         )
-    raise ValueError(f"Unsupported numeric task: {task}")
+    else:
+        raise ValueError(f"Unsupported numeric task: {task}")
 
 
 def main():
@@ -300,7 +301,7 @@ def main():
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
     start_year = 19792026
-    task = 'collect'
+    # task = 'collect'
 
     # --------------------------------------------------------------------------
     # COEFFICIENTS: estimate daily NP/SP drift and diffusion coefficients.
@@ -359,8 +360,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # STATIONARY: fit one-dimensional stationary densities from full-period arrays.
-    # task = "stationary"
-    b_type = "simple"
+    task = "stationary"
     stationary_method = "sp"  # "sp" or "np"; controls assembled A/B or BBT.
     stationary_quantile_bins = 260
     stationary_trim_bins = 5
