@@ -17,6 +17,7 @@ from Coefficients.derived_workflows import run_continuous_cf
 from Data_processing.io import (load_field, field_candidates, read_ocean_mask, start_label,
                                 dates_from_labels)
 from Data_processing.mean_year import save_mean_year
+from Data_processing.collect_variables import collect_variable_periods
 from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
 from Functional.stationary import estimate_stationary_characteristics
 from Functional.copula_workflows import estimate_copula_characteristics
@@ -210,8 +211,17 @@ def run_selected_task(task, **settings):
                               mask=mask if values.ndim >= 3 else None,
                               years=(start_year, end_year))
     if task == "stationary":
-        return estimate_stationary_characteristics(root, start_year, end_year,
-                                                   names=names, b_type=settings["b_type"])
+        return estimate_stationary_characteristics(
+            root, start_year, end_year,
+            names=names, b_type=settings["b_type"],
+            method=settings.get("stationary_method", "sp"),
+            quantile_bins=settings.get("stationary_quantile_bins", 260),
+            trim_bins=settings.get("stationary_trim_bins", 5),
+            chunk_days=settings.get("stationary_chunk_days", 16),
+            spatial_block_size=settings.get("stationary_spatial_block_size", 5),
+            sample_size=settings.get("stationary_sample_size", 400000),
+            refresh_grouped=settings.get("stationary_refresh_grouped", False),
+        )
     if task == "copulas":
         return estimate_copula_characteristics(root, start_year, end_year,
                                                names=names, sample_size=settings["sample_size"],
@@ -274,6 +284,13 @@ def run_selected_task(task, **settings):
                 maximum_error = max(maximum_error, float(np.max(np.abs(a[valid] - b[valid]))))
         return {"mismatching_cells": int(mismatch),
                 "maximum_absolute_error": maximum_error}
+    elif task == 'collect':
+        collect_variable_periods(
+            root,
+            name="latent",
+            chunk_days=32,
+            overwrite=False,
+        )
     raise ValueError(f"Unsupported numeric task: {task}")
 
 
@@ -282,7 +299,8 @@ def main():
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 2009
+    start_year = 19792026
+    task = 'collect'
 
     # --------------------------------------------------------------------------
     # COEFFICIENTS: estimate daily NP/SP drift and diffusion coefficients.
@@ -303,7 +321,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # BBT: multiply each assembled two-dimensional diffusion matrix by its transpose.
-    task = "bbt"
+    # task = "bbt"
     bbt_period = "1979-2026"
     bbt_chunk_days = 32
 
@@ -340,9 +358,16 @@ def main():
     spectral_pair = ("Flux", "Flux")  # Used when mean_year_source is Eigenvalues.
 
     # --------------------------------------------------------------------------
-    # STATIONARY: fit numerical stationary distribution characteristics.
+    # STATIONARY: fit one-dimensional stationary densities from full-period arrays.
     # task = "stationary"
     b_type = "simple"
+    stationary_method = "sp"  # "sp" or "np"; controls assembled A/B or BBT.
+    stationary_quantile_bins = 260
+    stationary_trim_bins = 5
+    stationary_chunk_days = 16
+    stationary_spatial_block_size = 5  # Use 1 to disable block averaging.
+    stationary_sample_size = 400000
+    stationary_refresh_grouped = False  # True forces recalculation of grouped fits.
 
     # --------------------------------------------------------------------------
     # COPULAS: estimate dependence and joint-distribution characteristics.
@@ -377,7 +402,14 @@ def main():
     # ==========================================================================
     # SHARED SETTINGS: used by several numerical tasks.
     # Keep the input root and start_year at the beginning of this function.
-    end_year = 2026 if start_year == 2019 else start_year + 10
+    # Set end_year manually: 1989 for 1979-1989, or 2026 for 1979-2026.
+    # The selected period is NEVER changed automatically, including stationary.
+    end_year = start_year + 10
+    if start_year == 2019:
+        end_year = 2026
+    elif start_year == 19792026:
+        start_year = 1979
+        end_year = 2026
     names = ("sensible", "latent")
     periods = PERIODS
     coefficient_methods = "sp"  # Effective value in the supplied script; np/sp/both.

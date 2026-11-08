@@ -57,7 +57,9 @@ def main():
 
     # ==========================================================================
     # SHARED SETTINGS: used by multiple plotting tasks.
-    end_year = 2019 if start_year == 2009 else (2026 if start_year == 2019 else start_year + 10)
+    # Set end_year manually: 1989 for 1979-1989, or 2026 for 1979-2026.
+    # This period is used unchanged for stationary plots and other tasks.
+    end_year = 1999
     names = ("sensible", "latent")
     first_day = 0  # First frame or observation (inclusive).
     last_day = 5  # Last frame or observation (exclusive).
