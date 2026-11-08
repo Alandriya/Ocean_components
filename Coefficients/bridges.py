@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
+import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -20,6 +22,12 @@ from Coefficients.collection import (
 )
 
 METHOD_FOLDERS = {"np": "Nonparametric_2d", "sp": "Semiparametric_2d"}
+
+# A hard link avoids duplicated multi-year arrays. Windows volumes may reject it.
+# In that case, try a symlink, then copy the file in bounded-memory chunks.
+# Set to "skip" to keep only the canonical file and the JSON manifest when
+# there is not enough free disk space for a duplicate.
+LEGACY_FALLBACK = "copy"  # "copy" or "skip"
 
 
 def period_daily_dir(root, period, names, n_bins_2d, method):
@@ -341,22 +349,125 @@ def _publish_merged(destination, segments, count, shape, dtype):
 
 
 def _ensure_legacy_link(canonical, legacy, *, overwrite=False):
-    """Keep older consumers working without a second multi-gigabyte array.
+    """Publish a legacy NPY path, including on Windows volumes without links.
 
-    Use a hard link on the same filesystem. If unavailable, do not duplicate
-    a multi-year coefficient file: callers should consume the canonical path
-    published in the manifest. Existing legacy files remain untouched.
+    Parameters
+    ----------
+    canonical : str or Path
+        Verified assembled NPY in ``Coefficients/<period>/<pair>``.
+    legacy : str or Path
+        Backward-compatible NPY path in ``Coefficients/continuous``.
+    overwrite : bool
+        Replace a pre-existing legacy array. Without this flag, a valid
+        existing legacy NPY is reused, but an invalid one is replaced.
+
+    Returns
+    -------
+    str
+        One of ``existing``, ``hardlink``, ``symlink``, ``copy``, ``skipped``.
+
+    Notes
+    -----
+    Windows hard links can fail on network or non-NTFS volumes. Try a symbolic
+    link next. If both are unavailable, copy the bytes with bounded memory into
+    a temporary file and atomically replace the destination. A failed link
+    never invalidates the already assembled canonical file.
     """
-    if legacy.exists() and not overwrite:
-        return
+    canonical = Path(canonical).resolve(strict=True)
+    legacy = Path(legacy)
+    if LEGACY_FALLBACK not in ("copy", "skip"):
+        raise ValueError('LEGACY_FALLBACK must be "copy" or "skip"')
+    if canonical == legacy.resolve(strict=False):
+        return "existing"
+
+    source = np.load(canonical, mmap_mode="r", allow_pickle=False)
+    source_shape, source_dtype = source.shape, source.dtype
+    del source
+    if legacy.exists() and not overwrite and _valid_merged(
+            legacy, source_shape[0], source_shape[1:], source_dtype):
+        print(f"Legacy output already exists: {legacy}", flush=True)
+        return "existing"
+
     legacy.parent.mkdir(parents=True, exist_ok=True)
-    temporary = legacy.with_name(f".{legacy.name}.link_{os.getpid()}")
+    temporary = legacy.with_name(f".{legacy.name}.tmp_{os.getpid()}_{uuid.uuid4().hex}")
+    errors = []
     try:
-        os.link(canonical, temporary)
+        # A hard link is the most efficient solution: one file, two paths.
+        try:
+            os.link(canonical, temporary)
+            os.replace(temporary, legacy)
+            print(f"Legacy hard link: {legacy}", flush=True)
+            return "hardlink"
+        except OSError as exc:
+            errors.append(f"hard link: {exc}")
+            temporary.unlink(missing_ok=True)
+
+        # On Windows, this may require Developer Mode or a special privilege.
+        # A symlink points to the already verified canonical array.
+        try:
+            os.symlink(canonical, temporary, target_is_directory=False)
+            os.replace(temporary, legacy)
+            print(f"Legacy symbolic link: {legacy}", flush=True)
+            return "symlink"
+        except OSError as exc:
+            errors.append(f"symbolic link: {exc}")
+            temporary.unlink(missing_ok=True)
+
+        if LEGACY_FALLBACK == "skip":
+            print(
+                f"WARNING: legacy link unavailable; canonical array remains at "
+                f"{canonical}. Legacy output was not created at {legacy}. "
+                f"Reasons: {'; '.join(errors)}",
+                flush=True,
+            )
+            return "skipped"
+
+        # Last resort: streaming byte copy, never materializing the complete
+        # historical array in memory. The legacy path appears only after the
+        # full copy has completed successfully.
+        size = canonical.stat().st_size
+        free = shutil.disk_usage(legacy.parent).free
+        if free < size:
+            raise OSError(
+                f"Not enough free space for the backward-compatible copy "
+                f"({size / 1024**3:.2f} GiB required, "
+                f"{free / 1024**3:.2f} GiB free): {legacy}. "
+                f"The main array is intact at {canonical}. "
+                'Set LEGACY_FALLBACK = "skip" to avoid duplicating large arrays.'
+            )
+        print(
+            f"Windows/file system rejected hard and symbolic links; "
+            f"copying {size / 1024**3:.2f} GiB to legacy path: {legacy}",
+            flush=True,
+        )
+        with canonical.open("rb") as source_file, temporary.open("xb") as target_file:
+            copied = 0
+            next_report = 1024 ** 3
+            while True:
+                block = source_file.read(16 * 1024 * 1024)
+                if not block:
+                    break
+                target_file.write(block)
+                copied += len(block)
+                if copied >= next_report:
+                    print(f"  Legacy copy: {copied / size:.1%} ({copied / 1024**3:.1f} GiB)",
+                          flush=True)
+                    next_report = copied + 1024 ** 3
+            target_file.flush()
+            try:
+                os.fsync(target_file.fileno())
+            except OSError as exc:
+                # Some network and removable Windows drives do not support fsync.
+                print(f"WARNING: explicit disk sync unavailable: {exc}", flush=True)
+        if temporary.stat().st_size != size:
+            raise IOError(f"Incomplete legacy copy: {temporary}")
+        if not _valid_merged(temporary, source_shape[0], source_shape[1:], source_dtype):
+            raise RuntimeError(f"Copied NPY failed validation: {temporary}")
         os.replace(temporary, legacy)
-    except OSError as exc:
+        print(f"Legacy output created: {legacy}", flush=True)
+        return "copy"
+    finally:
         temporary.unlink(missing_ok=True)
-        print(f"WARNING: cannot hard-link legacy output {legacy}: {exc}", flush=True)
 
 
 def assemble_continuous_coefficients(files_path_prefix, periods,
