@@ -12,53 +12,86 @@ from scipy.optimize import curve_fit
 
 
 def _fit_log_diffusion(quantiles, log_diffusion, variable):
-    """Fit the existing three-region square-root/log-diffusion model.
+    """Fit a *continuous* three-region model for ``log(b^2(x))``.
 
-    Parameters
-    ----------
-    quantiles : array-like
-        Grouped process values used as regression nodes.
-    log_diffusion : array-like
-        Grouped values of ``log(b^2)``.
-    variable : str
-        Variable name, currently ``"sensible"`` or ``"latent"``.
+    The piecewise function is the same as ``model_logb2`` and the manuscript:
 
-    Returns
-    -------
-    dict
-        Dictionary with fitted piecewise-diffusion parameters.
+        x < x1:         c1*abs(x) + dL
+        x1 <= x < x0:   c2*sqrt(abs(x)) + c3
+        x >= x0:        c4*sqrt(abs(x)) + dR
+
+    where dL = c3+c2*sqrt(abs(x1))-c1*abs(x1) and
+          dR = c3+(c2-c4)*sqrt(abs(x0)).
+
+    Regression is intentionally performed sequentially in the historical
+    center / left / right regions. For the two outside branches, fit the slope
+    with the intercept *fixed* by continuity, rather than fitting a shifted
+    formula and then plotting an inconsistent, shifted intercept. This also
+    makes the fitted parameters usable by the stationary-density formula.
     """
     from Functional.func_estimation import model_logb2
 
-    x = np.asarray(quantiles, dtype=float)
-    y = np.asarray(log_diffusion, dtype=float)
+    x = np.asarray(quantiles, dtype=np.float64)
+    y = np.asarray(log_diffusion, dtype=np.float64)
     if x.ndim != 1 or y.shape != x.shape or len(x) < 8:
         raise ValueError("Expected equally sized quantile and log-diffusion vectors")
+    if not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+        raise ValueError("Quantile and log-diffusion inputs must be finite")
+    if variable not in ("sensible", "latent"):
+        raise ValueError("variable must be sensible or latent")
+
     x0 = float(x[np.argmin(y)])
     x1 = -40.0
-    center = (x1 <= x) & (x < (-10.0 if variable == "sensible" else x0))
+    if not x1 < x0:
+        raise ValueError(
+            f"Cannot join three diffusion regions: x1={x1}, x0={x0}; "
+            "check the estimated diffusion minimum"
+        )
+
+    # Preserve the historical subsets of the regression nodes.
+    central_limit = min(-10.0, x0) if variable == "sensible" else x0
+    center = (x1 <= x) & (x < central_limit)
     left = ((x < x1) if variable == "sensible" else
-            (x < x1) & ((x < -250) | (x > -45)))
+            ((x < x1) & ((x < -250.0) | (x > -45.0))))
     right = x >= x0
     if min(int(center.sum()), int(left.sum()), int(right.sum())) < 2:
         raise ValueError("Insufficient historical quantile data in a diffusion fitting region")
 
-    def central(z, c2, c3):
-        return c2 * np.sqrt(np.abs(z)) + c3
+    # (1) Interior fit on the ACTUAL physical x coordinate: c2*sqrt(|x|)+c3.
+    basis_center = np.column_stack((np.sqrt(np.abs(x[center])),
+                                    np.ones(int(center.sum()))))
+    c2, c3 = np.linalg.lstsq(basis_center, y[center], rcond=None)[0]
 
-    def left_fit(z, c1):
-        return c1 * np.abs(z)
+    # (2) Left tail: value at x1 is constrained to equal the center branch.
+    center_at_x1 = c2 * np.sqrt(abs(x1)) + c3
+    left_basis = np.abs(x[left]) - abs(x1)
+    if float(left_basis @ left_basis) <= 0.0:
+        raise ValueError("Degenerate left diffusion regression region")
+    c1 = float((left_basis @ (y[left] - center_at_x1)) /
+               (left_basis @ left_basis))
 
-    def right_fit(z, c4):
-        return c4 * np.sqrt(np.abs(z))
+    # (3) Right tail: value at x0 is constrained to equal the center branch.
+    center_at_x0 = c2 * np.sqrt(abs(x0)) + c3
+    right_basis = np.sqrt(np.abs(x[right])) - np.sqrt(abs(x0))
+    if float(right_basis @ right_basis) <= 0.0:
+        raise ValueError("Degenerate right diffusion regression region")
+    c4 = float((right_basis @ (y[right] - center_at_x0)) /
+               (right_basis @ right_basis))
 
-    (c2, c3), _ = curve_fit(central, x[center] - x0, y[center], maxfev=5000)
-    # The latent branch used x0 in the historical left-side fit.
-    left_origin = x1 if variable == "sensible" else x0
-    (c1,), _ = curve_fit(left_fit, x[left] - left_origin,
-                         y[left] - central(x1 - x0, c2, c3), maxfev=5000)
-    (c4,), _ = curve_fit(right_fit, x[right] - x0, y[right] - c3, maxfev=5000)
-    prediction = np.array([model_logb2(v, x1, x0, c1, c2, c3, c4) for v in x])
+    # Evaluation via the exact piecewise law used for stationary distributions.
+    prediction = np.array([model_logb2(float(v), x1, x0, c1, c2, c3, c4)
+                           for v in x], dtype=np.float64)
+    d_left = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
+    d_right = c3 + (c2 - c4) * np.sqrt(abs(x0))
+    left_at_join = c1 * abs(x1) + d_left
+    center_at_left_join = c2 * np.sqrt(abs(x1)) + c3
+    center_at_right_join = c2 * np.sqrt(abs(x0)) + c3
+    right_at_join = c4 * np.sqrt(abs(x0)) + d_right
+    if not (np.isclose(left_at_join, center_at_left_join, atol=1e-10, rtol=1e-10)
+            and np.isclose(center_at_right_join, right_at_join,
+                           atol=1e-10, rtol=1e-10)):
+        raise AssertionError("Piecewise diffusion branches are discontinuous")
+
     return {
         "x0": x0,
         "x1": x1,

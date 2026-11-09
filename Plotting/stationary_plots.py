@@ -17,6 +17,13 @@ NAMES_RU = {
     "SST": "Температура поверхности океана",
     "Pressure": "Атмосферное давление",
 }
+NAMES = {
+    "sensible": "Sensible Heat Flux",
+    "latent": "Latent Heat Flux",
+    "Flux": "Cumulative Heat Flux",
+    "SST": "Sea Surface Temperature",
+    "Pressure": "Surface Pressure",
+}
 
 
 def plot_path(root: Path, *parts: str) -> Path:
@@ -39,8 +46,8 @@ def _stationary_plot_config(name: str) -> dict:
     """Return legacy plotting ranges for known heat-flux variables."""
     legacy = {
         "sensible": {
-            "xlim": (-500.0, 500.0),
-            "hist_range": (-500.0, 500.0),
+            "xlim": (-300.0, 300.0),
+            "hist_range": (-300.0, 300.0),
             "xlabel_ru": "Значения явного теплового потока",
             "xlabel_en": "Sensible flux values",
         },
@@ -105,36 +112,37 @@ def plot_stationary_distributions(files_path_prefix, names, start_year, end_year
             clean = clean[np.isfinite(clean)].ravel()
 
             fig, ax = plt.subplots(1, 1, figsize=(12, 7))
-            ax.plot(
-                grid,
-                densities[f"pdf_{name}"],
-                c="r",
-                linewidth=2.0,
-                label="Стационарная плотность",
-            )
-            # ax.plot(grid, densities[f"pdf_{name}"], c="r", linewidth=2.0,
-            #         label="Stationary density")
+            # ax.plot(
+            #     grid,
+            #     densities[f"pdf_{name}"],
+            #     c="r",
+            #     linewidth=2.0,
+            #     label="Стационарная плотность",
+            # )
+            ax.plot(grid, densities[f"pdf_{name}"], c="r", linewidth=2.0,
+                    label="Stationary density")
 
-            ax.hist(
-                clean,
-                range=config["hist_range"],
-                alpha=0.5,
-                bins=histogram_bins,
-                density=True,
-                label="Гистограмма наблюдений",
-            )
-            # ax.hist(clean, range=config["hist_range"], alpha=0.5,
-            #         bins=histogram_bins, density=True,
-            #         label="Observed histogram")
+            # ax.hist(
+            #     clean,
+            #     range=config["hist_range"],
+            #     alpha=0.5,
+            #     bins=histogram_bins,
+            #     density=True,
+            #     label="Гистограмма наблюдений",
+            # )
+            ax.hist(clean, range=config["hist_range"], alpha=0.5,
+                    bins=histogram_bins, density=True,
+                    label="Observed histogram")
 
             if config["xlim"] is not None:
                 ax.set_xlim(*config["xlim"])
 
-            ax.set_title(NAMES_RU.get(name, name), fontsize=16)
-            ax.set_xlabel(config["xlabel_ru"], fontsize=14)
-            # ax.set_xlabel(config["xlabel_en"], fontsize=14)
-            ax.set_ylabel("Плотность вероятности", fontsize=14)
-            # ax.set_ylabel("Probability density", fontsize=14)
+            ax.set_title(NAMES.get(name, name), fontsize=16)
+            # ax.set_title(NAMES_RU.get(name, name), fontsize=16)
+            # ax.set_xlabel(config["xlabel_ru"], fontsize=14)
+            ax.set_xlabel(config["xlabel_en"], fontsize=14)
+            # ax.set_ylabel("Плотность вероятности", fontsize=14)
+            ax.set_ylabel("Probability density", fontsize=14)
             ax.legend()
             fig.tight_layout()
 
@@ -144,7 +152,7 @@ def plot_stationary_distributions(files_path_prefix, names, start_year, end_year
                     root,
                     "Distributions",
                     "Stationary",
-                    f"{name}_{start_year}-{end_year}.png",
+                    f"{name}_{start_year}-{end_year}_eng.png",
                 ),
             )
             plt.close(fig)

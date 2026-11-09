@@ -32,8 +32,9 @@ def run_selected_task(task, **settings):
     Parameters
     ----------
     task : str
-        One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
-        collect_eigenvalues, sde_conditions, mean_year, stationary, copulas.
+        One of coefficients, bridge_coefficients, bbt, validate_bbt, derived_cf,
+        eigenvalues, collect_eigenvalues, sde_conditions, mean_year, stationary,
+        copulas, grib, grib-check, or collect.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -63,6 +64,27 @@ def run_selected_task(task, **settings):
                 folder / f"B_{period}_{method}.npy",
                 chunk_days=settings.get("bbt_chunk_days", 32),
                 overwrite=overwrite,
+            )
+        return results
+
+    if task == "validate_bbt":
+        from Functional.bbt_diagnostics import validate_bbt_files
+
+        # Validate existing B and BBT arrays without modifying either input.
+        period = settings.get("bbt_period", "1979-2026")
+        pair = f"{names[0]}_{names[1]}"
+        folder = Path(root) / "Coefficients" / period / pair
+        results = {}
+        for method in normalize_methods(settings.get("coefficient_methods", "both")):
+            results[method] = validate_bbt_files(
+                folder / f"B_{period}_{method}.npy",
+                folder / f"BBT_{period}_{method}.npy",
+                chunk_days=settings.get("bbt_validation_chunk_days", 32),
+                comparison_rtol=settings.get("bbt_comparison_rtol", 1e-5),
+                comparison_atol=settings.get("bbt_comparison_atol", 1e-8),
+                psd_rtol=settings.get("bbt_psd_rtol", 1e-7),
+                psd_atol=settings.get("bbt_psd_atol", 1e-10),
+                raise_on_failure=settings.get("bbt_raise_on_failure", False),
             )
         return results
 
@@ -213,7 +235,7 @@ def run_selected_task(task, **settings):
     if task == "stationary":
         return estimate_stationary_characteristics(
             root, start_year, end_year,
-            names=names, b_type=settings["b_type"],
+            names=names, b_type='simple',
             method=settings.get("stationary_method", "sp"),
             quantile_bins=settings.get("stationary_quantile_bins", 260),
             trim_bins=settings.get("stationary_trim_bins", 5),
@@ -325,6 +347,16 @@ def main():
     # task = "bbt"
     bbt_period = "1979-2026"
     bbt_chunk_days = 32
+
+    # --------------------------------------------------------------------------
+    # BBT DIAGNOSTICS: validate existing B and BBT arrays without recomputing them.
+    # task = "validate_bbt"
+    bbt_validation_chunk_days = 32
+    bbt_comparison_rtol = 1e-5
+    bbt_comparison_atol = 1e-8
+    bbt_psd_rtol = 1e-7
+    bbt_psd_atol = 1e-10
+    bbt_raise_on_failure = False
 
     # --------------------------------------------------------------------------
     # DERIVED CF: calculate C, F and FS from the continuous coefficient series.
