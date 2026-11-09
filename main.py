@@ -32,9 +32,10 @@ def run_selected_task(task, **settings):
     Parameters
     ----------
     task : str
-        One of coefficients, bridge_coefficients, bbt, validate_bbt, derived_cf,
-        eigenvalues, collect_eigenvalues, sde_conditions, mean_year, stationary,
-        copulas, grib, grib-check, or collect.
+        One of coefficients, bridge_coefficients, bbt, validate_bbt,
+        fokker_planck_2d_prepare, derived_cf, eigenvalues, collect_eigenvalues,
+        sde_conditions, mean_year, stationary, copulas, grib, grib-check,
+        or collect.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -87,6 +88,27 @@ def run_selected_task(task, **settings):
                 raise_on_failure=settings.get("bbt_raise_on_failure", False),
             )
         return results
+
+    if task == "fokker_planck_2d_prepare":
+        from Functional.fokker_planck_2d import prepare_phase_space_coefficients
+
+        return prepare_phase_space_coefficients(
+            root,
+            start_year,
+            end_year,
+            names=names,
+            method=settings.get("fp2d_method", "sp"),
+            bins=settings.get("fp2d_bins", (80, 80)),
+            quantile_bounds=settings.get("fp2d_quantile_bounds", (0.005, 0.995)),
+            min_count=settings.get("fp2d_min_count", 100),
+            chunk_days=settings.get("fp2d_chunk_days", 32),
+            spatial_block_size=settings.get("fp2d_spatial_block_size", 5),
+            sample_size=settings.get("fp2d_sample_size", 500000),
+            random_seed=settings.get("fp2d_random_seed", 1979),
+            psd_rtol=settings.get("fp2d_psd_rtol", 1e-7),
+            psd_atol=settings.get("fp2d_psd_atol", 1e-10),
+            overwrite=overwrite,
+        )
 
     if task == "coefficients":
         coefficient_methods = normalize_methods(settings.get("coefficient_methods", "both"))
@@ -322,7 +344,7 @@ def main():
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 2019
+    start_year = 19792026
     # task = 'collect'
 
     # --------------------------------------------------------------------------
@@ -359,6 +381,21 @@ def main():
     bbt_raise_on_failure = False
 
     # --------------------------------------------------------------------------
+    # FOKKER-PLANCK 2D PREPARE: reconstruct A(x1,x2) and D(x1,x2)=BBT.
+    # This stage only creates the phase-space coefficient grid; it does not solve the PDE.
+    task = "fokker_planck_2d_prepare"
+    fp2d_method = "sp"
+    fp2d_bins = (80, 80)
+    fp2d_quantile_bounds = (0.005, 0.995)
+    fp2d_min_count = 100
+    fp2d_chunk_days = 32
+    fp2d_spatial_block_size = 5
+    fp2d_sample_size = 500000
+    fp2d_random_seed = 1979
+    fp2d_psd_rtol = 1e-7
+    fp2d_psd_atol = 1e-10
+
+    # --------------------------------------------------------------------------
     # DERIVED CF: calculate C, F and FS from the continuous coefficient series.
     # task = "derived_cf"
     correlation_window = 14
@@ -392,7 +429,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # STATIONARY: fit one-dimensional stationary densities from full-period arrays.
-    task = "stationary"
+    # task = "stationary"
     stationary_method = "sp"  # "sp" or "np"; controls assembled A/B or BBT.
     stationary_quantile_bins = 260
     stationary_trim_bins = 5
