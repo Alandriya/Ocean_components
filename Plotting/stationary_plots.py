@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from Data_processing.io import load_field
+from Data_processing.io import field_candidates, load_field
 
 NAMES_RU = {
     "sensible": "Явный тепловой поток",
@@ -68,80 +69,163 @@ def _stationary_plot_config(name: str) -> dict:
     }
 
 
-def plot_stationary_distributions(files_path_prefix, names, start_year, end_year,
-                                  *, histogram_bins: int = 100):
-    """Draw each stationary distribution on a separate seaborn-styled figure.
+def _histogram_cache_path(root, name, start_year, end_year, bins):
+    """Return the cached observed-histogram filename."""
+    folder = root / "Functional" / "Stationary" / "Histograms"
+    return folder / f"{name}_{start_year}-{end_year}_{bins}bins.npz"
 
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Root directory with cached stationary densities and raw fields.
-    names : tuple of str
-        Variables to draw.
-    start_year, end_year : int
-        Period labels.
-    histogram_bins : int, default=100
-        Number of histogram bins.
 
-    Returns
-    -------
-    list[pathlib.Path]
-        Paths to saved figures, one file per variable.
+def _source_signature(root, name, start_year, end_year):
+    """Return the path, size and modification time of the raw field source."""
+    path = next(
+        (
+            candidate
+            for candidate in field_candidates(root, name, start_year, end_year)
+            if candidate.is_file()
+        ),
+        None,
+    )
+    if path is None:
+        raise FileNotFoundError(
+            f"Cannot locate source field for {name}, {start_year}-{end_year}"
+        )
+    stat = path.stat()
+    return {
+        "path": str(path.resolve()),
+        "size": int(stat.st_size),
+        "mtime_ns": int(stat.st_mtime_ns),
+    }
 
-    Notes
-    -----
-    The function restores the historical plotting style used in the older
-    project version:
 
-    * one variable per figure;
-    * seaborn ``whitegrid`` styling;
-    * historical x-axis ranges for sensible and latent heat fluxes.
+def _observed_histogram(files_path_prefix, name, start_year, end_year,
+                        *, bins=100, value_range=None, chunk_days=128,
+                        refresh=False):
+    """Calculate or reuse a chunked observed histogram.
+
+    The raw multidecadal field is memory-mapped and read in bounded time chunks.
+    This avoids converting the complete field to one float64 array merely to
+    draw a diagnostic histogram. The resulting small histogram is cached, so
+    subsequent plotting runs do not rescan the source data.
     """
     root = Path(files_path_prefix)
-    source = root / "Functional" / "Stationary" / f"{names[0]}-{names[1]}_{start_year}-{end_year}.npz"
+    if bins < 1 or chunk_days < 1:
+        raise ValueError("bins and chunk_days must be positive")
+    if value_range is None:
+        raise ValueError("A finite histogram range is required for cached plotting")
+
+    low, high = map(float, value_range)
+    if not np.isfinite([low, high]).all() or not low < high:
+        raise ValueError("Invalid histogram range")
+
+    source = _source_signature(root, name, start_year, end_year)
+    cache = _histogram_cache_path(root, name, start_year, end_year, bins)
+    meta_path = cache.with_suffix(".json")
+    expected = {
+        "name": name,
+        "period": f"{start_year}-{end_year}",
+        "bins": int(bins),
+        "range": [low, high],
+        "source": source,
+    }
+
+    if not refresh and cache.is_file() and meta_path.is_file():
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        if metadata == expected:
+            with np.load(cache, allow_pickle=False) as saved:
+                return (
+                    np.array(saved["density"], copy=True),
+                    np.array(saved["edges"], copy=True),
+                    cache,
+                )
+
+    field = load_field(root, name, start_year, end_year)
+    edges = np.linspace(low, high, bins + 1)
+    counts = np.zeros(bins, dtype=np.int64)
+
+    for start in range(0, len(field), chunk_days):
+        stop = min(len(field), start + chunk_days)
+        block = np.asarray(field[start:stop])
+        finite = block[np.isfinite(block)]
+        if finite.size:
+            counts += np.histogram(finite, bins=edges)[0]
+
+    widths = np.diff(edges)
+    total = int(counts.sum())
+    if total == 0:
+        raise ValueError(
+            f"No finite {name} observations inside histogram range {value_range}"
+        )
+    density = counts.astype(np.float64) / (total * widths)
+
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(cache, density=density, edges=edges, counts=counts)
+    meta_path.write_text(
+        json.dumps(expected, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"Saved observed histogram cache: {cache}", flush=True)
+    return density, edges, cache
+
+
+def plot_stationary_distributions(files_path_prefix, names, start_year, end_year,
+                                  *, histogram_bins=100,
+                                  histogram_chunk_days=128,
+                                  refresh_histograms=False):
+    """Draw stationary densities together with cached observed histograms.
+
+    The red stationary density is loaded from the numerical stationary result.
+    The observed histogram is diagnostic only and is never used to fit the
+    density.
+    """
+    root = Path(files_path_prefix)
+    source = (
+        root
+        / "Functional"
+        / "Stationary"
+        / f"{names[0]}-{names[1]}_{start_year}-{end_year}.npz"
+    )
     outputs = []
 
     sns.set_style("whitegrid")
 
-    with np.load(source) as densities:
+    with np.load(source, allow_pickle=False) as densities:
         grid = np.asarray(densities["grid"], dtype=float)
+
         for name in names:
             config = _stationary_plot_config(name)
-            field = load_field(root, name, start_year, end_year)
-            clean = np.asarray(field, dtype=float)
-            clean = clean[np.isfinite(clean)].ravel()
+            hist_density, hist_edges, hist_cache = _observed_histogram(
+                root,
+                name,
+                start_year,
+                end_year,
+                bins=histogram_bins,
+                value_range=config["hist_range"],
+                chunk_days=histogram_chunk_days,
+                refresh=refresh_histograms,
+            )
+            print(f"Using observed histogram cache: {hist_cache}", flush=True)
 
             fig, ax = plt.subplots(1, 1, figsize=(12, 7))
-            # ax.plot(
-            #     grid,
-            #     densities[f"pdf_{name}"],
-            #     c="r",
-            #     linewidth=2.0,
-            #     label="Стационарная плотность",
-            # )
-            ax.plot(grid, densities[f"pdf_{name}"], c="r", linewidth=2.0,
-                    label="Stationary density")
-
-            # ax.hist(
-            #     clean,
-            #     range=config["hist_range"],
-            #     alpha=0.5,
-            #     bins=histogram_bins,
-            #     density=True,
-            #     label="Гистограмма наблюдений",
-            # )
-            ax.hist(clean, range=config["hist_range"], alpha=0.5,
-                    bins=histogram_bins, density=True,
-                    label="Observed histogram")
+            ax.plot(
+                grid,
+                densities[f"pdf_{name}"],
+                c="r",
+                linewidth=2.0,
+                label="Stationary density",
+            )
+            ax.stairs(
+                hist_density,
+                hist_edges,
+                fill=True,
+                alpha=0.5,
+                label="Observed histogram",
+            )
 
             if config["xlim"] is not None:
                 ax.set_xlim(*config["xlim"])
 
             ax.set_title(NAMES.get(name, name), fontsize=16)
-            # ax.set_title(NAMES_RU.get(name, name), fontsize=16)
-            # ax.set_xlabel(config["xlabel_ru"], fontsize=14)
             ax.set_xlabel(config["xlabel_en"], fontsize=14)
-            # ax.set_ylabel("Плотность вероятности", fontsize=14)
             ax.set_ylabel("Probability density", fontsize=14)
             ax.legend()
             fig.tight_layout()

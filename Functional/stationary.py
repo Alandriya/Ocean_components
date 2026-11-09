@@ -41,7 +41,8 @@ def _fit_log_diffusion(quantiles, log_diffusion, variable):
         raise ValueError("variable must be sensible or latent")
 
     x0 = float(x[np.argmin(y)])
-    x1 = -40.0
+    # Join between left and central branches: sensible=-50, latent=-40.
+    x1 = -50.0 if variable == "sensible" else -40.0
     if not x1 < x0:
         raise ValueError(
             f"Cannot join three diffusion regions: x1={x1}, x0={x0}; "
