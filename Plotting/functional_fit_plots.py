@@ -105,12 +105,7 @@ def _format_polynomial_desc(coeffs):
 
 
 def _diffusion_branches(x, params):
-    """Evaluate the *same* continuous three-region law as stationary.py.
-
-    Returns each interval including its junction point. The orange, purple and
-    red curves share the actual join values at x1 and x0 and cannot have gaps
-    due to plotting different coordinate systems.
-    """
+    """Evaluate the historical shifted-coordinate three-branch law."""
     x0, x1 = float(params["x0"]), float(params["x1"])
     c1, c2 = float(params["c1"]), float(params["c2"])
     c3, c4 = float(params["c3"]), float(params["c4"])
@@ -121,23 +116,21 @@ def _diffusion_branches(x, params):
             f"x1={x1}, x0={x0}"
         )
 
-    d_l = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
-    d_r = c3 + (c2 - c4) * np.sqrt(abs(x0))
-
     left_x = np.linspace(xmin, x1, 500, endpoint=True)
     center_x = np.linspace(x1, x0, 500, endpoint=True)
     right_x = np.linspace(x0, xmax, 500, endpoint=True)
 
-    left_y = c1 * np.abs(left_x) + d_l
-    center_y = c2 * np.sqrt(np.abs(center_x)) + c3
-    right_y = c4 * np.sqrt(np.abs(right_x)) + d_r
+    left_level = c2 * np.sqrt(abs(x1 - x0)) + c3
+    left_y = c1 * np.abs(left_x - x1) + left_level
+    center_y = c2 * np.sqrt(np.abs(center_x - x0)) + c3
+    right_y = c4 * np.sqrt(np.abs(right_x - x0)) + c3
 
     assert np.isclose(left_y[-1], center_y[0], rtol=1e-12, atol=1e-12)
     assert np.isclose(center_y[-1], right_y[0], rtol=1e-12, atol=1e-12)
     return (
-        (left_x, left_y, "orange", f"{c1:.3e} * |x| {d_l:+.3e}"),
-        (center_x, center_y, "purple", f"{c2:.3e} * sqrt(|x|) {c3:+.3e}"),
-        (right_x, right_y, "red", f"{c4:.3e} * sqrt(|x|) {d_r:+.3e}"),
+        (left_x, left_y, "orange", f"{c1:.3e} * |x - ({x1:.3g})| + {left_level:.3e}"),
+        (center_x, center_y, "purple", f"{c2:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
+        (right_x, right_y, "red", f"{c4:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
     )
 
 
@@ -230,7 +223,7 @@ def plot_functional_fits(files_path_prefix, start_year, end_year,
                     ax.plot(xb, yb, c=color, lw=1.6, label=label)
                 ax.set_xlabel(name + " values")
                 # Historical terminology retained: stored y is log of variance.
-                ax.set_ylabel("log(B)")
+                ax.set_ylabel("log(B²)")
                 _place_legend(ax)
                 print(f"{name}: A RMSE={drift_rmse:.5g}, "
                       f"log(B) RMSE={params['rmse_log_b']:.5g}; "

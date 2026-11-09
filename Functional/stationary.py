@@ -12,22 +12,18 @@ from scipy.optimize import curve_fit
 
 
 def _fit_log_diffusion(quantiles, log_diffusion, variable):
-    """Fit a *continuous* three-region model for ``log(b^2(x))``.
+    """Fit the historical three-branch model for ``log(b^2(x))``.
 
-    The piecewise function is the same as ``model_logb2`` and the manuscript:
+    The regression uses the same shifted-coordinate piecewise law as
+    ``Functional.func_estimation.model_logb2``:
 
-        x < x1:         c1*abs(x) + dL
-        x1 <= x < x0:   c2*sqrt(abs(x)) + c3
-        x >= x0:        c4*sqrt(abs(x)) + dR
+        x < x1:         c1*abs(x - x1) + dL
+        x1 <= x < x0:   c2*sqrt(abs(x - x0)) + c3
+        x >= x0:        c4*sqrt(abs(x - x0)) + c3
 
-    where dL = c3+c2*sqrt(abs(x1))-c1*abs(x1) and
-          dR = c3+(c2-c4)*sqrt(abs(x0)).
-
-    Regression is intentionally performed sequentially in the historical
-    center / left / right regions. For the two outside branches, fit the slope
-    with the intercept *fixed* by continuity, rather than fitting a shifted
-    formula and then plotting an inconsistent, shifted intercept. This also
-    makes the fitted parameters usable by the stationary-density formula.
+    where ``dL = c2*sqrt(abs(x1 - x0)) + c3`` ensures continuity at ``x1``.
+    The central and right branches are continuous at ``x0`` because both are
+    equal to ``c3`` there.
     """
     from Functional.func_estimation import model_logb2
 
@@ -41,7 +37,6 @@ def _fit_log_diffusion(quantiles, log_diffusion, variable):
         raise ValueError("variable must be sensible or latent")
 
     x0 = float(x[np.argmin(y)])
-    # Join between left and central branches: sensible=-50, latent=-40.
     x1 = -50.0 if variable == "sensible" else -40.0
     if not x1 < x0:
         raise ValueError(
@@ -49,45 +44,39 @@ def _fit_log_diffusion(quantiles, log_diffusion, variable):
             "check the estimated diffusion minimum"
         )
 
-    # Preserve the historical subsets of the regression nodes.
-    central_limit = min(-10.0, x0) if variable == "sensible" else x0
-    center = (x1 <= x) & (x < central_limit)
+    center = (x1 <= x) & (x < x0)
     left = ((x < x1) if variable == "sensible" else
             ((x < x1) & ((x < -250.0) | (x > -45.0))))
     right = x >= x0
     if min(int(center.sum()), int(left.sum()), int(right.sum())) < 2:
         raise ValueError("Insufficient historical quantile data in a diffusion fitting region")
 
-    # (1) Interior fit on the ACTUAL physical x coordinate: c2*sqrt(|x|)+c3.
-    basis_center = np.column_stack((np.sqrt(np.abs(x[center])),
+    # Center branch in shifted coordinates relative to x0.
+    basis_center = np.column_stack((np.sqrt(np.abs(x[center] - x0)),
                                     np.ones(int(center.sum()))))
     c2, c3 = np.linalg.lstsq(basis_center, y[center], rcond=None)[0]
 
-    # (2) Left tail: value at x1 is constrained to equal the center branch.
-    center_at_x1 = c2 * np.sqrt(abs(x1)) + c3
-    left_basis = np.abs(x[left]) - abs(x1)
+    # Left branch in shifted coordinates relative to x1, anchored at x1.
+    center_at_x1 = c2 * np.sqrt(abs(x1 - x0)) + c3
+    left_basis = np.abs(x[left] - x1)
     if float(left_basis @ left_basis) <= 0.0:
         raise ValueError("Degenerate left diffusion regression region")
     c1 = float((left_basis @ (y[left] - center_at_x1)) /
                (left_basis @ left_basis))
 
-    # (3) Right tail: value at x0 is constrained to equal the center branch.
-    center_at_x0 = c2 * np.sqrt(abs(x0)) + c3
-    right_basis = np.sqrt(np.abs(x[right])) - np.sqrt(abs(x0))
+    # Right branch in shifted coordinates relative to x0, anchored at x0.
+    right_basis = np.sqrt(np.abs(x[right] - x0))
     if float(right_basis @ right_basis) <= 0.0:
         raise ValueError("Degenerate right diffusion regression region")
-    c4 = float((right_basis @ (y[right] - center_at_x0)) /
+    c4 = float((right_basis @ (y[right] - c3)) /
                (right_basis @ right_basis))
 
-    # Evaluation via the exact piecewise law used for stationary distributions.
     prediction = np.array([model_logb2(float(v), x1, x0, c1, c2, c3, c4)
                            for v in x], dtype=np.float64)
-    d_left = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
-    d_right = c3 + (c2 - c4) * np.sqrt(abs(x0))
-    left_at_join = c1 * abs(x1) + d_left
-    center_at_left_join = c2 * np.sqrt(abs(x1)) + c3
-    center_at_right_join = c2 * np.sqrt(abs(x0)) + c3
-    right_at_join = c4 * np.sqrt(abs(x0)) + d_right
+    left_at_join = c1 * abs(x1 - x1) + center_at_x1
+    center_at_left_join = c2 * np.sqrt(abs(x1 - x0)) + c3
+    center_at_right_join = c2 * np.sqrt(abs(x0 - x0)) + c3
+    right_at_join = c4 * np.sqrt(abs(x0 - x0)) + c3
     if not (np.isclose(left_at_join, center_at_left_join, atol=1e-10, rtol=1e-10)
             and np.isclose(center_at_right_join, right_at_join,
                            atol=1e-10, rtol=1e-10)):

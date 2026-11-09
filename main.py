@@ -322,7 +322,7 @@ def main():
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 19792026
+    start_year = 2019
     # task = 'collect'
 
     # --------------------------------------------------------------------------

@@ -47,7 +47,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # STATIONARY: draw saved stationary densities and observed histograms.
-    # task = "stationary"
+    task = "stationary"
     histogram_bins = 100
     histogram_chunk_days = 128
     refresh_histograms = False
@@ -57,25 +57,26 @@ def main():
     # task = "copulas"
 
     # --------------------------------------------------------------------------
-    # FUNCTIONAL FITS: plot the exact dependencies saved by main.py stationary.
-    task = "functional_fits"
+    # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
+    # task = "functional_fits"
     functional_method = "sp"
+    functional_b_type = "simple"
     functional_quantile_bins = 260
     functional_trim_bins = 5
     functional_chunk_days = 16
     functional_spatial_block_size = 5
     functional_sample_size = 400000
-    functional_refresh_grouped = False
+    functional_refresh_grouped = False  # Normal plotting NEVER launches 2-pass regrouping.
+    functional_verify_stationary = True  # Compare fitted params with saved density JSON.
 
     # ==========================================================================
-    # SHARED SETTINGS.
+    # SHARED SETTINGS: select both years explicitly, without implicit overrides.
     end_year = start_year + 10
     if start_year == 2019:
         end_year = 2026
     elif start_year == 19792026:
         start_year = 1979
         end_year = 2026
-
     names = ("sensible", "latent")
     first_day = 0
     last_day = 5
@@ -109,10 +110,7 @@ def main():
         )
     if task == "stationary":
         return plot_stationary_distributions(
-            files_path_prefix,
-            names,
-            start_year,
-            end_year,
+            files_path_prefix, names, start_year, end_year,
             histogram_bins=histogram_bins,
             histogram_chunk_days=histogram_chunk_days,
             refresh_histograms=refresh_histograms,
@@ -128,6 +126,13 @@ def main():
             end_year,
             names=names,
             method=functional_method,
+            b_type=functional_b_type,
+            quantile_bins=functional_quantile_bins,
+            trim_bins=functional_trim_bins,
+            chunk_days=functional_chunk_days,
+            spatial_block_size=functional_spatial_block_size,
+            sample_size=functional_sample_size,
+            refresh_grouped=functional_refresh_grouped,
         )
     raise ValueError(f"Unsupported plotting task: {task}")
 
