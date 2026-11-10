@@ -33,7 +33,8 @@ def run_selected_task(task, **settings):
     ----------
     task : str
         One of coefficients, bridge_coefficients, bbt, validate_bbt,
-        fokker_planck_2d_prepare, derived_cf, eigenvalues, collect_eigenvalues,
+        fokker_planck_2d_prepare, fokker_planck_2d_solve, derived_cf,
+        eigenvalues, collect_eigenvalues,
         sde_conditions, mean_year, stationary, copulas, grib, grib-check,
         or collect.
     **settings : dict
@@ -107,6 +108,26 @@ def run_selected_task(task, **settings):
             random_seed=settings.get("fp2d_random_seed", 1979),
             psd_rtol=settings.get("fp2d_psd_rtol", 1e-7),
             psd_atol=settings.get("fp2d_psd_atol", 1e-10),
+            overwrite=overwrite,
+        )
+
+    if task == "fokker_planck_2d_solve":
+        from Functional.fokker_planck_2d_solver import (
+            solve_stationary_fokker_planck_2d,
+        )
+
+        return solve_stationary_fokker_planck_2d(
+            root,
+            start_year,
+            end_year,
+            names=names,
+            method=settings.get("fp2d_method", "sp"),
+            bins=settings.get("fp2d_bins", (80, 80)),
+            max_stencil_radius=settings.get("fp2d_solver_max_stencil_radius", 7),
+            max_hole_cells=settings.get("fp2d_solver_max_hole_cells", 16),
+            hole_neighbors=settings.get("fp2d_solver_hole_neighbors", 4),
+            rate_tolerance=settings.get("fp2d_solver_rate_tolerance", 1e-10),
+            negative_tolerance=settings.get("fp2d_solver_negative_tolerance", 1e-12),
             overwrite=overwrite,
         )
 
@@ -383,7 +404,7 @@ def main():
     # --------------------------------------------------------------------------
     # FOKKER-PLANCK 2D PREPARE: reconstruct A(x1,x2) and D(x1,x2)=BBT.
     # This stage only creates the phase-space coefficient grid; it does not solve the PDE.
-    task = "fokker_planck_2d_prepare"
+    # task = "fokker_planck_2d_prepare"
     fp2d_method = "sp"
     fp2d_bins = (80, 80)
     fp2d_quantile_bounds = (0.005, 0.995)
@@ -394,6 +415,15 @@ def main():
     fp2d_random_seed = 1979
     fp2d_psd_rtol = 1e-7
     fp2d_psd_atol = 1e-10
+
+    # --------------------------------------------------------------------------
+    # FOKKER-PLANCK 2D SOLVE: stationary wide-stencil Markov-chain solution.
+    task = "fokker_planck_2d_solve"
+    fp2d_solver_max_stencil_radius = 7
+    fp2d_solver_max_hole_cells = 16
+    fp2d_solver_hole_neighbors = 4
+    fp2d_solver_rate_tolerance = 1e-10
+    fp2d_solver_negative_tolerance = 1e-12
 
     # --------------------------------------------------------------------------
     # DERIVED CF: calculate C, F and FS from the continuous coefficient series.
