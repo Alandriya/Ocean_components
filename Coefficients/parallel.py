@@ -11,6 +11,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import nullcontext
 from pathlib import Path
 import multiprocessing
+import os
+import time
 
 import numpy as np
 
@@ -144,7 +146,7 @@ def _unique_scalar_inputs(names, files):
     return unique
 
 
-def _scalar_worker(job):
+def _scalar_worker_impl(job):
     """Write one independent 1D variable over a disjoint transition interval.
 
     Each worker opens the input only once and processes bounded transition
@@ -163,11 +165,29 @@ def _scalar_worker(job):
     relative = Path("Coefficients") / job["period"] / (
         f"1d_bins_{job['n_bins']}") / job["name"]
     mask = job["mask"]
-    for first_day in range(first, stop, job["chunk_transitions"]):
+    total = stop - first
+    chunks = (total + job["chunk_transitions"] - 1) // job["chunk_transitions"]
+    interval = max(1, int(job.get("log_every_chunks", 3)))
+    started = time.perf_counter()
+    timings = {m: 0.0 for m in job["methods"]}
+    pid = os.getpid()
+    tag = job.get("job_tag", job["name"])
+    prefix = f"[1D][pid={pid}][{tag}]"
+    print(f"{prefix} INPUT {filename.name}; shape={tuple(values.shape)}; "
+          f"bins={job['n_bins']}; methods={','.join(job['methods'])}; "
+          f"labels={job['start_index'] + first}..{job['start_index'] + stop - 1}; "
+          f"chunks={chunks}", flush=True)
+    for chunk_index, first_day in enumerate(range(first, stop, job["chunk_transitions"]), 1):
         stop_day = min(stop, first_day + job["chunk_transitions"])
         block = values[first_day - 1:stop_day]  # previous + endpoints
         base_label = job["start_index"] + first_day - 1
+        report = chunk_index == 1 or chunk_index == chunks or chunk_index % interval == 0
+        if report:
+            print(f"{prefix} RUN chunk {chunk_index}/{chunks}, "
+                  f"labels {base_label + 1}..{base_label + len(block) - 1}, "
+                  f"methods={','.join(job['methods'])}", flush=True)
         for method in job["methods"]:
+            method_started = time.perf_counter()
             method_folder = METHOD_FOLDERS[method][0]
             fields = ("A", "B", "B_with_reg") if method == "sp" else ("A", "B")
             daily = root / relative / method_folder / "daily"
@@ -182,6 +202,7 @@ def _scalar_worker(job):
                             if candidate.is_file():
                                 candidate.unlink()  # invalid output, will be regenerated
                 if all_ready:
+                    timings[method] += time.perf_counter() - method_started
                     continue
             common = dict(
                 files_path_prefix=str(root), data_array=block,
@@ -206,7 +227,48 @@ def _scalar_worker(job):
                     f"{base_label + 1}..{base_label + len(block) - 1} "
                     f"(n_bins={job['n_bins']}): {exc}"
                 ) from exc
+            timings[method] += time.perf_counter() - method_started
+        if report:
+            done = stop_day - first
+            elapsed = max(time.perf_counter() - started, 1.e-6)
+            remaining = elapsed * (total - done) / max(done, 1)
+            method_times = ', '.join(f"{m}={timings[m]:.1f}s" for m in job["methods"])
+            print(f"{prefix} PROGRESS {done}/{total} transitions "
+                  f"({100 * done / total:.1f}%); "
+                  f"elapsed={elapsed:.1f}s; ETA~{remaining:.1f}s; "
+                  f"method elapsed: {method_times}", flush=True)
     return job["name"], first, stop
+
+
+def _scalar_worker(job):
+    """Execute scalar work with limited BLAS threads and per-process logging.
+
+    Large numbers of small 1D Gaussian-mixture fits can become slower if
+    many independent processes each spawn multi-threaded BLAS kernels.
+    Limiting each worker to one BLAS thread mirrors the working 2D route.
+    """
+    tag = job.get("job_tag", job["name"])
+    pid = os.getpid()
+    started = time.perf_counter()
+    print(f"[1D][pid={pid}][{tag}] START worker; "
+          f"variable={job['name']}; methods={job['methods']}", flush=True)
+    try:
+        from threadpoolctl import threadpool_limits
+        limiter = threadpool_limits(limits=1)
+    except ImportError:
+        limiter = nullcontext()
+        print(f"[1D][pid={pid}][{tag}] WARNING: threadpoolctl not installed; "
+              "BLAS thread count is not limited", flush=True)
+    try:
+        with limiter:
+            result = _scalar_worker_impl(job)
+    except Exception:
+        print(f"[1D][pid={pid}][{tag}] FAILED "
+              f"after {time.perf_counter()-started:.1f}s", flush=True)
+        raise
+    print(f"[1D][pid={pid}][{tag}] DONE "
+          f"elapsed={time.perf_counter()-started:.1f}s", flush=True)
+    return result
 
 
 def _run_scalar_period(
@@ -240,6 +302,12 @@ def _run_scalar_period(
     results = {}
     jobs = []
     pending = []
+    overall_started = time.perf_counter()
+    print(f"[1D][main] period={period}; variables={tuple(inputs)}; "
+          f"methods={methods}; quantile bins={n_bins}; "
+          f"GMM components={n_components}, n_init={n_init}; "
+          f"requested workers={parallel_workers}; "
+          f"chunk transitions={chunk_transitions}", flush=True)
     for name, filename in inputs.items():
         series = coerce_series(np.load(filename, mmap_mode="r", allow_pickle=False))
         n_obs = int(len(series))
@@ -266,8 +334,14 @@ def _run_scalar_period(
                 needed.append(method)
             pending.append((name, method, first_label, last_label, parent, fields))
         if needed:
-            for first, stop in split_transition_ranges(n_obs, parallel_workers):
+            ranges = split_transition_ranges(n_obs, parallel_workers)
+            for job_index, (first, stop) in enumerate(ranges, 1):
+                tag = f"{name} {job_index}/{len(ranges)}"
+                print(f"[1D][main] QUEUED {tag}; "
+                      f"labels={start_index + first}..{start_index + stop - 1}; "
+                      f"methods={','.join(needed)}", flush=True)
                 jobs.append(dict(
+                    job_tag=tag, log_every_chunks=3,
                     name=name, file=str(filename), root=str(root), period=period,
                     transitions=(first, stop), methods=tuple(needed),
                     start_index=start_index, n_bins=n_bins, mask=np.asarray(mask)
@@ -279,10 +353,16 @@ def _run_scalar_period(
         del series
 
     if jobs:
-        print(f"Running {len(jobs)} scalar jobs for {len(inputs)} variable(s).", flush=True)
+        print(f"[1D][main] START {len(jobs)} jobs; "
+              f"up to {min(parallel_workers, len(jobs))} worker processes", flush=True)
+        completed = 0
         if parallel_workers == 1 or len(jobs) == 1:
             for job in jobs:
                 _scalar_worker(job)
+                completed += 1
+                print(f"[1D][main] COMPLETED {completed}/{len(jobs)} jobs "
+                      f"({100*completed/len(jobs):.1f}%); "
+                      f"elapsed={time.perf_counter()-overall_started:.1f}s", flush=True)
         else:
             with ProcessPoolExecutor(
                 max_workers=parallel_workers,
@@ -290,9 +370,17 @@ def _run_scalar_period(
             ) as pool:
                 futures = {pool.submit(_scalar_worker, job): job for job in jobs}
                 for future in as_completed(futures):
-                    future.result()  # propagate the underlying estimator exception
+                    result = future.result()  # propagate estimator exceptions
+                    completed += 1
+                    job = futures[future]
+                    print(f"[1D][main] COMPLETED {completed}/{len(jobs)} jobs "
+                          f"({100*completed/len(jobs):.1f}%); "
+                          f"last={job['job_tag']}; output={result[0]}; "
+                          f"elapsed={time.perf_counter()-overall_started:.1f}s", flush=True)
 
     # Merge/verify all requested methods *before* optional cleanup.
+    print(f"[1D][main] MERGE starting for {len(pending)} variable/method "
+          "collections (progress from the collector follows)", flush=True)
     for name, method, first_label, last_label, parent, fields in pending:
         key = f"1d/{name}/{method}"
         folder = METHOD_FOLDERS[method][0]
@@ -309,10 +397,15 @@ def _run_scalar_period(
                                     if mask is not None else None):
                 raise RuntimeError(f"Invalid collected scalar result: {destination}")
         results[key] = files
+        print(f"[1D][main] MERGED {key}: "
+              f"{n_days} transitions, {len(files)} arrays", flush=True)
 
     if delete_daily_after_collect:
         for name, method, first_label, last_label, parent, fields in pending:
             _cleanup_daily(parent / "daily", fields, first_label, last_label)
+    print(f"[1D][main] COMPLETE: "
+          f"{len(results)} collections; total elapsed "
+          f"{time.perf_counter()-overall_started:.1f}s", flush=True)
     return results
 
 
