@@ -9,6 +9,7 @@ from Plotting.map_workflows import (
     plot_variables, plot_mean_year, coefficient_frames,
 )
 from Plotting.stationary_plots import plot_stationary_distributions
+from Plotting.hybrid_stationary_plots import plot_hybrid_stationary_distributions
 from Plotting.functional_fit_plots import plot_functional_fits
 
 
@@ -16,7 +17,7 @@ def main():
     """Configure visualization workflows and run the selected plotting task."""
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 19792026
+    start_year = 2019
 
     # --------------------------------------------------------------------------
     # VARIABLES: maps of fluxes, sea-surface temperature and pressure.
@@ -47,10 +48,24 @@ def main():
 
     # --------------------------------------------------------------------------
     # STATIONARY: draw saved stationary densities and observed histograms.
-    task = "stationary"
+    # task = "stationary"
     histogram_bins = 100
     histogram_chunk_days = 128
     refresh_histograms = False
+
+    # --------------------------------------------------------------------------
+    # STATIONARY HYBRID: central FP density + smoothed empirical-GPD tails.
+    # New PNG/NPZ outputs; never overwrites the old stationary density.
+    task = "stationary_hybrid"
+    hybrid_tail_quantile = 0.975          # GPD starts at observed q2.5 / q97.5.
+    hybrid_transition_quantile = 0.90     # Transition begins near q10 / q90.
+    hybrid_reference_weight = 0.70        # 70% full 1979-2026 GPD shape.
+    hybrid_reference_period = (1979, 2026)
+    hybrid_sample_days = 1600            # Random days distributed over period.
+    hybrid_pixels_per_day = 160          # Random grid points per sampled day.
+    hybrid_refresh_samples = False       # Reuse sampled ERA5 observations.
+    hybrid_refresh_hybrid = False        # Reuse calculated GPD tails and PDF.
+    hybrid_show_original = True          # Old PDF: faint gray dashed line.
 
     # --------------------------------------------------------------------------
     # COPULAS: visualize saved copula and joint-density results.
@@ -110,10 +125,29 @@ def main():
         )
     if task == "stationary":
         return plot_stationary_distributions(
+            files_path_prefix,
+            names,
+            start_year,
+            end_year,
+            histogram_bins=histogram_bins,
+            histogram_chunk_days=histogram_chunk_days,
+            refresh_histograms=refresh_histograms,
+        )
+    if task == "stationary_hybrid":
+        return plot_hybrid_stationary_distributions(
             files_path_prefix, names, start_year, end_year,
             histogram_bins=histogram_bins,
             histogram_chunk_days=histogram_chunk_days,
             refresh_histograms=refresh_histograms,
+            tail_quantile=hybrid_tail_quantile,
+            transition_quantile=hybrid_transition_quantile,
+            reference_weight=hybrid_reference_weight,
+            reference_period=hybrid_reference_period,
+            sample_days=hybrid_sample_days,
+            pixels_per_day=hybrid_pixels_per_day,
+            refresh_samples=hybrid_refresh_samples,
+            refresh_hybrid=hybrid_refresh_hybrid,
+            show_original=hybrid_show_original,
         )
     if task == "copulas":
         return plot_copula_results(
