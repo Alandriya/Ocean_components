@@ -73,7 +73,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COPULAS: visualize saved copula and joint-density results.
-    # task = "copulas"
+    task = "copulas"
 
     # --------------------------------------------------------------------------
     # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
@@ -91,7 +91,7 @@ def main():
     # --------------------------------------------------------------------------
     # FOKKER-PLANCK 2D COMPARISON:
     # empirical joint density, stationary FP density, differences and marginals.
-    task = "fokker_planck_2d_compare"
+    # task = "fokker_planck_2d_compare"
     fp2d_plot_method = "sp"
     fp2d_plot_bins = (80, 80)
     fp2d_relative_floor = 0.01
