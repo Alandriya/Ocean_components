@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,40 +13,13 @@ import numpy as np
 def _historical_grouped_inputs(root, names, start_year, end_year, method, b_type,
                                quantile_bins, trim_bins, chunk_days,
                                spatial_block_size, sample_size, refresh_grouped):
-    """Load grouped fit inputs or rebuild them from assembled coefficients.
+    """Return saved grouped points, without silently processing millions of cells.
 
-    Parameters
-    ----------
-    root : pathlib.Path
-        Data root.
-    names : tuple[str, str]
-        Ordered pair of flux variable names.
-    start_year, end_year : int
-        Requested period.
-    method : {'np', 'sp'}
-        Coefficient method used for assembled full-period inputs.
-    b_type : str
-        Historical log-diffusion fit label.
-    quantile_bins : int
-        Number of automatic quantile groups for assembled inputs.
-    trim_bins : int
-        Number of tail bins removed from each side.
-    chunk_days : int
-        Read size for assembled inputs.
-    spatial_block_size : int
-        Spatial averaging block size.
-    sample_size : int
-        Number of sampled observations for quantile edges.
-    refresh_grouped : bool
-        Rebuild grouped cache even if it already exists.
-
-    Returns
-    -------
-    dict
-        Mapping ``name -> (x, drift, log_variance)``.
+    Normal plotting performs only small NPZ/JSON reads. Heavy 2-pass grouping
+    is allowed ONLY with an explicit ``refresh_grouped=True``.
     """
     from Data_processing.io import start_label
-    from Functional.stationary import _group_full_period, _load_historical_grouped
+    from Functional.stationary import _load_historical_grouped
 
     historical = {
         (1979, 1989): 3653,
@@ -53,28 +28,159 @@ def _historical_grouped_inputs(root, names, start_year, end_year, method, b_type
         (2009, 2019): 14610,
         (2019, 2026): 17106,
     }
-    first = start_label(start_year)
     period = (start_year, end_year)
-
     if period in historical:
-        loaded = _load_historical_grouped(root, names, first, historical[period], b_type)
+        loaded = _load_historical_grouped(
+            root, names, start_label(start_year), historical[period], b_type
+        )
         if loaded is not None:
+            print("Reusing historical grouped points for "
+                  f"{start_year}-{end_year}", flush=True)
             return loaded
 
-    grouped, _meta = _group_full_period(
-        root,
-        names,
-        start_year,
-        end_year,
-        method,
-        bins=quantile_bins,
-        trim_bins=trim_bins,
-        chunk_days=chunk_days,
-        block_size=spatial_block_size,
-        sample_size=sample_size,
-        refresh_grouped=refresh_grouped,
+    if refresh_grouped:
+        from Functional.stationary import _group_full_period
+        print("Explicit refresh_grouped=True: rebuilding grouped data. "
+              "This processes the entire coefficient time series.", flush=True)
+        grouped, _meta = _group_full_period(
+            root, names, start_year, end_year, method,
+            bins=quantile_bins, trim_bins=trim_bins, chunk_days=chunk_days,
+            block_size=spatial_block_size, sample_size=sample_size,
+            refresh_grouped=True,
+        )
+        return grouped
+
+    # The grouped cache is small: read it directly instead of going through
+    # _group_full_period(), which otherwise falls back to expensive regrouping.
+    pair = f"{names[0]}-{names[1]}"
+    folder = root / "Functional" / pair
+    requested = {
+        "bins": quantile_bins,
+        "trim_bins": trim_bins,
+        "chunk_days": chunk_days,
+        "block_size": spatial_block_size,
+        "sample_size": sample_size,
+    }
+    candidates = sorted(folder.glob(
+        f"grouped_{start_year}-{end_year}_{method}_*.npz"
+    ))
+    if not candidates:
+        raise FileNotFoundError(
+            f"No saved grouped stationary inputs for {start_year}-{end_year} "
+            f"method={method} in {folder}. Run task='stationary' in main.py "
+            "once. Plotting will not regroup all raw data automatically."
+        )
+
+    # If a stationary density was already generated, prefer the exact grouped
+    # file listed in its provenance. This makes the fit a reproducible check.
+    stationary_meta = root / "Functional" / "Stationary" / (
+        f"{pair}_{start_year}-{end_year}.json"
     )
-    return grouped
+    if stationary_meta.is_file():
+        meta = json.loads(stationary_meta.read_text(encoding="utf-8"))
+        provenance = meta.get("provenance", {})
+        if meta.get("method") == method and provenance.get("cache"):
+            preferred_name = Path(provenance["cache"]).name
+            candidates.sort(key=lambda f: (f.name != preferred_name, f.name))
+
+    mismatch_report = []
+    for cache in candidates:
+        meta_path = cache.with_suffix(".json")
+        if not meta_path.is_file():
+            mismatch_report.append(f"{cache.name}: metadata JSON missing")
+            continue
+        cache_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        saved = cache_metadata.get("config", {})
+        different = [
+            f"{key}: saved={saved.get(key)!r}, requested={value!r}"
+            for key, value in requested.items()
+            if saved.get(key) != value
+        ]
+        if different:
+            mismatch_report.append(f"{cache.name}: " + "; ".join(different))
+            continue
+        with np.load(cache, allow_pickle=False) as stored:
+            grouped = {
+                name: tuple(np.asarray(stored[f"{key}_{name}"], dtype=float).copy()
+                            for key in ("quantiles", "drift", "log_variance"))
+                for name in names
+            }
+        # Source timestamps are not needed to reproduce the *saved* density;
+        # they can change later while its curve and grouped points stay fixed.
+        print(f"Reusing grouped stationary inputs: {cache}", flush=True)
+        return grouped
+
+    raise ValueError(
+        "Grouped inputs exist, but their settings differ from main_plotter.py:\n"
+        + "\n".join(mismatch_report)
+        + "\nCopy the settings from the STATIONARY block in main.py, "
+          "or explicitly set functional_refresh_grouped=True to recompute."
+    )
+
+
+def _check_against_saved_stationary(root, names, start_year, end_year,
+                                    method, actual_fits):
+    """Check that the saved PDF JSON has these exact fitted coefficients.
+
+    This does NOT recalculate stationary densities. It reports if the PDF was
+    produced with older code (for example sensible x1=-40 instead of -50).
+    """
+    path = root / "Functional" / "Stationary" / (
+        f"{names[0]}-{names[1]}_{start_year}-{end_year}.json"
+    )
+    if not path.is_file():
+        print("NOTE: no saved stationary JSON to verify against. "
+              "Run task='stationary' in main.py to create it.", flush=True)
+        return False
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    discrepancies = []
+    # Historical grouped inputs are not specific to NP/SP. For assembled data,
+    # a method mismatch means the two different fitted stochastic models are
+    # being compared.
+    if (saved.get("provenance", {}).get("input_type") != "legacy_grouped"
+            and saved.get("method") != method):
+        discrepancies.append(
+            f"method: PDF={saved.get('method')}, plot={method}"
+        )
+    for name in names:
+        fitted = actual_fits[name]
+        saved_fit = saved.get("fits", {}).get(name)
+        if not saved_fit:
+            discrepancies.append(f"{name}: absent in saved stationary JSON")
+            continue
+        for key, expected in (
+            ("diffusion_model", "shifted_x0_x1_piecewise_log_variance"),
+            ("stationary_integration_method", "numeric_cumulative_trapezoid_of_2a_over_b2"),
+        ):
+            if saved_fit.get(key) != expected:
+                discrepancies.append(
+                    f"{name}/{key}: PDF={saved_fit.get(key)!r}, expected={expected!r}"
+                )
+        for key in ("x0", "x1", "c1", "c2", "c3", "c4"):
+            if (key not in saved_fit or not np.isclose(
+                    float(saved_fit[key]), float(fitted[key]),
+                    rtol=1e-9, atol=1e-10)):
+                discrepancies.append(
+                    f"{name}/{key}: PDF={saved_fit.get(key)}, plot={fitted[key]}"
+                )
+        saved_poly = saved_fit.get("drift_polynomial_ascending")
+        current_poly = fitted["drift_polynomial_ascending"]
+        if (saved_poly is None or not np.allclose(
+                saved_poly, current_poly, rtol=1e-9, atol=1e-12)):
+            discrepancies.append(f"{name}: drift polynomial differs")
+
+    if discrepancies:
+        warning = (
+            "THE SAVED STATIONARY DISTRIBUTION DOES NOT MATCH THE CURRENT "
+            "FUNCTIONAL FIT:\n  " + "\n  ".join(discrepancies)
+            + "\nRe-run task='stationary' in main.py with the same period "
+              "and method, then replot."
+        )
+        warnings.warn(warning, RuntimeWarning, stacklevel=2)
+        return False
+    print("VERIFIED: saved stationary density JSON matches the current "
+          "fit AND uses the corresponding numerical shifted diffusion model.", flush=True)
+    return True
 
 
 def _signed_term(value, power):
@@ -105,33 +211,36 @@ def _format_polynomial_desc(coeffs):
 
 
 def _diffusion_branches(x, params):
-    """Evaluate the historical shifted-coordinate three-branch law."""
+    """Plot the very same shifted log-variance model as the numeric PDF."""
+    from Functional.stationary import _shifted_log_variance
+
     x0, x1 = float(params["x0"]), float(params["x1"])
     c1, c2 = float(params["c1"]), float(params["c2"])
     c3, c4 = float(params["c3"]), float(params["c4"])
     xmin, xmax = float(np.min(x)), float(np.max(x))
     if not (xmin < x1 < x0 < xmax):
         raise ValueError(
-            f"Diffusion joins are outside x range: x=[{xmin},{xmax}], "
+            f"Diffusion joins are outside x range: [{xmin}, {xmax}], "
             f"x1={x1}, x0={x0}"
         )
 
-    left_x = np.linspace(xmin, x1, 500, endpoint=True)
-    center_x = np.linspace(x1, x0, 500, endpoint=True)
-    right_x = np.linspace(x0, xmax, 500, endpoint=True)
-
-    left_level = c2 * np.sqrt(abs(x1 - x0)) + c3
-    left_y = c1 * np.abs(left_x - x1) + left_level
-    center_y = c2 * np.sqrt(np.abs(center_x - x0)) + c3
-    right_y = c4 * np.sqrt(np.abs(right_x - x0)) + c3
-
-    assert np.isclose(left_y[-1], center_y[0], rtol=1e-12, atol=1e-12)
-    assert np.isclose(center_y[-1], right_y[0], rtol=1e-12, atol=1e-12)
-    return (
-        (left_x, left_y, "orange", f"{c1:.3e} * |x - ({x1:.3g})| + {left_level:.3e}"),
-        (center_x, center_y, "purple", f"{c2:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
-        (right_x, right_y, "red", f"{c4:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
-    )
+    branches = []
+    for lower, upper, color, label in (
+        (xmin, x1, "orange",
+         f"{c1:.3e} * |x - ({x1:.3g})| + "
+         f"{c2 * np.sqrt(abs(x1 - x0)) + c3:.3e}"),
+        (x1, x0, "purple",
+         f"{c2:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
+        (x0, xmax, "red",
+         f"{c4:.3e} * sqrt(|x - ({x0:.3g})|) + {c3:.3e}"),
+    ):
+        xs = np.linspace(lower, upper, 500, endpoint=True)
+        ys = _shifted_log_variance(
+            xs, x0=x0, x1=x1, c1=c1, c2=c2, c3=c3, c4=c4)
+        branches.append((xs, ys, color, label))
+    assert np.isclose(branches[0][1][-1], branches[1][1][0], atol=1e-12)
+    assert np.isclose(branches[1][1][-1], branches[2][1][0], atol=1e-12)
+    return branches
 
 
 def _place_legend(ax):
@@ -151,7 +260,8 @@ def plot_functional_fits(files_path_prefix, start_year, end_year,
                          *, names=("sensible", "latent"), method="sp",
                          b_type="simple", quantile_bins=100, trim_bins=2,
                          chunk_days=128, spatial_block_size=1,
-                         sample_size=200_000, refresh_grouped=False):
+                         sample_size=200_000, refresh_grouped=False,
+                         verify_stationary=True):
     """Recreate the white-background seaborn 2x2 A/log(B) fit figure.
 
     Uses exactly the grouped data and diffusion fitter employed by the
@@ -177,6 +287,8 @@ def plot_functional_fits(files_path_prefix, start_year, end_year,
 
     # The legacy project used sns.set_style('whitegrid') with white axes and
     # legends above each panel. Do not use the previous gray 'ggplot' theme.
+    actual_fits = {}
+
     with sns.axes_style("whitegrid"), plt.rc_context({
         "font.size": 14,
         "axes.labelsize": 18,
@@ -217,6 +329,10 @@ def plot_functional_fits(files_path_prefix, start_year, end_year,
                 _place_legend(ax)
 
                 params = _fit_log_diffusion(x, log_variance, name)
+                actual_fits[name] = {
+                    **params,
+                    "drift_polynomial_ascending": coeffs.tolist(),
+                }
                 ax = axes[1, col]
                 ax.plot(x, log_variance, c="cyan", lw=1.4, label="mean")
                 for xb, yb, color, label in _diffusion_branches(x, params):
@@ -229,6 +345,11 @@ def plot_functional_fits(files_path_prefix, start_year, end_year,
                       f"log(B) RMSE={params['rmse_log_b']:.5g}; "
                       f"joins x1={params['x1']:.5g}, x0={params['x0']:.5g}",
                       flush=True)
+
+            if verify_stationary:
+                _check_against_saved_stationary(
+                    root, names, start_year, end_year, method, actual_fits
+                )
 
             # Explicit room for legends above each subplot; tight_layout()
             # would push the long formulas across adjacent panels.

@@ -8,7 +8,25 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from scipy.integrate import cumulative_trapezoid
 from scipy.optimize import curve_fit
+
+
+def _shifted_log_variance(x, *, x0, x1, c1, c2, c3, c4):
+    """One shared fitted log(b²) law for BOTH plots and stationary density.
+
+    This is the shifted-coordinate model currently used in the project plots.
+    It is NOT the unshifted |x| law from the analytical manuscript.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    left_level = c2 * np.sqrt(abs(x1 - x0)) + c3
+    return np.where(
+        x < x1,
+        c1 * np.abs(x - x1) + left_level,
+        np.where(x < x0,
+                 c2 * np.sqrt(np.abs(x - x0)) + c3,
+                 c4 * np.sqrt(np.abs(x - x0)) + c3),
+    )
 
 
 def _fit_log_diffusion(quantiles, log_diffusion, variable):
@@ -25,8 +43,6 @@ def _fit_log_diffusion(quantiles, log_diffusion, variable):
     The central and right branches are continuous at ``x0`` because both are
     equal to ``c3`` there.
     """
-    from Functional.func_estimation import model_logb2
-
     x = np.asarray(quantiles, dtype=np.float64)
     y = np.asarray(log_diffusion, dtype=np.float64)
     if x.ndim != 1 or y.shape != x.shape or len(x) < 8:
@@ -71,8 +87,8 @@ def _fit_log_diffusion(quantiles, log_diffusion, variable):
     c4 = float((right_basis @ (y[right] - c3)) /
                (right_basis @ right_basis))
 
-    prediction = np.array([model_logb2(float(v), x1, x0, c1, c2, c3, c4)
-                           for v in x], dtype=np.float64)
+    prediction = _shifted_log_variance(
+        x, x0=x0, x1=x1, c1=c1, c2=c2, c3=c3, c4=c4)
     left_at_join = c1 * abs(x1 - x1) + center_at_x1
     center_at_left_join = c2 * np.sqrt(abs(x1 - x0)) + c3
     center_at_right_join = c2 * np.sqrt(abs(x0 - x0)) + c3
@@ -140,83 +156,72 @@ def _stationary_integration_constants(params):
 
 
 def _stationary_density(grid, params, variable):
-    """Calculate a stationary density using article-defined tail continuation.
+    """Compute stationary density numerically for the *fitted shifted* b².
 
-    Parameters
-    ----------
-    grid : array-like
-        Strictly increasing grid of physical flux values.
-    params : sequence
-        Historical parameter tuple ``[x0, x1, k, xmin, xmax, c1, c2,
-        c3, c4, z]``. ``xmin`` and ``xmax`` are the endpoints of retained
-        regression nodes, not the plotting limits.
-    variable : {'sensible', 'latent'}
-        Determines which unsupported tail gets a constant continuation of
-        the *drift integral* ``I``.
+    The zero-probability-current identity is
 
-    Returns
-    -------
-    numpy.ndarray
-        Density normalized by the trapezoidal rule on ``grid``.
+        log p(x) = const + integral[2*a(u)*exp(-g(u)) du] - g(x),
 
-    Notes
-    -----
-    The manuscript's 'One-dimensional stationary distributions' section
-    defines the plotting approximation:
+    where g = log(b²) is EXACTLY ``_shifted_log_variance``.
 
-      sensible: I_plot(x) = I(min(x, xmax))
-      latent:   I_plot(x) = I(max(x, xmin))
-      both:     p_plot(x) proportional to exp(I_plot(x) - log(b^2(x)))
+    IMPORTANT: the old ``Functional.func_estimation.I/log_b2`` evaluate the
+    different UNshifted |x| model from the manuscript. Combining those with
+    the current shifted graphical fit produced inconsistent stationary PDFs.
+    They must not be used here without first refitting the manuscript model.
 
-    Importantly, ``log_b2`` is always evaluated at the actual physical
-    argument ``x``. Clipping *both* terms used to create artificial flat
-    tails; extrapolating *both* created a spurious distant probability mode.
-    This is the visualization-tail convention, not a new closed-form
-    stationary law on the whole real line.
+    Following the existing visualization convention, only the *integral*
+    is continued as a constant beyond ``xmax`` for sensible or below
+    ``xmin`` for latent. Diffusion g is never clipped, so PDF tails can decay.
     """
-    from Functional.func_estimation import I, log_b2
-
-    if variable not in ('sensible', 'latent'):
+    if variable not in ("sensible", "latent"):
         raise ValueError("variable must be 'sensible' or 'latent'")
-    grid = np.asarray(grid, dtype=float)
+    grid = np.asarray(grid, dtype=np.float64)
     if (grid.ndim != 1 or grid.size < 2 or not np.isfinite(grid).all()
             or not np.all(np.diff(grid) > 0)):
-        raise ValueError('grid must be finite, one-dimensional and increasing')
-
+        raise ValueError("grid must be finite, 1D, and strictly increasing")
     x0, x1, k, xmin, xmax, c1, c2, c3, c4, _z = params
+    k = np.asarray(k, dtype=np.float64)
+    if k.shape != (5,) or not np.isfinite(k).all():
+        raise ValueError("Drift must contain five finite ascending polynomial coefficients")
     if not np.isfinite([x0, x1, xmin, xmax, c1, c2, c3, c4]).all():
-        raise ValueError('Nonfinite stationary fit parameters')
+        raise ValueError("Non-finite stationary fit parameters")
     if not (xmin < xmax and x1 < x0):
-        raise ValueError('Invalid regression interval or diffusion junctions')
+        raise ValueError("Invalid fit interval or diffusion junctions")
 
-    constants = _stationary_integration_constants(params)
-    args = [c1, c2, c3, c4, x0, x1, k, *constants]
-
-    if variable == 'sensible':
-        integral_arguments = np.minimum(grid, xmax)
-    else:
-        integral_arguments = np.maximum(grid, xmin)
-
-    # The original x must be used here for log_b2, not the capped argument.
-    log_values = np.asarray([
-        I(float(x_i), args) - log_b2(float(x), args)
-        for x, x_i in zip(grid, integral_arguments)
-    ], dtype=float)
-    if not np.isfinite(log_values).all():
-        first_bad = grid[np.flatnonzero(~np.isfinite(log_values))[0]]
+    # Use a finer grid than the output grid to integrate the fitted Ito drift.
+    # Include the junctions and fit boundaries exactly (not only interpolated).
+    dense = np.linspace(grid[0], grid[-1], max(30000, 12 * grid.size))
+    anchors = np.array((x0, x1, xmin, xmax), dtype=np.float64)
+    anchors = anchors[(anchors >= grid[0]) & (anchors <= grid[-1])]
+    dense = np.unique(np.concatenate((dense, anchors)))
+    log_b2_dense = _shifted_log_variance(
+        dense, x0=x0, x1=x1, c1=c1, c2=c2, c3=c3, c4=c4)
+    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
+        integrand = (2.0 * np.polynomial.polynomial.polyval(dense, k)
+                     * np.exp(-log_b2_dense))
+    if not np.all(np.isfinite(integrand)):
         raise ValueError(
-            f'{variable}: nonfinite log stationary density near x={first_bad}; '
-            'check fitted diffusion parameters and integration constants'
+            f"{variable}: non-finite 2*a/b² on the integration interval; "
+            "inspect fitted diffusion tails and polynomial drift"
         )
+    integral = cumulative_trapezoid(integrand, dense, initial=0.0)
+    if not np.all(np.isfinite(integral)):
+        raise ValueError(f"{variable}: stationary drift integral is not finite")
 
-    # Subtracting the peak avoids overflow without modifying relative density.
-    scaled_values = np.exp(log_values - float(np.max(log_values)))
-    integral = float(np.trapezoid(scaled_values, grid))
-    if not np.isfinite(integral) or integral <= 0:
-        raise ValueError(f'{variable}: stationary density cannot be normalized')
-    density = scaled_values / integral
+    integral_x = (np.minimum(grid, xmax) if variable == "sensible"
+                  else np.maximum(grid, xmin))
+    log_values = (np.interp(integral_x, dense, integral)
+                  - _shifted_log_variance(
+                      grid, x0=x0, x1=x1, c1=c1, c2=c2, c3=c3, c4=c4))
+    if not np.all(np.isfinite(log_values)):
+        raise ValueError(f"{variable}: non-finite stationary log density")
+    scaled = np.exp(log_values - np.max(log_values))
+    normalization = float(np.trapezoid(scaled, grid))
+    if not np.isfinite(normalization) or normalization <= 0:
+        raise ValueError(f"{variable}: invalid stationary normalization")
+    density = scaled / normalization
     if not np.isclose(np.trapezoid(density, grid), 1.0, atol=1e-8, rtol=1e-8):
-        raise ValueError(f'{variable}: stationary density normalization failed')
+        raise ValueError(f"{variable}: stationary density normalization failed")
     return density
 
 
@@ -697,6 +702,9 @@ def estimate_stationary_characteristics(files_path_prefix, start_year, end_year,
             refresh_grouped=refresh_grouped,
         )
         provenance["input_type"] = "assembled_coefficients"
+        provenance["state_construction"] = (
+            "endpoint_observation_minus_local_drift_A_then_spatial_block_mean"
+        )
 
     grid = np.linspace(-2000, 1500, grid_points)
     output = {"grid": grid}
@@ -710,6 +718,8 @@ def estimate_stationary_characteristics(files_path_prefix, start_year, end_year,
         x, drift, log_variance = inputs[name]
         params = _fit_log_diffusion(x, log_variance, name)
         coeffs = list(np.polynomial.polynomial.polyfit(x, drift, 4))
+        drift_prediction = np.polynomial.polynomial.polyval(x, coeffs)
+        drift_rmse = float(np.sqrt(np.mean((drift_prediction - drift) ** 2)))
         fitted = [params["x0"], params["x1"], coeffs,
                   float(np.min(x)), float(np.max(x)),
                   *[params[key] for key in ("c1", "c2", "c3", "c4")], 1]
@@ -724,8 +734,18 @@ def estimate_stationary_characteristics(files_path_prefix, start_year, end_year,
         meta["fits"][name] = {
             **params,
             "drift_polynomial_ascending": coeffs,
+            "drift_rmse": drift_rmse,
+            "drift_rmse_definition": "RMSE of quartic A(x) over retained grouped nodes",
             "mean": mean,
+            "mean_definition": (
+                "Mean under the normalized stationary PDF in the fitted x-coordinate; "
+                "NOT the mean of ERA5 observations or a weighted decadal average"
+            ),
+            "variance": variance,
             "standard_deviation": float(np.sqrt(max(variance, 0.0))),
+            "diffusion_model": "shifted_x0_x1_piecewise_log_variance",
+            "stationary_integration_method": "numeric_cumulative_trapezoid_of_2a_over_b2",
+            "tail_continuation": "drift integral only; log b2 uses physical x",
             "density_integral": float(np.trapezoid(density, grid)),
             "reliable_regression_interval": [float(fitted[3]), float(fitted[4])],
             "drift_integral_continuation": (
