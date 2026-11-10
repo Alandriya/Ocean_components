@@ -406,9 +406,19 @@ def main():
     # This stage only creates the phase-space coefficient grid; it does not solve the PDE.
     # task = "fokker_planck_2d_prepare"
     fp2d_method = "sp"
+    # 60x60
+    # fp2d_bins = (60, 60)
+    # fp2d_min_count = 178
+
+    # # 80x80
     fp2d_bins = (80, 80)
-    fp2d_quantile_bounds = (0.005, 0.995)
     fp2d_min_count = 100
+
+    # # 100x100
+    # fp2d_bins = (100, 100)
+    # fp2d_min_count = 64
+
+    fp2d_quantile_bounds = (0.005, 0.995)
     fp2d_chunk_days = 32
     fp2d_spatial_block_size = 5
     fp2d_sample_size = 500000
@@ -418,8 +428,8 @@ def main():
 
     # --------------------------------------------------------------------------
     # FOKKER-PLANCK 2D SOLVE: stationary wide-stencil Markov-chain solution.
-    task = "fokker_planck_2d_solve"
-    fp2d_solver_max_stencil_radius = 7
+    # task = "fokker_planck_2d_solve"
+    fp2d_solver_max_stencil_radius = 9
     fp2d_solver_max_hole_cells = 16
     fp2d_solver_hole_neighbors = 4
     fp2d_solver_rate_tolerance = 1e-10
@@ -470,7 +480,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COPULAS: estimate dependence and joint-distribution characteristics.
-    # task = "copulas"
+    task = "copulas"
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
@@ -518,7 +528,7 @@ def main():
     n_components = 3  # Coefficients, bridges and eigenvalues.
     n_init = 10  # Coefficients and bridges.
     dt = 1.0  # Time increment for coefficient and spectral estimators.
-    overwrite = False
+    overwrite = True
     spectral_variables = ("Flux", "SST", "Pressure")  # Spectral tasks.
 
     # Load a spatial mask only for workflows that require it.

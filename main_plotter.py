@@ -11,13 +11,17 @@ from Plotting.map_workflows import (
 from Plotting.stationary_plots import plot_stationary_distributions
 from Plotting.hybrid_stationary_plots import plot_hybrid_stationary_distributions
 from Plotting.functional_fit_plots import plot_functional_fits
+from Plotting.fokker_planck_2d_plots import (
+    plot_fp2d_stationary_comparison,
+    plot_fp2d_grid_convergence,
+)
 
 
 def main():
     """Configure visualization workflows and run the selected plotting task."""
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 2019
+    start_year = 19792026
 
     # --------------------------------------------------------------------------
     # VARIABLES: maps of fluxes, sea-surface temperature and pressure.
@@ -57,15 +61,15 @@ def main():
     # STATIONARY HYBRID: central FP density + smoothed empirical-GPD tails.
     # New PNG/NPZ outputs; never overwrites the old stationary density.
     # task = "stationary_hybrid"
-    hybrid_tail_quantile = 0.975          # GPD starts at observed q2.5 / q97.5.
-    hybrid_transition_quantile = 0.90     # Transition begins near q10 / q90.
-    hybrid_reference_weight = 0.70        # 70% full 1979-2026 GPD shape.
+    hybrid_tail_quantile = 0.975
+    hybrid_transition_quantile = 0.90
+    hybrid_reference_weight = 0.70
     hybrid_reference_period = (1979, 2026)
-    hybrid_sample_days = 1600            # Random days distributed over period.
-    hybrid_pixels_per_day = 160          # Random grid points per sampled day.
-    hybrid_refresh_samples = False       # Reuse sampled ERA5 observations.
-    hybrid_refresh_hybrid = False        # Reuse calculated GPD tails and PDF.
-    hybrid_show_original = True          # Old PDF: faint gray dashed line.
+    hybrid_sample_days = 1600
+    hybrid_pixels_per_day = 160
+    hybrid_refresh_samples = False
+    hybrid_refresh_hybrid = False
+    hybrid_show_original = True
 
     # --------------------------------------------------------------------------
     # COPULAS: visualize saved copula and joint-density results.
@@ -73,7 +77,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
-    task = "functional_fits"
+    # task = "functional_fits"
     functional_method = "sp"
     functional_b_type = "simple"
     functional_quantile_bins = 260
@@ -81,8 +85,24 @@ def main():
     functional_chunk_days = 16
     functional_spatial_block_size = 5
     functional_sample_size = 400000
-    functional_refresh_grouped = False  # Normal plotting NEVER launches 2-pass regrouping.
-    functional_verify_stationary = True  # Compare fitted params with saved density JSON.
+    functional_refresh_grouped = False
+    functional_verify_stationary = True
+
+    # --------------------------------------------------------------------------
+    # FOKKER-PLANCK 2D COMPARISON:
+    # empirical joint density, stationary FP density, differences and marginals.
+    task = "fokker_planck_2d_compare"
+    fp2d_plot_method = "sp"
+    fp2d_plot_bins = (80, 80)
+    fp2d_relative_floor = 0.01
+    fp2d_plot_dpi = 300
+
+    # --------------------------------------------------------------------------
+    # FOKKER-PLANCK 2D GRID CONVERGENCE:
+    # compare already solved 60x60, 80x80 and 100x100 stationary results.
+    # task = "fokker_planck_2d_convergence"
+    fp2d_convergence_resolutions = (60, 80, 100)
+    fp2d_convergence_common_resolution = 800
 
     # ==========================================================================
     # SHARED SETTINGS: select both years explicitly, without implicit overrides.
@@ -92,6 +112,7 @@ def main():
     elif start_year == 19792026:
         start_year = 1979
         end_year = 2026
+
     names = ("sensible", "latent")
     first_day = 0
     last_day = 5
@@ -167,6 +188,29 @@ def main():
             spatial_block_size=functional_spatial_block_size,
             sample_size=functional_sample_size,
             refresh_grouped=functional_refresh_grouped,
+            verify_stationary=functional_verify_stationary,
+        )
+    if task == "fokker_planck_2d_compare":
+        return plot_fp2d_stationary_comparison(
+            files_path_prefix,
+            start_year,
+            end_year,
+            names=names,
+            method=fp2d_plot_method,
+            bins=fp2d_plot_bins,
+            relative_floor=fp2d_relative_floor,
+            dpi=fp2d_plot_dpi,
+        )
+    if task == "fokker_planck_2d_convergence":
+        return plot_fp2d_grid_convergence(
+            files_path_prefix,
+            start_year,
+            end_year,
+            names=names,
+            method=fp2d_plot_method,
+            resolutions=fp2d_convergence_resolutions,
+            common_resolution=fp2d_convergence_common_resolution,
+            dpi=fp2d_plot_dpi,
         )
     raise ValueError(f"Unsupported plotting task: {task}")
 
