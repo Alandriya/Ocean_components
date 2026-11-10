@@ -16,10 +16,11 @@ from Plotting.stationary_plots import (
     NAMES, _observed_histogram, _stationary_plot_config, plot_path, save_figure,
 )
 
-CORE_COLOR = "#184d99"          # blue
-TRANSITION_COLOR = "#55c5e9"    # light cyan
-TAIL_COLOR = "#075c36"          # dark green
-OLD_COLOR = "#a2a2a2"           # grey dashed reference
+CORE_COLOR = "#c62828"          # red: Fokker--Planck central fit
+TRANSITION_COLOR = "#f28e2b"    # orange: smooth C1 transitions
+TAIL_COLOR = "#ff69b4"          # pink: GPD tails
+HIST_COLOR = "#1f77b4"          # blue: transparent ERA5 histogram
+HIST_EDGE_COLOR = "#2d6396"
 
 
 def _colored_sections(ax, grid, pdf, info):
@@ -53,11 +54,12 @@ def plot_hybrid_stationary_distributions(files_path_prefix, names, start_year,
                                          sample_days=1600, pixels_per_day=160,
                                          refresh_samples=False,
                                          refresh_hybrid=False,
-                                         show_original=True):
+                                         show_original=False):
     """Render diagnostic histogram and 3-color hybrid stationary density.
 
-    Both source PNGs and source stationary NPZ remain unchanged. The new plots
-    are saved as ``*_hybrid_eng.png`` next to existing stationary plots.
+    Previous stationary densities are NEVER drawn. ``show_original`` is kept
+    only for compatibility with older main_plotter.py configurations; it is
+    intentionally ignored even when True. Original data files are unchanged.
     """
     root = Path(files_path_prefix)
     source = (root / "Functional" / "Stationary"
@@ -65,10 +67,8 @@ def plot_hybrid_stationary_distributions(files_path_prefix, names, start_year,
     if not source.is_file():
         raise FileNotFoundError(f"No central stationary PDF found: {source}")
     outputs = []
-    with np.load(source, allow_pickle=False) as existing:
-        old_grid = np.array(existing["grid"], dtype=float)
-        previous = {name: np.array(existing[f"pdf_{name}"], dtype=float) for name in names}
-
+    # The original NPZ is still used by build_hybrid_density for the central
+    # fit, but its unmodified PDF must not appear on this comparison-free plot.
     with sns.axes_style("whitegrid"), plt.rc_context({
         "font.size": 12,
         "axes.labelsize": 14,
@@ -97,13 +97,9 @@ def plot_hybrid_stationary_distributions(files_path_prefix, names, start_year,
             fig, ax = plt.subplots(1, 1, figsize=(12, 7))
             try:
                 ax.stairs(hist_density, hist_edges, fill=True,
-                          facecolor="#c1c8d1", edgecolor="#8793a1",
-                          lw=0.7, alpha=0.50,
+                          facecolor=HIST_COLOR, edgecolor=HIST_EDGE_COLOR,
+                          lw=0.6, alpha=0.26,
                           label="Observed ERA5 histogram (display range)", zorder=1)
-                if show_original:
-                    ax.plot(old_grid, previous[name], color=OLD_COLOR,
-                            lw=1.25, ls="--", alpha=0.85,
-                            label="Previous stationary PDF (reference)", zorder=2)
                 _colored_sections(ax, grid, hybrid_pdf, info)
                 if config["xlim"] is not None:
                     ax.set_xlim(*config["xlim"])
@@ -117,7 +113,6 @@ def plot_hybrid_stationary_distributions(files_path_prefix, names, start_year,
                 priority = {"Stationary FP core": 1,
                             "Smooth C¹ transitions": 2,
                             "Empirical GPD tails": 3,
-                            "Previous stationary PDF (reference)": 4,
                             "Observed ERA5 histogram (display range)": 0}
                 ordered = sorted(range(len(labels)),
                                  key=lambda i: priority.get(labels[i], 99))

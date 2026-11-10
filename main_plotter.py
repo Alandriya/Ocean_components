@@ -56,7 +56,7 @@ def main():
     # --------------------------------------------------------------------------
     # STATIONARY HYBRID: central FP density + smoothed empirical-GPD tails.
     # New PNG/NPZ outputs; never overwrites the old stationary density.
-    task = "stationary_hybrid"
+    # task = "stationary_hybrid"
     hybrid_tail_quantile = 0.975          # GPD starts at observed q2.5 / q97.5.
     hybrid_transition_quantile = 0.90     # Transition begins near q10 / q90.
     hybrid_reference_weight = 0.70        # 70% full 1979-2026 GPD shape.
@@ -73,7 +73,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
-    # task = "functional_fits"
+    task = "functional_fits"
     functional_method = "sp"
     functional_b_type = "simple"
     functional_quantile_bins = 260
