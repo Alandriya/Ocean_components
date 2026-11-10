@@ -2,6 +2,12 @@
 
 Drop-in replacement for Ocean_components/Data_processing/sde_conditions.py.
 
+Version 3: discovers collected scalar coefficients in 1d_bins_* for X-X
+pairs, keeps 2D pair coefficients for X-Y pairs, optionally uses an existing
+reverse-order 2D pair with correct component permutations, and merges field
+aliases (particularly Pressure/PRESS) passed by older versions of main.py.
+Missing 2D pairs are reported, never inferred from separate 1D coefficients.
+
 The quantities K1, K2, and K are bounds on trimmed *observed coefficient*
 values; they do not prove global SDE existence, uniqueness or Lipschitz
 continuity. B must be the Ito diffusion AMPLITUDE (not BBT or B**2).
@@ -26,7 +32,7 @@ import re
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from itertools import combinations_with_replacement
 from pathlib import Path
@@ -89,6 +95,7 @@ class PairSource:
     diffusion: str = "matrix"
     storage: str = "daily"
     state_dimension: int | None = None
+    reverse_components: bool = False
 
     def __post_init__(self):
         if self.layout not in ("first", "last"):
@@ -100,6 +107,8 @@ class PairSource:
         if self.state_dimension is not None and (type(self.state_dimension) is not int
                                                   or self.state_dimension < 1):
             raise ValueError("state_dimension must be a positive integer")
+        if type(self.reverse_components) is not bool:
+            raise ValueError("reverse_components must be a boolean")
 
 
 # The default is the modern collected SP 2D layout. The bin count can be
@@ -153,6 +162,113 @@ def _upgrade_obsolete_source(source: PairSource) -> PairSource:
               f"using collected {method.upper()} 2D files under 2d_bins_{bins}",
               flush=True)
         return new
+    return source
+
+
+def _has_collected_ab(folder: Path) -> bool:
+    """True when at least one matching A/B aggregate exists in this folder.
+
+    File names alone are checked here. The exact interval and array shapes
+    are checked by _open_collected_maps before any statistics are calculated.
+    """
+    if not folder.is_dir():
+        return False
+    a_ranges = set()
+    b_ranges = set()
+    regex = re.compile(r"^(A|B)_(\d+)-(\d+)\.npy$")
+    for path in folder.glob("[AB]_*-*.npy"):
+        match = regex.fullmatch(path.name)
+        if not match:
+            continue
+        span = (int(match.group(2)), int(match.group(3)))
+        if span[0] > span[1]:
+            continue
+        (a_ranges if match.group(1) == "A" else b_ranges).add(span)
+    return bool(a_ranges & b_ranges)
+
+
+def _resolve_source_for_pair(root: Path, names: tuple[str, str],
+                             years: tuple[int, int], source: PairSource) -> PairSource:
+    """Resolve modern collected A/B without inventing missing cross-pair maps.
+
+    The old main.py supplies a 2D template for *every* pair. This is wrong
+    for (Flux, Flux), (SST, SST), etc.: scalar A/B live under 1d_bins_*.
+    For distinct pairs we accept the reversed folder only if matching A/B
+    exist; its coefficient components are permuted into the requested order.
+    The specified NP/SP method is never changed behind the user's back.
+    """
+    if source.storage != "collected":
+        return source  # User-supplied daily coefficient source.
+    if not ("2d_bins_" in source.a_pattern and
+            "{left}_{right}" in source.a_pattern):
+        return source  # A custom source is authoritative.
+
+    period = f"{years[0]}-{years[1]}"
+    method = ("np" if "Nonparametric_2d" in source.a_pattern
+              else "sp" if "Semiparametric_2d" in source.a_pattern
+              else None)
+    if method is None:
+        return source
+
+    if names[0] == names[1]:
+        method_dir = "Semiparametric" if method == "sp" else "Nonparametric"
+        root_dir = root / "Coefficients" / period
+        candidates = sorted(root_dir.glob(
+            f"1d_bins_*/{names[0]}/{method_dir}"
+        ))
+        available = [d for d in candidates if _has_collected_ab(d)]
+        if not available:
+            searched = root_dir / "1d_bins_*" / names[0] / method_dir
+            raise FileNotFoundError(
+                f"Missing scalar {method.upper()} collected A/B for {names[0]} "
+                f"in {period}. Searched {searched} (with A_<first>-<last>.npy "
+                "and B_<first>-<last>.npy). A 2D directory like "
+                f"{names[0]}_{names[0]} is not a substitute for 1D maps."
+            )
+        if len(available) != 1:
+            raise ValueError(
+                f"Ambiguous 1D {method.upper()} coefficient bin configurations "
+                f"for {names[0]} {period}: {available}. Select one "
+                "explicitly instead of silently mixing resolutions."
+            )
+        folder = available[0]
+        relative = folder.relative_to(root).as_posix()
+        result = PairSource(
+            f"{relative}/A_{{first_label}}-{{last_label}}.npy",
+            f"{relative}/B_{{first_label}}-{{last_label}}.npy",
+            layout="first", diffusion="matrix", storage="collected",
+            state_dimension=1,
+        )
+        print(f"  SDE source: 1D {method.upper()} {folder}", flush=True)
+        return result
+
+    # For distinct variables use 2D maps. Reverse ONLY when the forward
+    # folder lacks a paired A/B aggregate. Never reverse just one of A/B.
+    template = source.a_pattern
+    try:
+        forward = _format_file(root, template, names, period, 1,
+                               first_label=1, last_label=1).parent
+    except (KeyError, ValueError):
+        return source
+    if _has_collected_ab(forward):
+        return source
+    reverse_names = (names[1], names[0])
+    reverse_folder = _format_file(root, template, reverse_names, period, 1,
+                                  first_label=1, last_label=1).parent
+    if _has_collected_ab(reverse_folder):
+        reversed_source = replace(
+            source,
+            a_pattern=source.a_pattern.replace(
+                "{left}_{right}", f"{names[1]}_{names[0]}"
+            ),
+            b_pattern=source.b_pattern.replace(
+                "{left}_{right}", f"{names[1]}_{names[0]}"
+            ),
+            reverse_components=True,
+        )
+        print(f"  SDE source: reversed pair folder {reverse_folder}; "
+              "reordering both A and B components", flush=True)
+        return reversed_source
     return source
 
 
@@ -231,6 +347,11 @@ def _prepare_pair_maps(a_raw: np.ndarray, b_raw: np.ndarray,
                            layout=source.layout, kind="a")
     b = _flat_coefficients(b_raw, n=n, spatial_shape=spatial_shape,
                            layout=source.layout, kind="b", diffusion=source.diffusion)
+    if source.reverse_components:
+        if n != 2:
+            raise ValueError("Reversed coefficient order requires 2D coefficients")
+        a = a[:, [1, 0]]
+        b = b.reshape(-1, 2, 2)[:, [1, 0], :][:, :, [1, 0]].reshape(-1, 4)
     keep = np.isfinite(a).all(axis=1) & np.isfinite(b).all(axis=1)
     if mask is not None:
         if mask.shape != spatial_shape:
@@ -510,6 +631,10 @@ def estimate_period(root: Path|str,names: tuple[str,str],start_year: int,end_yea
             "layout":source.layout,"diffusion":source.diffusion,
             "storage":source.storage,
             "state_dimension":_pair_dimension(names,source),
+            "coefficient_file_order":(
+                list(reversed(names)) if source.reverse_components else list(names)
+            ),
+            "reverse_components":source.reverse_components,
             "files":collected_paths,
         },
         "a_lower":al.tolist(),"a_upper":ah.tolist(),
@@ -561,9 +686,14 @@ def run_all(root: str|Path,*,
     if not all_periods or any(p not in PERIODS for p in all_periods):
         raise ValueError(f"periods must belong to {PERIODS}")
     sources=coefficient_sources or {}
-    fields=dict(FIELD_PATHS)
+    fields = {name: tuple(paths) for name, paths in FIELD_PATHS.items()}
     if field_paths is not None:
-        fields.update(field_paths)
+        for name, configured in field_paths.items():
+            # Use explicit preferences first, keep modern/legacy *field* aliases
+            # as fallbacks. This does not re-enable legacy coefficient paths.
+            fields[name] = tuple(dict.fromkeys(
+                tuple(configured) + tuple(fields.get(name, ()))
+            ))
     mask=read_mask(root,spatial_shape,mask_policy)
     destination=Path(output) if output is not None else root/"Conditions"
     destination.mkdir(parents=True,exist_ok=True)
@@ -592,6 +722,7 @@ def run_all(root: str|Path,*,
             source=_upgrade_obsolete_source(source)
             print(f"Checking {key} / {years[0]}-{years[1]} ...",flush=True)
             try:
+                source = _resolve_source_for_pair(root, pair, years, source)
                 result=estimate_period(root,pair,*years,source,
                                        window_days=window_days,q_low=q_low,
                                        q_high=q_high,epsilon=epsilon,
@@ -602,9 +733,14 @@ def run_all(root: str|Path,*,
             except FileNotFoundError as exc:
                 if fail_on_missing:
                     raise
+                error_text = str(exc)
+                stage = ("raw_field" if "input field" in error_text.lower()
+                         else "coefficient_files")
                 result={"status":"missing_input","pair":list(pair),
                         "pair_key":key,"period":f"{years[0]}-{years[1]}",
-                        "error":str(exc),"K1":None,"K2":None,"K":None}
+                        "missing_stage":stage,
+                        "error":error_text,"K1":None,"K2":None,"K":None}
+                print(f"  Missing {stage}: {error_text}", flush=True)
             report=destination/"details"/key/f"{years[0]}-{years[1]}.json"
             report.parent.mkdir(parents=True,exist_ok=True)
             report.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
