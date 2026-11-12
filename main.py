@@ -356,6 +356,45 @@ def run_selected_task(task, **settings):
             chunk_days=32,
             overwrite=False,
         )
+    if task == "quantile_diagnostics":
+        from Coefficients.quantile_diagnostics import run_quantile_diagnostics
+
+        # Scan all standard data periods, or just the selected start/end years.
+        chosen_periods = (periods if settings.get("quantile_all_periods", True)
+                          else ((start_year, end_year),))
+        return run_quantile_diagnostics(
+            files_path_prefix=root, names=names, periods=chosen_periods,
+            mask=mask,
+            bins=settings.get("quantile_bins", (8, 12, 15, 20)),
+            thresholds=settings.get("quantile_thresholds", (2, 10, 20, 30, 50)),
+            first_transition=settings.get("quantile_start", 1),
+            stop_transition=settings.get("quantile_stop"),
+            every=settings.get("quantile_every", 1),
+            corr_every=settings.get("quantile_corr_every", 30),
+            corr_bins=settings.get("quantile_corr_bins", 15),
+            corr_lags=settings.get("quantile_corr_lags", (1, 4, 8)),
+            out_dir=Path(root) / "Plots" / "Diagnostics" / "quantile_cells",
+        )
+    if task == "quantile_diagnostics_1d":
+        from Coefficients.quantile_diagnostics import run_quantile_diagnostics_1d
+
+        chosen_periods = (periods if settings.get("quantile_1d_all_periods", True)
+                          else ((start_year, end_year),))
+        variable = settings.get("quantile_1d_variable", "sensible")
+        return run_quantile_diagnostics_1d(
+            files_path_prefix=root, variable=variable, periods=chosen_periods,
+            mask=mask,
+            bins=settings.get("quantile_1d_bins", (20, 50, 100, 144, 200, 250)),
+            thresholds=settings.get("quantile_1d_thresholds", (2, 10, 20, 30, 50)),
+            first_transition=settings.get("quantile_1d_start", 1),
+            stop_transition=settings.get("quantile_1d_stop"),
+            every=settings.get("quantile_1d_every", 1),
+            corr_every=settings.get("quantile_1d_corr_every", 30),
+            corr_bins=settings.get("quantile_1d_corr_bins", 144),
+            corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
+            out_dir=Path(root) / "Plots" / "Diagnostics" /
+                    "quantile_cells_1d" / variable,
+        )
     else:
         raise ValueError(f"Unsupported numeric task: {task}")
 
@@ -365,7 +404,7 @@ def main():
     # Root directory containing input data and calculated numerical outputs.
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 2019
+    start_year = 1979
     # task = 'collect'
 
     # --------------------------------------------------------------------------
@@ -480,7 +519,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COPULAS: estimate dependence and joint-distribution characteristics.
-    task = "copulas"
+    # task = "copulas"
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
@@ -507,6 +546,36 @@ def main():
     grib_check_old_start = "1979-01-01"
     grib_check_rtol = 1e-5
     grib_check_atol = 1e-4
+    # --------------------------------------------------------------------------
+    # QUANTILE DIAGNOSTICS 1D: run sensible and latent separately.
+    task = "quantile_diagnostics_1d"
+
+    quantile_1d_variable = "latent"
+    quantile_1d_all_periods = True
+
+    quantile_1d_bins = (20, 50, 100, 144, 200, 250)
+    quantile_1d_thresholds = (2, 10, 20, 30, 50)
+
+    quantile_1d_start = 1
+    quantile_1d_stop = None
+    quantile_1d_every = 1
+
+    quantile_1d_corr_every = 30
+    quantile_1d_corr_bins = 144
+    quantile_1d_corr_lags = (1, 4, 8)
+    # --------------------------------------------------------------------------
+    # QUANTILE DIAGNOSTICS 2d: daily joint-cell occupancy and spatial correlations.
+    # This task does not fit NP/SP or alter any input arrays.
+    # task = "quantile_diagnostics"
+    quantile_all_periods = True  # True: PERIODS; False: start_year/end_year.
+    quantile_bins = (8, 12, 15, 20)
+    quantile_thresholds = (2, 10, 20, 30, 50)
+    quantile_start = 1  # First transition endpoint index in each period.
+    quantile_stop = None  # Use 31 to test the first 30 transitions per period.
+    quantile_every = 1  # Examine every transition; 7 means weekly sampling.
+    quantile_corr_every = 30  # Pixel residual correlation every 30th examined day.
+    quantile_corr_bins = 15
+    quantile_corr_lags = (1, 4, 8)
 
     # ==========================================================================
     # SHARED SETTINGS: used by several numerical tasks.
@@ -528,7 +597,7 @@ def main():
     n_components = 3  # Coefficients, bridges and eigenvalues.
     n_init = 10  # Coefficients and bridges.
     dt = 1.0  # Time increment for coefficient and spectral estimators.
-    overwrite = True
+    overwrite = False
     spectral_variables = ("Flux", "SST", "Pressure")  # Spectral tasks.
 
     # Load a spatial mask only for workflows that require it.
