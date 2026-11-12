@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -580,7 +581,8 @@ def assemble_continuous_coefficients(files_path_prefix, periods,
 
 def run_boundary_workflow(files_path_prefix, periods, names, *, n_bins_2d=12,
                           n_components=3, n_init=10, dt=1.0,
-                          methods=("np", "sp"), mask=None, overwrite=False):
+                          methods=("np", "sp"), mask=None, overwrite=False,
+                          n_bins=None, dimension="auto"):
     """Compute missing cross-period transitions and assemble full NP/SP arrays.
 
     Parameters
@@ -608,10 +610,32 @@ def run_boundary_workflow(files_path_prefix, periods, names, *, n_bins_2d=12,
     -------
     dict
         Final paths and transition metadata.
+
+    Dimension routing
+    -----------------
+    The existing two-name call keeps the original 2D algorithm unchanged.
+    A single variable (e.g. names=("Flux",)) automatically selects the new
+    scalar 1D bridge workflow. For multiple independent scalar variables,
+    call with dimension="1d" and optionally n_bins=144. The legacy main.py
+    does not forward run_1d/run_2d flags to bridges; dimension is determined
+    from names unless explicitly supplied to this function.
     """
     from Coefficients.collection import normalize_methods
 
     methods = normalize_methods(methods)
+    names = tuple(names)
+    if dimension not in ("auto", "1d", "2d"):
+        raise ValueError("dimension must be 'auto', '1d' or '2d'")
+    if dimension == "1d" or (dimension == "auto" and len(names) == 1):
+        return run_scalar_boundary_workflow(
+            files_path_prefix, periods, names, n_bins=n_bins,
+            n_components=n_components, n_init=n_init, dt=dt,
+            methods=methods, mask=mask, overwrite=overwrite,
+        )
+    if len(names) != 2 or names[0] == names[1]:
+        raise ValueError(
+            "2D bridges require two distinct names. For 1D bridges set "
+            "names=('Flux',) or pass dimension='1d'.")
     for prior, following in zip(periods, periods[1:]):
         print(f"Checking bridge {prior[1]}-01-01: {prior} -> {following}", flush=True)
         calculate_boundary_transition(files_path_prefix, prior, following, names,
@@ -621,3 +645,328 @@ def run_boundary_workflow(files_path_prefix, periods, names, *, n_bins_2d=12,
     return assemble_continuous_coefficients(files_path_prefix, periods, names,
                                             n_bins_2d=n_bins_2d,
                                             methods=methods, overwrite=overwrite)
+
+
+# ---------------------------------------------------------------------------
+# Independent scalar (1D) bridge / continuous-collection workflow.
+# This is deliberately separate from the established 2D path above.
+# ---------------------------------------------------------------------------
+SCALAR_METHOD_FOLDERS = {"np": "Nonparametric", "sp": "Semiparametric"}
+
+
+def _scalar_bins(root, periods, names, n_bins):
+    """Use explicit 1D quantile-bin count, or find one unambiguous value."""
+    if n_bins is not None:
+        if isinstance(n_bins, bool) or int(n_bins) < 1:
+            raise ValueError("n_bins must be a positive integer")
+        return int(n_bins)
+    common = None
+    for period in periods:
+        folder = period_dir(root, *period)
+        for name in names:
+            valid = set()
+            for candidate in folder.glob("1d_bins_*"):
+                if candidate.is_dir():
+                    suffix = candidate.name.removeprefix("1d_bins_")
+                    if suffix.isdigit() and (candidate / name).is_dir():
+                        valid.add(int(suffix))
+            common = valid if common is None else common.intersection(valid)
+    if not common:
+        raise FileNotFoundError(
+            "No common 1D coefficient bin count found in all periods for "
+            f"{names}; expected Coefficients/<period>/1d_bins_<N>/<name>/. "
+            "First run task='coefficients' with run_1d=True, run_2d=False."
+        )
+    if len(common) != 1:
+        raise ValueError(
+            f"Ambiguous 1D bin counts across periods: {sorted(common)}. "
+            "Call run_boundary_workflow(..., dimension='1d', n_bins=144)."
+        )
+    return common.pop()
+
+
+def _scalar_bridge_daily_dir(root, name, n_bins, method):
+    return (Path(root) / "Coefficients" / "bridges" / f"1d_bins_{n_bins}" /
+            name / SCALAR_METHOD_FOLDERS[method] / "daily")
+
+
+def _scalar_period_folder(root, period, name, n_bins, method):
+    return (period_dir(root, *period) / f"1d_bins_{n_bins}" / name /
+            SCALAR_METHOD_FOLDERS[method])
+
+
+def _scalar_boundary_transition(root, prior, next_period, name, n_bins, methods,
+                                n_components, n_init, dt, mask, overwrite):
+    """Estimate one endpoint-labeled scalar A/B transition between periods."""
+    from Coefficients.common import prepare_transition
+    from Coefficients.nonparametric import estimate_np
+    from Coefficients.semiparametric import estimate_sp
+
+    if prior[1] != next_period[0]:
+        raise ValueError(f"Nonadjacent periods: {prior} -> {next_period}")
+    left = load_field(root, name, *prior)
+    right = load_field(root, name, *next_period)
+    boundary = date(next_period[0], 1, 1)
+    n_expected = (boundary - date(prior[0], 1, 1)).days
+    if len(left) != n_expected:
+        raise ValueError(
+            f"{name}: prior period {prior} has {len(left)} days; "
+            f"expected {n_expected} to bridge to {next_period}"
+        )
+    if len(right) < 1 or left.shape[1:] != right.shape[1:]:
+        raise ValueError(f"{name}: invalid/misaligned boundary data arrays")
+    field_shape = left.shape[1:]
+    water = (read_ocean_mask(root, field_shape) if mask is None else
+             np.asarray(mask).reshape(field_shape))
+    label = start_label(next_period[0])
+    grouped = None
+    outputs = {}
+    for method in methods:
+        directory = _scalar_bridge_daily_dir(root, name, n_bins, method)
+        keys = ("A", "B", "B_with_reg") if method == "sp" else ("A", "B")
+        paths = {key: directory / f"{key}_{label}.npy" for key in keys}
+        complete = not overwrite and all(
+            path.is_file() and _scalar_valid_daily(path, field_shape)
+            for path in paths.values()
+        )
+        if not complete:
+            if grouped is None:
+                grouped = prepare_transition(left[-1], right[0], n_bins, water)
+            if method == "np":
+                a, b = estimate_np(grouped, min_group_size=2, dt=dt)
+                arrays = {"A": a, "B": b}
+            else:
+                a, b, b_reg, _ = estimate_sp(
+                    grouped, n_components=n_components, min_group_size=2,
+                    n_init=n_init, dt=dt,
+                )
+                arrays = {"A": a, "B": b, "B_with_reg": b_reg}
+            directory.mkdir(parents=True, exist_ok=True)
+            for key, value in arrays.items():
+                np.save(paths[key], value)
+            print(f"[1D bridge] {name} {method} label={label}: saved", flush=True)
+        else:
+            print(f"[1D bridge] {name} {method} label={label}: reused", flush=True)
+        outputs[method] = {k: str(p) for k, p in paths.items()}
+    return {"name": name, "label": label, "date": boundary.isoformat(),
+            "paths": outputs}
+
+
+def _scalar_valid_daily(path, spatial_shape):
+    try:
+        arr = np.load(path, mmap_mode="r", allow_pickle=False)
+        return (arr.shape == spatial_shape and
+                np.issubdtype(arr.dtype, np.number))
+    except (OSError, ValueError, EOFError, TypeError):
+        return False
+
+
+def _scalar_sources(root, period, name, n_bins, method, field, labels):
+    """Discover memory-mapped merged pieces or individual daily scalar maps."""
+    folder = _scalar_period_folder(root, period, name, n_bins, method)
+    first, last = labels.start, labels.stop - 1
+    exact = folder / f"{field}_{first}-{last}.npy"
+    if exact.is_file():
+        return [(exact, 0, len(labels))]
+    # Detect chunk collections; segments must cover each label exactly once.
+    pattern = re.compile(rf"^{re.escape(field)}_(\d+)-(\d+)\.npy$")
+    archives = []
+    for path in folder.glob(f"{field}_*-*.npy"):
+        match = pattern.fullmatch(path.name)
+        if match:
+            lo, hi = map(int, match.groups())
+            if lo <= hi:
+                archives.append((lo, hi, path))
+    segments = []
+    label = first
+    while label <= last:
+        matching = [(lo, hi, path) for lo, hi, path in archives
+                    if lo <= label <= hi]
+        if len(matching) > 1:
+            raise ValueError(f"Overlapping 1D collections for {field} {label}: {matching}")
+        if matching:
+            lo, hi, path = matching[0]
+            length = min(last - label + 1, hi - label + 1)
+            segments.append((path, label - lo, length))
+            label += length
+        else:
+            path = folder / "daily" / f"{field}_{label}.npy"
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f"Missing 1D {name} {method}/{field}, period={period}, "
+                    f"label={label}: expected {path} or a collected {field}_start-end.npy"
+                )
+            segments.append((path, None, 1))
+            label += 1
+    return segments
+
+
+def _scalar_input_segments(root, periods, name, n_bins, method, field, ranges):
+    result = []
+    for i, period in enumerate(periods):
+        if i:
+            label = start_label(period[0])
+            bridge = (_scalar_bridge_daily_dir(root, name, n_bins, method) /
+                      f"{field}_{label}.npy")
+            if not bridge.is_file():
+                raise FileNotFoundError(f"Missing 1D bridge {bridge}")
+            result.append((bridge, None, 1))
+        result.extend(_scalar_sources(root, period, name, n_bins, method,
+                                      field, ranges[i]))
+    return result
+
+
+def _scalar_segment_info(segments, name, method, field):
+    shape = dtype = None
+    count = 0
+    for filename, index, length in segments:
+        a = np.load(filename, mmap_mode="r", allow_pickle=False)
+        current = a.shape if index is None else a.shape[1:]
+        if len(current) != 2 or not np.issubdtype(a.dtype, np.number):
+            raise ValueError(f"Invalid 1D {name} {method}/{field} {current}: {filename}")
+        if index is not None and (
+            a.ndim != 3 or index < 0 or index + length > a.shape[0]
+        ):
+            raise ValueError(f"Collected 1D slice is out of range: {filename}")
+        if shape is None:
+            shape, dtype = current, a.dtype
+        elif current != shape or a.dtype != dtype:
+            raise ValueError(f"Mixed 1D shapes/dtypes for {name} {method}/{field}: {filename}")
+        count += length
+        del a
+    if count <= 0:
+        raise ValueError(f"No 1D {name} {method}/{field} coefficients found")
+    return shape, dtype, count
+
+
+def _publish_scalar_collection(path, segments, count, shape, dtype,
+                               chunk_days=32):
+    """Atomic bounded-memory concatenation; do not duplicate full-period arrays."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent, prefix=f".{path.stem}_", suffix=".npy", delete=False
+        ) as f:
+            temporary = Path(f.name)
+        out = np.lib.format.open_memmap(temporary, mode="w+", dtype=dtype,
+                                        shape=(count, *shape))
+        cursor = 0
+        for filename, offset, length in segments:
+            a = np.load(filename, mmap_mode="r", allow_pickle=False)
+            for k in range(0, length, chunk_days):
+                size = min(chunk_days, length - k)
+                if offset is None:
+                    if k:
+                        raise ValueError(f"Daily 1D segment has length >1: {filename}")
+                    out[cursor] = a
+                else:
+                    out[cursor:cursor+size] = a[offset+k:offset+k+size]
+                cursor += size
+            del a
+        out.flush()
+        del out
+        if cursor != count or not _valid_merged(temporary, count, shape, dtype):
+            raise RuntimeError(f"Incomplete 1D collected output {temporary}: {cursor}/{count}")
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def assemble_scalar_continuous_coefficients(files_path_prefix, periods, names,
+                                            *, n_bins=None, methods=("np", "sp"),
+                                            overwrite=False):
+    """Join scalar period collections and boundary transitions for each variable.
+
+    Result is written to Coefficients/<first>-<last>/1d_bins_N/<variable>/
+    <Nonparametric|Semiparametric>/<A|B|B_with_reg>_<firstlabel>-<lastlabel>.npy.
+    Unlike 2D, scalar arrays do NOT create large copied legacy aliases.
+    """
+    from Coefficients.collection import normalize_methods
+    root = Path(files_path_prefix)
+    names = tuple(dict.fromkeys(names))
+    periods = tuple(map(tuple, periods))
+    methods = normalize_methods(methods)
+    if not periods or not names:
+        raise ValueError("At least one period and one 1D variable are required")
+    for earlier, later in zip(periods, periods[1:]):
+        if earlier[1] != later[0]:
+            raise ValueError(f"Nonadjacent periods: {earlier}, {later}")
+    bins = _scalar_bins(root, periods, names, n_bins)
+    total_period = f"{periods[0][0]}-{periods[-1][1]}"
+    payload = {"dimension": 1, "names": list(names), "period": total_period,
+               "bins": bins, "methods": {}, "label_convention": "endpoint",
+               "periods": [list(p) for p in periods]}
+    for name in names:
+        ranges = [_period_indices(root, period, (name,),
+                                   is_last=i==len(periods)-1)
+                  for i, period in enumerate(periods)]
+        for i in range(1, len(ranges)):
+            if ranges[i-1].stop != start_label(periods[i][0]):
+                raise ValueError(f"{name}: gap before boundary {periods[i]}")
+        first, last = ranges[0].start, ranges[-1].stop - 1
+        expected_count = last - first + 1
+        variable_results = {}
+        for method in methods:
+            files = {}
+            for field in (("A", "B", "B_with_reg") if method == "sp" else ("A", "B")):
+                segments = _scalar_input_segments(root, periods, name, bins,
+                                                  method, field, ranges)
+                shape, dtype, count = _scalar_segment_info(segments, name, method, field)
+                if count != expected_count:
+                    raise ValueError(f"{name}/{method}/{field}: {count} labels, expected {expected_count}")
+                destination = (root / "Coefficients" / total_period /
+                               f"1d_bins_{bins}" / name / SCALAR_METHOD_FOLDERS[method] /
+                               f"{field}_{first}-{last}.npy")
+                if overwrite or not _valid_merged(destination, count, shape, dtype):
+                    print(f"[1D bridge] Assemble {name}/{method}/{field}: {count} "
+                          f"transitions -> {destination}", flush=True)
+                    _publish_scalar_collection(destination, segments, count, shape, dtype)
+                else:
+                    print(f"[1D bridge] Reuse {name}/{method}/{field}: {destination}", flush=True)
+                files[field] = str(destination)
+            variable_results[method] = files
+        payload["methods"][name] = variable_results
+        payload.setdefault("labels", {})[name] = {
+            "first": first, "last": last,
+            "last_date": (BASE_DATE + timedelta(days=last-1)).isoformat(),
+            "transitions": expected_count,
+        }
+    manifest = root / "Coefficients" / "continuous" / f"manifest_1d_{'-'.join(names)}_{bins}.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    temp = manifest.with_name(f".{manifest.name}.tmp")
+    temp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(temp, manifest)
+    payload["manifest"] = str(manifest)
+    print(f"[1D bridge] Complete: variables={names}, bin_count={bins}; "
+          f"manifest={manifest}", flush=True)
+    return payload
+
+
+def run_scalar_boundary_workflow(files_path_prefix, periods, names, *,
+                                 n_bins=None, n_components=3, n_init=10,
+                                 dt=1.0, methods=("np", "sp"), mask=None,
+                                 overwrite=False):
+    """Compute scalar missing-boundary A/B and assemble historical trajectories."""
+    from Coefficients.collection import normalize_methods
+    names = tuple(dict.fromkeys(names))
+    periods = tuple(map(tuple, periods))
+    methods = normalize_methods(methods)
+    if not names:
+        raise ValueError("At least one 1D variable is required")
+    if not periods:
+        raise ValueError("At least one period is required")
+    n_bins = _scalar_bins(files_path_prefix, periods, names, n_bins)
+    print(f"[1D bridge] Variables={names}, bins={n_bins}, methods={methods}, "
+          f"periods={periods}", flush=True)
+    for prior, following in zip(periods, periods[1:]):
+        for name in names:
+            _scalar_boundary_transition(files_path_prefix, prior, following,
+                                        name, n_bins, methods, n_components,
+                                        n_init, dt, mask, overwrite)
+    return assemble_scalar_continuous_coefficients(
+        files_path_prefix, periods, names, n_bins=n_bins,
+        methods=methods, overwrite=overwrite,
+    )
