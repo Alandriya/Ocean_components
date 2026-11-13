@@ -57,7 +57,7 @@ def run_selected_task(task, **settings):
             corr_every=settings.get("quantile_corr_every", 30),
             corr_bins=settings.get("quantile_corr_bins", 15),
             corr_lags=settings.get("quantile_corr_lags", (1, 4, 8)),
-            out_dir=Path(root) / "Plots" / "Diagnostics" / "quantile_cells",
+            out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells",
         )
 
     if task == "quantile_diagnostics_1d":
@@ -76,7 +76,7 @@ def run_selected_task(task, **settings):
             corr_every=settings.get("quantile_1d_corr_every", 30),
             corr_bins=settings.get("quantile_1d_corr_bins", 144),
             corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
-            out_dir=Path(root) / "Plots" / "Diagnostics" /
+            out_dir=Path(root) / "Functional" / "Diagnostics" /
                     "quantile_cells_1d" / variable,
         )
 
@@ -111,7 +111,7 @@ def run_selected_task(task, **settings):
             daily_reference=settings.get("hourly_compare_daily", False),
             compare_min_group_size=settings.get("hourly_compare_min_group_size", 30),
             progress_every=settings.get("hourly_progress_every", 30),
-            output_dir=Path(root) / "Plots" / "Diagnostics" / "quantile_hourly" /
+            output_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_hourly" /
                        f"{start_year}-{hourly_period_end}",
         )
 
@@ -187,7 +187,7 @@ def run_selected_task(task, **settings):
             array2 = load_field(root, names[1], start_year, end_year)
             return diagnose_joint_groups(
                 array1=array1, array2=array2, mask=mask,
-                out_dir=str(Path(root) / "Plots" / "Diagnostics" /
+                out_dir=str(Path(root) / "Functional" / "Diagnostics" /
                             f"{start_year}-{end_year}" / "group_diagnostics"),
                 bins_list=(10, 12, 15, 18, 20),
                 n_transitions=settings["diagnostic_days"],
@@ -405,9 +405,9 @@ def main():
     # two files, or multiple time-partitioned files). Extract any ZIP first.
     task = "quantile_hourly"
     hourly_files = (
-        "DATA/GRIB/era5_hourly_1979-1989.grib",
-        # "DATA/GRIB/sensible_1979-1989.grib",
-        # "DATA/GRIB/latent_1979-1989.grib",
+        # "DATA/GRIB/era5_hourly_1979-1989.grib",
+        "DATA/GRIB/sensible_1979-1989_hourly.grib",
+        "DATA/GRIB/latent_1979-1989_hourly.grib",
     )
     hourly_end_year = None  # None -> 1989 exclusive; 1990 includes calendar 1989.
     hourly_first_date = None  # None = January 1 of start_year.
@@ -416,8 +416,8 @@ def main():
     hourly_bins_1d = (20, 50, 100, 144, 200, 250)
     hourly_bins_2d = (8, 12, 15, 20)
     hourly_thresholds = (2, 10, 20, 30, 50)
-    hourly_day_stride = 1  # 7 or 30 to diagnose a sparse set of days.
-    hourly_max_days = 3  # Smoke test; set None for all available days.
+    hourly_day_stride = 7  # 7 or 30 to diagnose a sparse set of days.
+    hourly_max_days = None  # Smoke test; set None for all available days.
     hourly_corr_every = 30
     hourly_corr_bin_1d = 144
     hourly_corr_bin_2d = 15

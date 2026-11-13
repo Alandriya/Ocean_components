@@ -1,7 +1,8 @@
 """Hourly ERA5 quantile diagnostics for Ocean_components.
 
-No time-label shifting. A UTC day is the date in the source timestamp, with
-hours 00, 01, ..., 23. The daily_mean4 baseline is the mean of the FOUR
+No manual time-label shifting. For GRIB, the source timestamp is its
+valid_time (forecast reference time + step, when needed). A UTC day uses
+the validity-date hours 00, 01, ..., 23. The daily_mean4 baseline is the mean of the FOUR
 values labelled 00, 06, 12, 18 UTC (not four independent observations).
 
 For hourly_L, each of L selected hours supplies a distinct state/increment
@@ -53,6 +54,8 @@ def _as_hour(value):
         dt = np.datetime64(value).astype("datetime64[s]")
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Unsupported timestamp: {value!r}") from exc
+    if np.isnat(dt):
+        raise ValueError(f"Missing/NaT timestamp: {value!r}")
     if dt.astype("datetime64[h]").astype("datetime64[s]") != dt:
         raise ValueError(f"Non-hourly timestamp: {value!r}")
     return dt.astype("datetime64[h]")
@@ -166,9 +169,10 @@ class HourlySource:
                         if da is None:
                             continue
                         found_any = True
-                        da, times, coords = self._normalize_array(da)
+                        da, times, coords, selectors = self._normalize_array(da)
                         self._register(var, da, times, file_label=str(path),
-                                       stride=stride, coords=coords)
+                                       stride=stride, coords=coords,
+                                       selectors=selectors)
                     if not found_any:
                         raise ValueError(f"ERA5 variable names not found in {path}: "
                                          f"{list(ds.data_vars)}. Expected {VARIABLE_ALIASES}")
@@ -204,39 +208,89 @@ class HourlySource:
 
     @staticmethod
     def _normalize_array(da):
-        time_dim = next((d for d in da.dims if d in ("valid_time", "time", "datetime")), None)
+        """Index ERA5 analysis or forecast GRIB fields by their VALID UTC hour.
+
+        Handles (time, lat, lon) and (time, step, lat, lon), including a
+        non-singleton ``step``. A forecast ``time`` is its reference time,
+        whereas ``valid_time`` labels the observation used in our experiment.
+        No day/hour shift is imposed by this program.
+
+        Keep GRIB data lazy: only coordinates are enumerated here; values
+        are read in ``day`` for the requested day, not stacked into RAM.
+        """
+        time_dim = next((d for d in ("time", "datetime", "valid_time") if d in da.dims), None)
+        if time_dim is None and "valid_time" in da.coords:
+            possible = [d for d in da.coords["valid_time"].dims if d != "step"]
+            time_dim = possible[0] if len(possible) == 1 else None
         if time_dim is None:
-            # valid_time is commonly a one-dimensional coordinate of the GRIB 'time' dimension.
-            if "valid_time" in da.coords and da.coords["valid_time"].ndim == 1:
-                time_dim = da.coords["valid_time"].dims[0]
-            else:
-                raise ValueError(f"Cannot identify time dimension: dims={da.dims}")
-        for d in list(da.dims):
-            if d != time_dim and da.sizes[d] == 1 and d.lower() not in (
-                "latitude", "longitude", "lat", "lon", "y", "x"):
+            raise ValueError(f"Cannot identify time dimension in {da.dims}")
+
+        # A real GRIB step may have 2, 12, 24, ... values; never select
+        # step=0 or step=1 without an explicit physical reason.
+        step_dim = "step" if "step" in da.dims else None
+        candidates = {time_dim, "latitude", "longitude", "lat", "lon",
+                      "y", "x", "grid_latitude", "grid_longitude"}
+        if step_dim is not None:
+            candidates.add(step_dim)
+        for d in tuple(da.dims):
+            if d not in candidates and da.sizes[d] == 1:
                 da = da.isel({d: 0}, drop=True)
-        spatial_dims = [d for d in da.dims if d != time_dim]
-        if len(spatial_dims) != 2:
-            raise ValueError(f"Expected (time,lat,lon), found {da.dims}. "
-                             "Select a single forecast step/level before analysis")
-        def is_lat(d): return d.lower() in ("latitude", "lat", "y", "grid_latitude")
-        def is_lon(d): return d.lower() in ("longitude", "lon", "x", "grid_longitude")
-        latdim = next((d for d in spatial_dims if is_lat(d)), spatial_dims[0])
-        londim = next((d for d in spatial_dims if is_lon(d) and d != latdim), None)
+        other = [d for d in da.dims if d not in (time_dim, step_dim)]
+        if len(other) != 2:
+            raise ValueError(
+                f"Cannot identify the spatial grid in {da.dims}; "
+                "only singleton non-spatial extra dimensions can be removed automatically"
+            )
+        lat_names = {"latitude", "lat", "y", "grid_latitude"}
+        lon_names = {"longitude", "lon", "x", "grid_longitude"}
+        latdim = next((d for d in other if d.lower() in lat_names), other[0])
+        londim = next((d for d in other if d.lower() in lon_names and d != latdim), None)
         if londim is None:
-            londim = next(d for d in spatial_dims if d != latdim)
-        da = da.transpose(time_dim, latdim, londim)
-        time_coord = da.coords.get("valid_time")
-        if time_coord is None or time_coord.ndim != 1 or time_coord.dims != (time_dim,):
-            time_coord = da.coords.get(time_dim)
-        if time_coord is None:
-            raise ValueError("No timestamp coordinate (time/valid_time) found")
-        times = [_timestamp_key(t) for t in time_coord.values]
+            londim = next(d for d in other if d != latdim)
         coords = tuple(np.asarray(da.coords[d].values) if d in da.coords else None
                        for d in (latdim, londim))
-        return da, times, coords
 
-    def _register(self, var, field, timestamps, *, file_label, stride, coords=None):
+        if step_dim is None:
+            da = da.transpose(time_dim, latdim, londim)
+            valid = da.coords.get("valid_time")
+            if valid is None or valid.dims != (time_dim,):
+                valid = da.coords.get(time_dim)
+            if valid is None or valid.dims != (time_dim,):
+                raise ValueError("Missing one-dimensional UTC time/valid_time coordinate")
+            timestamps = [_timestamp_key(t) for t in valid.values]
+            return da, timestamps, coords, None
+
+        da = da.transpose(time_dim, step_dim, latdim, londim)
+        nt, ns = da.sizes[time_dim], da.sizes[step_dim]
+        valid = da.coords.get("valid_time")
+        if valid is not None and set(valid.dims) == {time_dim, step_dim}:
+            time_values = np.asarray(valid.transpose(time_dim, step_dim).values)
+        elif valid is not None and valid.dims == (time_dim,) and ns == 1:
+            time_values = np.asarray(valid.values)[:, None]
+        else:
+            # cfgrib should supply valid_time. If not, the CF definition is
+            # reference time + forecast lead time (not an arbitrary shift).
+            reference = da.coords.get(time_dim)
+            lead = da.coords.get(step_dim)
+            if reference is None or lead is None:
+                raise ValueError("GRIB has a step dimension but no valid_time "
+                                 "or time+step coordinates")
+            times = np.asarray(reference.values)
+            steps = np.asarray(lead.values)
+            if not np.issubdtype(times.dtype, np.datetime64):
+                raise ValueError("GRIB time coordinate must contain datetimes")
+            if not np.issubdtype(steps.dtype, np.timedelta64):
+                raise ValueError("GRIB step has no decoded timedelta units; "
+                                 "provide a valid_time coordinate")
+            time_values = times[:, None] + steps[None, :]
+        if time_values.shape != (nt, ns):
+            raise ValueError(f"valid_time shape {time_values.shape} is not {(nt, ns)}")
+        timestamps = [_timestamp_key(t) for t in time_values.reshape(-1)]
+        selectors = [(i, j) for i in range(nt) for j in range(ns)]
+        return da, timestamps, coords, selectors
+
+    def _register(self, var, field, timestamps, *, file_label, stride,
+                  coords=None, selectors=None):
         shape = tuple(field.shape[-2:])
         step = _infer_stride(shape, self.grid_shape, stride)
         if self.source_shape is None:
@@ -249,14 +303,24 @@ class HourlySource:
                 for old, new in zip(self._coords, coords):
                     if old is not None and new is not None and not np.allclose(old, new, atol=1e-6):
                         raise ValueError("Incompatible latitude/longitude coordinates across files")
+        if selectors is None:
+            if field.ndim != 3:
+                raise ValueError("Three-dimensional (time,lat,lon) field expected")
+            selectors = list(range(field.shape[0]))
+        elif field.ndim != 4:
+            raise ValueError("Four-dimensional (time,step,lat,lon) field expected")
+        if len(timestamps) != len(selectors):
+            raise ValueError("Timestamp count differs from the number of time/step records")
         entry_id = len(self.datasets)
-        # Field can be xarray.DataArray or numpy memmap.
         self.datasets.append((field, step))
-        if len(timestamps) != field.shape[0]:
-            raise ValueError("Timestamp count differs from data length")
-        for idx, stamp in enumerate(timestamps):
+        for idx, stamp in zip(selectors, timestamps):
             if stamp in self.lookups[var]:
-                raise ValueError(f"Duplicate timestamp for {var} in {file_label}: {stamp}")
+                raise ValueError(
+                    f"Duplicate valid UTC timestamp for {var} in {file_label}: "
+                    f"{np.datetime64(stamp, 'h')}. Multiple forecast (time,step) "
+                    "records refer to the same clock hour; select a forecast cycle "
+                    "explicitly instead of averaging overlapping forecasts."
+                )
             self.lookups[var][stamp] = (entry_id, idx)
 
     def has_complete_day(self, day):
@@ -264,27 +328,50 @@ class HourlySource:
                    for var in VARIABLE_ALIASES for h in range(24))
 
     def day(self, day):
-        """Load 24 time-labelled hourly fields for both variables."""
+        """Read one UTC day of each variable, selecting by *valid_time*.
+
+        On four-dimensional GRIB data, each requested clock hour maps to an
+        explicit (reference_time_index, forecast_step_index) pair. We access
+        step slices lazily instead of materialising the time x step cube.
+        """
         result = {}
         for var in VARIABLE_ALIASES:
-            indices = [self.lookups[var][_day_hour_key(day, h)] for h in range(24)]
+            entries = [self.lookups[var][_day_hour_key(day, h)] for h in range(24)]
             out = np.empty((24, *self.grid_shape), dtype=np.float64)
-            by_source = defaultdict(list)
-            for h, (source_idx, time_idx) in enumerate(indices):
-                by_source[source_idx].append((h, time_idx))
-            for source_idx, hour_idx in by_source.items():
-                field, step = self.datasets[source_idx]
-                hours = [pair[0] for pair in hour_idx]
-                times = [pair[1] for pair in hour_idx]
-                if hasattr(field, "isel"):
-                    sub = field.isel({field.dims[0]: times,
-                                      field.dims[1]: slice(None, None, step),
-                                      field.dims[2]: slice(None, None, step)})
-                    block = np.asarray(sub.values, dtype=np.float64)
+            selections = defaultdict(list)
+            for hour, (source_idx, selector) in enumerate(entries):
+                if isinstance(selector, tuple):
+                    time_idx, step_idx = selector
+                    selections[(source_idx, step_idx)].append((hour, time_idx))
                 else:
-                    block = np.asarray(field[times, ::step, ::step], dtype=np.float64)
+                    selections[(source_idx, None)].append((hour, selector))
+            for (source_idx, step_idx), hour_indices in selections.items():
+                field, stride = self.datasets[source_idx]
+                hours = [pair[0] for pair in hour_indices]
+                time_indices = [pair[1] for pair in hour_indices]
+                if hasattr(field, "isel"):
+                    if step_idx is None:
+                        selection = {
+                            field.dims[0]: time_indices,
+                            field.dims[1]: slice(None, None, stride),
+                            field.dims[2]: slice(None, None, stride),
+                        }
+                    else:
+                        selection = {
+                            field.dims[0]: time_indices,
+                            field.dims[1]: step_idx,
+                            field.dims[2]: slice(None, None, stride),
+                            field.dims[3]: slice(None, None, stride),
+                        }
+                    block = np.asarray(field.isel(selection).values, dtype=np.float64)
+                else:
+                    block = np.asarray(field[time_indices, ::stride, ::stride],
+                                       dtype=np.float64)
                 if block.shape != (len(hours), *self.grid_shape):
-                    raise AssertionError(f"Invalid sampled field shape: {block.shape}")
+                    raise AssertionError(
+                        f"Invalid sampled {var} field shape {block.shape}, "
+                        f"expected {(len(hours), *self.grid_shape)}"
+                    )
                 out[hours] = block
             result[var] = out
         return result
@@ -544,7 +631,7 @@ def run_hourly_quantile_diagnostics(
     if int(start_year) >= int(end_year):
         raise ValueError("start_year must be less than exclusive end_year")
     root = Path(files_path_prefix)
-    output = (Path(output_dir) if output_dir is not None else root / "Plots" / "Diagnostics" /
+    output = (Path(output_dir) if output_dir is not None else root / "Functional" / "Diagnostics" /
               "quantile_hourly" / f"{start_year}-{end_year}")
     if not output.is_absolute():
         output = root / output
@@ -731,6 +818,8 @@ def run_hourly_quantile_diagnostics(
             "modes_hours": {m: list(MODE_HOURS[m]) for m in modes},
             "daily_mean4_divisor": 4,
             "timestamp_shift_hours": 0,
+            "grib_time_coordinate": "valid_time (or reference time + decoded step if absent)",
+            "grib_multi_step_handling": "all steps indexed by validity hour; duplicate validity rejected",
             "transition_lag_hours": 24,
             "bins_1d": list(bins_1d), "bins_2d": list(bins_2d),
             "thresholds": list(thresholds), "corr_every": corr_every,

@@ -275,7 +275,7 @@ def run_quantile_diagnostics(
     """
     root = Path(files_path_prefix)
     output_root = (Path(out_dir) if out_dir is not None
-                   else root / "Plots" / "Diagnostics" / "quantile_cells")
+                   else root / "Functional" / "Diagnostics" / "quantile_cells")
     output_root.mkdir(parents=True, exist_ok=True)
     selected = tuple((int(start), int(end)) for start, end in periods)
     if not selected:
@@ -555,7 +555,7 @@ def run_quantile_diagnostics_1d(
         raise ValueError("At least one period is required")
     root = Path(files_path_prefix)
     output_root = (Path(out_dir) if out_dir is not None
-                   else root / "Plots" / "Diagnostics" / "quantile_cells_1d" / variable)
+                   else root / "Functional" / "Diagnostics" / "quantile_cells_1d" / variable)
     output_root.mkdir(parents=True, exist_ok=True)
     results = {}
     combined = []
