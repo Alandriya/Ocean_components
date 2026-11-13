@@ -1,4 +1,8 @@
-"""Render cached ocean-analysis results without repeating numerical estimation."""
+"""Render cached ocean-analysis results and manuscript figures (1--8).
+
+Based on the latest GitHub main_plotter.py (including FP2D/hybrid tasks).
+All prior visualization entry points are retained. No refitting is performed.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ from Plotting.fokker_planck_2d_plots import (
     plot_fp2d_stationary_comparison,
     plot_fp2d_grid_convergence,
 )
+from Plotting.article_figures import plot_article_figures
 
 
 def main():
@@ -22,6 +27,28 @@ def main():
     files_path_prefix = "D:/Nastya/Data/OceanFull/"
     # files_path_prefix = "/home/aosipova/OceanFull/"
     start_year = 19792026
+
+    # --------------------------------------------------------------------------
+    # ARTICLE FIGURES: rebuild the manuscript from cached stationary PDFs and
+    # ERA5. Fig 1 = anomaly isolines; Fig 2 = five equal-probability areas;
+    # Fig 3 = daily class maps; article_all adds copula Figs 4--8.
+    task = "article_figures"
+    # task = "article_isolines"  # geographic Figure 1 only
+    # task = "article_regions"   # five shaded quintiles, Figure 2 only
+    # task = "article_classes"   # geographic Figure 3 only
+    # task = "article_all"       # also regenerate copula Figures 4--8
+    article_regions_period = (1979, 1989)  # Fig 2 uses the first decade
+    article_map_date = "1979-01-01"       # Fig 3 uses this exact ERA5 day
+    article_density_source = "auto"      # prefer existing hybrid, else FP
+    article_hybrid_reference = (1979, 2026)
+    article_chunk_days = 32
+    article_compute_frequencies = False  # optional supplementary maps
+    article_refresh = False             # True recomputes cached spatial means
+    article_language = "en"             # ru available for the Russian article
+    article_dpi = 300
+    article_isoline_levels = None        # None = manuscript-inspired levels
+    article_second_anomaly_files = None  # optional 2D anomaly maps by variable
+    # Example: {'sensible': 'Functional/Some2D/sensible_anomaly.npy'}
 
     # --------------------------------------------------------------------------
     # VARIABLES: maps of fluxes, sea-surface temperature and pressure.
@@ -73,7 +100,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COPULAS: visualize saved copula and joint-density results.
-    task = "copulas"
+    # task = "copulas"
 
     # --------------------------------------------------------------------------
     # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
@@ -119,6 +146,25 @@ def main():
     method = "np"
     coefficient = "A"
 
+    if task in ("article_figures", "article_all", "article_isolines",
+                "article_regions", "article_classes"):
+        chosen = {"article_isolines": ("isolines",),
+                  "article_regions": ("regions",),
+                  "article_classes": ("classes",)}.get(
+            task, ("isolines", "regions", "classes"))
+        return plot_article_figures(
+            files_path_prefix, names, start_year, end_year,
+            regions_period=article_regions_period, map_date=article_map_date,
+            density_source=article_density_source,
+            hybrid_reference=article_hybrid_reference,
+            chunk_days=article_chunk_days, refresh=article_refresh,
+            language=article_language, dpi=article_dpi,
+            include_copulas=(task == "article_all"),
+            compute_frequencies=article_compute_frequencies,
+            isoline_levels=article_isoline_levels,
+            second_anomaly_files=article_second_anomaly_files,
+            figures=chosen,
+        )
     if task == "variables":
         return plot_variables(
             files_path_prefix, start_year, end_year,
@@ -146,10 +192,7 @@ def main():
         )
     if task == "stationary":
         return plot_stationary_distributions(
-            files_path_prefix,
-            names,
-            start_year,
-            end_year,
+            files_path_prefix, names, start_year, end_year,
             histogram_bins=histogram_bins,
             histogram_chunk_days=histogram_chunk_days,
             refresh_histograms=refresh_histograms,
@@ -176,12 +219,8 @@ def main():
         )
     if task == "functional_fits":
         return plot_functional_fits(
-            files_path_prefix,
-            start_year,
-            end_year,
-            names=names,
-            method=functional_method,
-            b_type=functional_b_type,
+            files_path_prefix, start_year, end_year,
+            names=names, method=functional_method, b_type=functional_b_type,
             quantile_bins=functional_quantile_bins,
             trim_bins=functional_trim_bins,
             chunk_days=functional_chunk_days,
@@ -192,22 +231,14 @@ def main():
         )
     if task == "fokker_planck_2d_compare":
         return plot_fp2d_stationary_comparison(
-            files_path_prefix,
-            start_year,
-            end_year,
-            names=names,
-            method=fp2d_plot_method,
-            bins=fp2d_plot_bins,
-            relative_floor=fp2d_relative_floor,
-            dpi=fp2d_plot_dpi,
+            files_path_prefix, start_year, end_year,
+            names=names, method=fp2d_plot_method, bins=fp2d_plot_bins,
+            relative_floor=fp2d_relative_floor, dpi=fp2d_plot_dpi,
         )
     if task == "fokker_planck_2d_convergence":
         return plot_fp2d_grid_convergence(
-            files_path_prefix,
-            start_year,
-            end_year,
-            names=names,
-            method=fp2d_plot_method,
+            files_path_prefix, start_year, end_year,
+            names=names, method=fp2d_plot_method,
             resolutions=fp2d_convergence_resolutions,
             common_resolution=fp2d_convergence_common_resolution,
             dpi=fp2d_plot_dpi,
