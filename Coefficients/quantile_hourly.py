@@ -13,8 +13,9 @@ conditional-moment functionals, which must not be silently conflated.
 Inputs: one or more NetCDF (.nc/.nc4), GRIB (.grib/.grb/.grib2) and/or NumPy
 (.npy, T,H,W) files, potentially with both variables in one dataset. For NPY,
 provide an hourly_first_timestamp and a separate path for each variable.
-NetCDF uses xarray; GRIB uses the optional cfgrib/eccodes engine. Data are
-loaded one UTC day at a time, not for a complete decade.
+NetCDF uses xarray. Large GRIB1/GRIB2 inputs are decoded sequentially via
+ ecCodes into a reusable per-day NumPy cache (never seek into source GRIB).
+ Data are then loaded one UTC day at a time.
 
 Results: per-transition CSV, per-mode/N summary CSV, and config JSON.
 This is a *descriptive* finite-sample diagnostic; spatial/temporal residual
@@ -34,6 +35,7 @@ import numpy as np
 
 from Coefficients.common import _bin_ids, load_water_mask
 from Coefficients.quantile_diagnostics import _weighted_p10_group_size
+from Coefficients.grib_stream_cache import GRIB_SUFFIXES, prepare_grib_day_cache
 
 VARIABLE_ALIASES = {
     "sensible": ("avg_ishf", "msshf", "mean_surface_sensible_heat_flux", "sensible"),
@@ -116,7 +118,8 @@ class HourlySource:
     """Lazy, time-indexed source across optional multiple NetCDF/GRIB/NPY files."""
 
     def __init__(self, *, root, paths, spatial_shape, stride="auto",
-                 npy_start=None, npy_variable_names=None):
+                 npy_start=None, npy_variable_names=None,
+                 required_days=None, grib_cache_dir=None):
         self._stack = ExitStack()
         self.datasets = []
         self.lookups = {var: {} for var in VARIABLE_ALIASES}
@@ -125,11 +128,16 @@ class HourlySource:
         self.source_shape = None
         self.spatial_stride = None
         self._coords = None
+        self.cached_grib_days = {}
         npy_variable_names = npy_variable_names or {}
         try:
-            for path in _resolve_paths(root, paths):
+            paths = _resolve_paths(root, paths)
+            grib_paths = [p for p in paths if p.suffix.lower() in GRIB_SUFFIXES]
+            for path in paths:
                 self.source_files.append(str(path))
                 suffix = path.suffix.lower()
+                if suffix in GRIB_SUFFIXES:
+                    continue  # GRIB is scanned in order, never through cfgrib seeks.
                 if suffix == ".npy":
                     if npy_start is None:
                         raise ValueError("hourly_npy_start is required for NPY hourly input")
@@ -146,17 +154,13 @@ class HourlySource:
                     time_start = _timestamp_key(npy_start)
                     stamps = list(range(time_start, time_start + len(raw)))
                     self._register(var, raw, stamps, file_label=str(path), stride=stride)
-                elif suffix in (".nc", ".nc4", ".netcdf", ".grib", ".grb", ".grib2"):
+                elif suffix in (".nc", ".nc4", ".netcdf"):
                     try:
                         import xarray as xr
                     except ImportError as exc:
                         raise ImportError("Install xarray for ERA5 NetCDF/GRIB diagnostics") from exc
-                    engine = "cfgrib" if suffix in (".grib", ".grb", ".grib2") else None
                     try:
-                        kwargs = {"engine": engine} if engine else {}
-                        if engine:
-                            kwargs["backend_kwargs"] = {"indexpath": ""}
-                        ds = xr.open_dataset(path, **kwargs)
+                        ds = xr.open_dataset(path)
                     except Exception as exc:
                         raise RuntimeError(f"Cannot open {path}. GRIB requires cfgrib+eccodes; "
                                            "NetCDF requires an xarray-supported backend. "
@@ -178,6 +182,30 @@ class HourlySource:
                                          f"{list(ds.data_vars)}. Expected {VARIABLE_ALIASES}")
                 else:
                     raise ValueError(f"Unsupported hourly input extension {suffix} in {path}")
+            if grib_paths:
+                if required_days is None or grib_cache_dir is None:
+                    raise ValueError("GRIB requires requested days and a cache folder")
+                cached, raw_shape, selected_stride = prepare_grib_day_cache(
+                    paths=grib_paths,
+                    days=required_days,
+                    cache_dir=grib_cache_dir,
+                    grid_shape=self.grid_shape,
+                    spatial_stride=stride,
+                    aliases=VARIABLE_ALIASES,
+                )
+                if self.source_shape is None:
+                    self.source_shape = tuple(raw_shape)
+                    self.spatial_stride = selected_stride
+                elif self.source_shape != tuple(raw_shape) or self.spatial_stride != selected_stride:
+                    raise ValueError("NetCDF/NPY grid differs from GRIB grid")
+                self.cached_grib_days = cached
+                for var, by_day in cached.items():
+                    for day in by_day:
+                        for hour in range(24):
+                            stamp = _day_hour_key(day, hour)
+                            if stamp in self.lookups[var]:
+                                raise ValueError(f"Duplicate {var} at {day} {hour:02d}:00")
+                            self.lookups[var][stamp] = (-1, -1)
             for var, by_time in self.lookups.items():
                 if not by_time:
                     raise ValueError(f"No hourly input records for {var}; files={self.source_files}")
@@ -336,6 +364,12 @@ class HourlySource:
         """
         result = {}
         for var in VARIABLE_ALIASES:
+            if day in self.cached_grib_days.get(var, {}):
+                cached = np.load(self.cached_grib_days[var][day], mmap_mode="r", allow_pickle=False)
+                if cached.shape != (24, *self.grid_shape):
+                    raise ValueError(f"Corrupted hourly cache for {var}, {day}: {cached.shape}")
+                result[var] = np.asarray(cached, dtype=np.float64)
+                continue
             entries = [self.lookups[var][_day_hour_key(day, h)] for h in range(24)]
             out = np.empty((24, *self.grid_shape), dtype=np.float64)
             selections = defaultdict(list)
@@ -569,6 +603,82 @@ class _SummaryAccumulator:
         return result
 
 
+
+def _recover_completed_days(daily_file, stability_file, *, columns,
+                            stability_columns, dates, modes, bins_1d, bins_2d,
+                            require_stability):
+    """Recover ONLY fully written days from interrupted CSV output files.
+
+    Keep a day only if its complete unique (mode,dim,variable,N) set is present
+    in both required CSVs. Reject stale headers. Partial trailing days are
+    discarded and recomputed, avoiding duplicates on resumed runs.
+    """
+    if not daily_file.exists():
+        return set(), [], []
+    if require_stability and not stability_file.exists():
+        return set(), [], []
+    expected = {(mode, str(dim), variable, str(n))
+                for mode in modes
+                for dim, variable, bins in ((1, "sensible", bins_1d),
+                                            (1, "latent", bins_1d),
+                                            (2, "sensible_latent", bins_2d))
+                for n in bins}
+    requested = {d.isoformat() for d in dates}
+
+    def read(path, expected_fields):
+        if not path.exists():
+            return []
+        with path.open("r", encoding="utf-8", newline="") as stream:
+            reader = csv.DictReader(stream)
+            if reader.fieldnames != expected_fields:
+                raise ValueError(f"Cannot resume {path}: CSV columns have changed. "
+                                 "Rename the old CSV or set hourly_resume=False.")
+            return list(reader)
+
+    rows = read(daily_file, columns)
+    stability = read(stability_file, stability_columns) if require_stability else []
+    by_day = defaultdict(list)
+    by_day_stability = defaultdict(list)
+    for row in rows:
+        if row.get("date") in requested:
+            by_day[row["date"]].append(row)
+    for row in stability:
+        if row.get("date") in requested:
+            by_day_stability[row["date"]].append(row)
+
+    stab_expected = {key for key in expected if key[0] != "hourly_24"}
+    good = set()
+    for day, items in by_day.items():
+        keys = {(r["mode"], r["dimension"], r["variable"], r["N"]) for r in items}
+        if len(items) != len(expected) or keys != expected:
+            continue
+        if require_stability:
+            stab_items = by_day_stability[day]
+            stab_keys = {(r["mode"], r["dimension"], r["variable"], r["N"])
+                         for r in stab_items}
+            if len(stab_items) != len(stab_expected) or stab_keys != stab_expected:
+                continue
+        good.add(day)
+    return (good,
+            [r for r in rows if r["date"] in good],
+            [r for r in stability if r["date"] in good])
+
+
+def _numeric_row(row):
+    """Convert an existing CSV row back into aggregation-friendly values."""
+    out = dict(row)
+    for key, value in row.items():
+        if key in ("date", "mode", "variable"):
+            continue
+        if value is None or value == "":
+            out[key] = None
+            continue
+        try:
+            out[key] = float(value)
+        except (ValueError, TypeError):
+            pass
+    return out
+
 def run_hourly_quantile_diagnostics(
     files_path_prefix, *,
     hourly_files,
@@ -595,6 +705,8 @@ def run_hourly_quantile_diagnostics(
     daily_reference=False,
     compare_min_group_size=30,
     progress_every=30,
+    grib_cache_dir=None,
+    resume=True,
 ):
     """One-task 1D sensible, 1D latent and 2D diagnostic, daily vs hourly.
 
@@ -675,9 +787,35 @@ def run_hourly_quantile_diagnostics(
                for i in range(0, (date_stop - date_from).days + 1, day_stride)]
     if max_days is not None:
         periods = periods[:int(max_days)]
+    required_days = {day for day in periods}
+    required_days.update(day + timedelta(days=1) for day in periods)
+    grib_cache_dir = (Path(grib_cache_dir) if grib_cache_dir is not None
+                      else output / "_grib_day_cache")
     with HourlySource(root=root, paths=hourly_files, spatial_shape=shape,
                       stride=hourly_spatial_stride, npy_start=hourly_npy_start,
-                      npy_variable_names=hourly_npy_variable_names) as source:
+                      npy_variable_names=hourly_npy_variable_names,
+                      required_days=required_days,
+                      grib_cache_dir=grib_cache_dir) as source:
+        stability_columns = ["date", "mode", "dimension", "variable", "N",
+                             "anchor_points", "matched_points", "matched_pct",
+                             "rms_mean_vs_hourly24", "rms_cov_vs_hourly24"]
+        stability_path = output / "moment_stability_daily.csv"
+        recovered, old_daily, old_stability = _recover_completed_days(
+            filename, stability_path, columns=columns,
+            stability_columns=stability_columns, dates=periods, modes=modes,
+            bins_1d=bins_1d, bins_2d=bins_2d,
+            require_stability=("hourly_24" in modes)
+        ) if resume else (set(), [], [])
+        if recovered:
+            print(f"[quantile_hourly] Recovered {len(recovered)} completed days "
+                  "from previous CSV output; partial days will be recalculated.",
+                  flush=True)
+        for restored in old_daily:
+            summary_accumulator.add(_numeric_row(restored))
+        for restored in old_stability:
+            stability_accumulator.add(_numeric_row(restored))
+        result_rows = len(old_daily)
+        stability_written = len(old_stability)
         previous_ref = None
         if daily_reference:
             from Data_processing.io import load_field
@@ -687,9 +825,6 @@ def run_hourly_quantile_diagnostics(
             except FileNotFoundError as exc:
                 raise FileNotFoundError("daily_reference=True but existing daily series missing") from exc
         compare_rows = []
-        stability_columns = ["date", "mode", "dimension", "variable", "N",
-                             "anchor_points", "matched_points", "matched_pct",
-                             "rms_mean_vs_hourly24", "rms_cov_vs_hourly24"]
         with (filename.open("w", newline="", encoding="utf-8") as handle,
               (output / "moment_stability_daily.csv").open(
                   "w", newline="", encoding="utf-8") as stability_handle):
@@ -698,6 +833,8 @@ def run_hourly_quantile_diagnostics(
             stability_writer = csv.DictWriter(stability_handle,
                                                fieldnames=stability_columns)
             stability_writer.writeheader()
+            writer.writerows(old_daily)
+            stability_writer.writerows(old_stability)
             for count, day in enumerate(periods, start=1):
                 after = day + timedelta(days=1)
                 if not source.has_complete_day(day) or not source.has_complete_day(after):
@@ -719,6 +856,8 @@ def run_hourly_quantile_diagnostics(
                             rec[f"{var}_max_abs_vs_historic_daily"] = (
                                 float(np.max(np.abs(diff))) if len(diff) else np.nan)
                         compare_rows.append(rec)
+                if day.isoformat() in recovered:
+                    continue  # Already fully computed; preserve original CSV rows.
                 anchor = {var: _daily_average(before[var]) for var in VARIABLE_ALIASES}
                 fits_for_day = {}
                 for mode in modes:
@@ -812,6 +951,10 @@ def run_hourly_quantile_diagnostics(
             "requested_days": len(periods), "processed_days": len(periods)-len(skipped),
             "skipped_incomplete_days": skipped,
             "hourly_source_files": source.source_files,
+            "grib_reader": "sequential ecCodes codes_new_from_message; no source seek",
+            "grib_cache_dir": str(grib_cache_dir),
+            "resume_enabled": bool(resume),
+            "resumed_completed_days": len(recovered),
             "original_grid_shape": source.source_shape,
             "selected_grid_shape": shape,
             "spatial_stride": source.spatial_stride,

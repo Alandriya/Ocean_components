@@ -88,12 +88,17 @@ def run_selected_task(task, **settings):
             corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
             out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells_1d" / variable,
         )
+    # NEW: compares the exact four-snapshot daily baseline with pooled hourly
+    # 4/8/12/24 observations, always at the same 24-hour transition lag.
     if task == "quantile_hourly":
         from Coefficients.quantile_hourly import run_hourly_quantile_diagnostics
         hourly_period_end = settings.get("hourly_end_year") or end_year
         return run_hourly_quantile_diagnostics(
-            files_path_prefix=root, hourly_files=settings["hourly_files"],
-            mask=mask, start_year=start_year, end_year=hourly_period_end,
+            files_path_prefix=root,
+            hourly_files=settings["hourly_files"],
+            mask=mask,
+            start_year=start_year,
+            end_year=hourly_period_end,
             first_date=settings.get("hourly_first_date"),
             last_date=settings.get("hourly_last_date"),
             day_stride=settings.get("hourly_day_stride", 1),
@@ -114,10 +119,11 @@ def run_selected_task(task, **settings):
             daily_reference=settings.get("hourly_compare_daily", False),
             compare_min_group_size=settings.get("hourly_compare_min_group_size", 30),
             progress_every=settings.get("hourly_progress_every", 30),
+            grib_cache_dir=settings.get("hourly_grib_cache_dir"),
+            resume=settings.get("hourly_resume", True),
             output_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_hourly" /
                        f"{start_year}-{hourly_period_end}",
         )
-
     # Article diagnostics: the first three geographical/probability figures.
     if task in ("article_prepare", "article_figures", "article_all",
                 "article_isolines", "article_regions", "article_classes"):
@@ -491,7 +497,10 @@ def main():
     hourly_compare_daily = True
     hourly_compare_min_group_size = 30
     hourly_progress_every = 10
-
+    # Large GRIB files: sequential streaming cache; reused after a completed scan.
+    # None -> Functional/Diagnostics/quantile_hourly/1979-1989/_grib_day_cache.
+    hourly_grib_cache_dir = None
+    hourly_resume = True  # Reuse fully written days in existing hourly CSV files.
     # --------------------------------------------------------------------------
     # DAILY QUANTILE DIAGNOSTICS: current 1D/2D routes retained.
     # task = "quantile_diagnostics"

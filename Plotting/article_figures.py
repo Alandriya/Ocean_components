@@ -59,8 +59,8 @@ LABELS = {
         "area": "Область",
         "method1": "Аномалия относительно 1D стационарного уровня",
         "method2": "Двумерная оценка",
-        "sensible": "Поток явного тепла",
-        "latent": "Поток скрытого тепла",
+        "sensible": "явный поток",
+        "latent": "скрытый поток",
     },
 }
 
@@ -135,14 +135,14 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
             ax.axvline(q, color="#666666", lw=1, ls="--", alpha=0.65)
         if display_xlim is None:
             if variable == "sensible":
-                display_xlim = (-450, 450)
+                display_xlim = (-200, 100)
             elif variable == "latent":
-                display_xlim = (-750, 250)
+                display_xlim = (-500, 150)
             else:
                 display_xlim = (float(grid[0]), float(grid[-1]))
         ax.set_xlim(*display_xlim)
         ax.set_ylim(bottom=0)
-        ax.set_title(f"{t['regions']}: {t.get(variable, variable)} ({period[0]}–{period[1]})")
+        # ax.set_title(f"{t['regions']}: {t.get(variable, variable)} ({period[0]}–{period[1]})")
         ax.set_xlabel(t["heat"])
         ax.set_ylabel(t["density"])
         ax.grid(True, color="#dddddd", alpha=0.4, zorder=0)
@@ -201,7 +201,7 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
             legend.append(Line2D([0], [0], color="#5453b0", ls="--", lw=2,
                                  label=second_label or t["method2"]))
         _map_style(ax, lon, lat)
-        ax.set_title(f"{t['isolines']}: {t.get(variable, variable)} ({period[0]}–{period[1]})")
+        # ax.set_title(f"{t['isolines']}: {t.get(variable, variable)} ({period[0]}–{period[1]})")
         # RU: Изолинии ΔX = среднее ERA5 − стационарное модельное среднее
         ax.text(0.015, 0.975, fr"$\Delta X=\overline{{X}}-\mu_{{ref}}$, $\mu_{{ref}}={mu:.2f}$ W m$^{{-2}}$",
                 fontsize=9, transform=ax.transAxes,
@@ -233,7 +233,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
         cb = fig.colorbar(artist, ax=ax, ticks=np.arange(1, 6), fraction=.04, pad=.018)
         cb.ax.set_yticklabels([f"{t['area']} {k}" for k in range(1, 6)])
         cb.set_label(t["area"])
-        ax.set_title(f"{t['classes']}: {t.get(variable, variable)} — {map_date}")
+        # ax.set_title(f"{t['classes']}: {t.get(variable, variable)} — {map_date}")
         # RU: Карта областей по квантильным порогам стационарной плотности
         # Retain numerical thresholds in JSON/NPZ rather than obscuring map labels.
         path = Path(output_dir) / f"fig03_{variable}_classes_{map_date}_{language}.png"
@@ -256,7 +256,7 @@ def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en",
                             vmin=0, vmax=max(0.05, min(1, float(np.nanpercentile(freq[k], 99)))),
                             origin="upper", extent=MAP_EXTENT, aspect="auto")
             _map_style(ax, *_lon_lat(ocean.shape))
-            ax.set_title(f"{variable}: region {k+1} frequency, {period[0]}–{period[1]}")
+            # ax.set_title(f"{variable}: region {k+1} frequency, {period[0]}–{period[1]}")
             fig.colorbar(img, ax=ax, shrink=.78, label="Fraction of valid days")
         output = Path(output_dir) / f"supp_{variable}_tail_frequency_{language}.png"
         return _save(fig, output, dpi)
@@ -297,7 +297,7 @@ def _copula_contours(root, pair, period, output_dir, language, dpi):
                 ax.set_aspect("equal", adjustable="box")
                 ax.set_xlabel(r"$U=F_1(X_1)$")
                 ax.set_ylabel(r"$V=F_2(X_2)$")
-                ax.set_title((titles_en if language == "en" else titles_ru)[name])
+                # ax.set_title((titles_en if language == "en" else titles_ru)[name])
                 path = Path(output_dir) / f"fig06_{name}_contours_{language}.png"
                 outputs.append(_save(fig, path, dpi))
             finally:

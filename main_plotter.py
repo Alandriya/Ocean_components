@@ -32,12 +32,12 @@ def main():
     # ARTICLE FIGURES: rebuild the manuscript from cached stationary PDFs and
     # ERA5. Fig 1 = anomaly isolines; Fig 2 = five equal-probability areas;
     # Fig 3 = daily class maps; article_all adds copula Figs 4--8.
-    task = "article_figures"
+    # task = "article_figures"
     # task = "article_isolines"  # geographic Figure 1 only
     # task = "article_regions"   # five shaded quintiles, Figure 2 only
     # task = "article_classes"   # geographic Figure 3 only
     # task = "article_all"       # also regenerate copula Figures 4--8
-    article_regions_period = (1979, 1989)  # Fig 2 uses the first decade
+    article_regions_period = (1979, 2026)  # Fig 2 uses the first decade
     article_map_date = "1979-01-01"       # Fig 3 uses this exact ERA5 day
     article_density_source = "auto"      # prefer existing hybrid, else FP
     article_hybrid_reference = (1979, 2026)
@@ -87,7 +87,7 @@ def main():
     # --------------------------------------------------------------------------
     # STATIONARY HYBRID: central FP density + smoothed empirical-GPD tails.
     # New PNG/NPZ outputs; never overwrites the old stationary density.
-    # task = "stationary_hybrid"
+    task = "stationary_hybrid"
     hybrid_tail_quantile = 0.975
     hybrid_transition_quantile = 0.90
     hybrid_reference_weight = 0.70
