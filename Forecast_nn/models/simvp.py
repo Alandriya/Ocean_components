@@ -226,7 +226,7 @@ class SimVPForecaster(nn.Module):
             z = self._feature_mask(block(z, skip), mask)
         return self.output(z)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=None, return_bottleneck=False):
         if x.ndim != 5:
             raise ValueError(f'x must be [B,T,C,H,W], got shape {tuple(x.shape)}.')
 
@@ -257,6 +257,10 @@ class SimVPForecaster(nn.Module):
         for block in self.temporal_mixer:
             z = self._sequence_mask(block(z), mask)
 
+        # Optional causal context for the auxiliary drift/diffusion heads.
+        # Retains the existing public output unless explicitly requested.
+        context = z[:, :, -1] if return_bottleneck else None
+
         # Apply an ordered learned projection along the temporal axis.
         # B,C,T,h,w -> B,C,h,w,T -> B,C,h,w,T_out -> B,T_out,C,h,w.
         z = z.permute(0, 1, 3, 4, 2).contiguous()
@@ -274,4 +278,4 @@ class SimVPForecaster(nn.Module):
         prediction = x[:, -1:] + correction if self.residual else correction
         if mask is not None:
             prediction = prediction * mask[:, None]
-        return prediction
+        return (prediction, context) if return_bottleneck else prediction

@@ -1,7 +1,10 @@
 """Causally aligned, *joint* bivariate Ito-SDE coefficients for ocean fields.
 
-Required layouts: A [T,2,H,W], B [T,4,H,W] in row-major B11,B12,B21,B22;
-also supports [T,H,W,C], [space,T,C] and [T,space,C] with native space=29141.
+Expected channel order from Coefficients/common.py: A [T,2,H,W],
+B [T,4,H,W] with components [B11,B22,B12,B21] (zero-based:
+[B00,B11,B01,B10]). Also supports [T,H,W,C], [space,T,C], and
+[T,space,C] with native space=29141. For genuine 2x2 matrix-axis
+inputs the matrix axes, not the packed channel order, are authoritative.
 File element 0 corresponds to observed flux t=1; no target-time maps are read.
 The historical A/B maps are lagged estimates, not true future coefficients.
 """
@@ -25,7 +28,17 @@ class _ComponentMap:
         arr = np.load(self.path, mmap_mode='r')
         shape = arr.shape
         native_space = NATIVE_HEIGHT * NATIVE_WIDTH
-        if arr.ndim == 4 and shape[1] == channels and shape[2:] in ((NATIVE_HEIGHT, NATIVE_WIDTH), self.expected_hw):
+        if channels == 4 and arr.ndim == 5 and shape[1:3] == (2, 2) and shape[-2:] in ((NATIVE_HEIGHT,NATIVE_WIDTH),self.expected_hw):
+            self.layout, self.length = 'tmmhw', shape[0]
+        elif channels == 4 and arr.ndim == 5 and shape[-2:] == (2, 2) and shape[1:3] in ((NATIVE_HEIGHT,NATIVE_WIDTH),self.expected_hw):
+            self.layout, self.length = 'thwmm', shape[0]
+        elif channels == 4 and arr.ndim == 4 and shape[-2:] == (2, 2) and shape[0] in (native_space, self.expected_hw[0] * self.expected_hw[1]):
+            self.layout, self.length = 'stmm', shape[1]
+        elif channels == 4 and arr.ndim == 4 and shape[-2:] == (2, 2) and shape[1] in (native_space, self.expected_hw[0] * self.expected_hw[1]):
+            self.layout, self.length = 'tsmm', shape[0]
+        elif arr.ndim == 3 and shape[1] == channels and shape[2] in (native_space,self.expected_hw[0]*self.expected_hw[1]):
+            self.layout, self.length = 'tcs', shape[0]
+        elif arr.ndim == 4 and shape[1] == channels and shape[2:] in ((NATIVE_HEIGHT, NATIVE_WIDTH), self.expected_hw):
             self.layout, self.length = 'tchw', shape[0]
         elif arr.ndim == 4 and shape[-1] == channels and shape[1:3] in ((NATIVE_HEIGHT, NATIVE_WIDTH), self.expected_hw):
             self.layout, self.length = 'thwc', shape[0]
@@ -53,7 +66,24 @@ class _ComponentMap:
         if idx.min() < 0 or idx.max() >= self.length:
             raise IndexError('Coefficient time index outside available range')
         arr = self.arr
-        if self.layout == 'tchw':
+        if self.layout == 'tmmhw':
+            raw = np.asarray(arr[idx], dtype=np.float32)
+            x = raw.reshape(len(idx),4,*raw.shape[-2:])
+        elif self.layout == 'thwmm':
+            raw = np.asarray(arr[idx],dtype=np.float32)
+            x = np.moveaxis(raw.reshape(len(idx),*raw.shape[1:3],4),-1,1)
+        elif self.layout in ('stmm','tsmm'):
+            raw = np.asarray(arr[:,idx] if self.layout=='stmm' else arr[idx],dtype=np.float32)
+            if self.layout=='stmm':raw=raw.transpose(1,2,3,0)
+            else:raw=raw.transpose(0,2,3,1)
+            nspace = raw.shape[-1]
+            hh,ww = ((NATIVE_HEIGHT,NATIVE_WIDTH) if nspace==NATIVE_HEIGHT*NATIVE_WIDTH else self.expected_hw)
+            x = raw.reshape(len(idx),4,hh,ww)
+        elif self.layout == 'tcs':
+            raw = np.asarray(arr[idx],dtype=np.float32)
+            hh,ww = ((NATIVE_HEIGHT,NATIVE_WIDTH) if raw.shape[-1]==NATIVE_HEIGHT*NATIVE_WIDTH else self.expected_hw)
+            x = raw.reshape(len(idx),self.channels,hh,ww)
+        elif self.layout == 'tchw':
             x = np.asarray(arr[idx], dtype=np.float32)
         elif self.layout == 'thwc':
             x = np.moveaxis(np.asarray(arr[idx], dtype=np.float32), -1, 1)
@@ -74,9 +104,9 @@ class _ComponentMap:
 
 
 class JointSDEReader:
-    def __init__(self, a_path, b_path, downsample, hw, state_std, time_offset=1, b_layout='row_major'):
-        if b_layout not in ('row_major', 'column_major'):
-            raise ValueError('Unknown b_layout; specify row_major or column_major explicitly')
+    def __init__(self, a_path, b_path, downsample, hw, state_std, time_offset=1, b_layout='diag_first'):
+        if b_layout not in ('diag_first', 'row_major', 'column_major'):
+            raise ValueError('Unknown b_layout; expected diag_first, row_major, or column_major')
         self.a = _ComponentMap(a_path, 2, downsample, hw)
         self.b = _ComponentMap(b_path, 4, downsample, hw)
         if self.a.length != self.b.length:
@@ -88,9 +118,21 @@ class JointSDEReader:
     def get_normalized(self, observed_flux_indices):
         indices = np.atleast_1d(observed_flux_indices).astype(np.int64) - self.time_offset
         a = self.a.get(indices) / self.std[None, :, None, None]
-        b = self.b.get(indices).reshape(len(indices), 2, 2, *self.a.expected_hw)
-        if self.b_layout == 'column_major':
-            b = np.swapaxes(b, 1, 2)
+        raw_b = self.b.get(indices)  # [T,4,H,W]
+        # True matrix-axis inputs are already unambiguously [row,col].
+        # In contrast, *flat* four-channel arrays from this repository use
+        # [B11,B22,B12,B21], which is neither C nor F reshape order.
+        matrix_axes = self.b.layout in ('tmmhw', 'thwmm', 'stmm', 'tsmm')
+        if matrix_axes or self.b_layout == 'row_major':
+            b = raw_b.reshape(len(indices), 2, 2, *self.a.expected_hw)
+        elif self.b_layout == 'column_major':
+            b = raw_b.reshape(len(indices), 2, 2, *self.a.expected_hw).swapaxes(1, 2)
+        else:  # diag_first: [B11, B22, B12, B21]
+            b = np.empty((len(indices), 2, 2, *self.a.expected_hw), dtype=raw_b.dtype)
+            b[:, 0, 0] = raw_b[:, 0]
+            b[:, 1, 1] = raw_b[:, 1]
+            b[:, 0, 1] = raw_b[:, 2]
+            b[:, 1, 0] = raw_b[:, 3]
         b = b / self.std[None, :, None, None, None]
         return (torch.from_numpy(np.nan_to_num(a, copy=True)),
                 torch.from_numpy(np.nan_to_num(b, copy=True)))

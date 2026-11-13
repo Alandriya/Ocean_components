@@ -56,7 +56,8 @@ def arguments():
     p.add_argument('--var-snapshot-stride', type=int, default=7)
     p.add_argument('--sde-joint-a-file', default=None)
     p.add_argument('--sde-joint-b-file', default=None)
-    p.add_argument('--sde-b-layout', choices=('row_major','column_major'), default='row_major')
+    p.add_argument('--sde-b-layout', choices=('diag_first','row_major','column_major'), default='diag_first',
+                   help='Repository B channel order [B11,B22,B12,B21]; matrix-axis arrays are already unambiguous')
     p.add_argument('--sde-moment-weight', type=float, default=0.0, help='GAN ONLY: weak mean/cov moment constraint on 4 ensemble members')
     p.add_argument('--sde-cov-weight', type=float, default=0.01, help='Relative weight of covariance mismatch within SDE GAN moment loss')
     p.add_argument('--seed', type=int, default=cfg.seed)

@@ -69,8 +69,8 @@ def parse_args():
     # None means: use cfg.sde_weight for *_sde models, otherwise 0.
     p.add_argument('--sde-weight', type=float, default=None)
     p.add_argument('--joint-a-file', default=None, help='Full 2-channel historical drift A array for joint loss.')
-    p.add_argument('--joint-b-file', default=None, help='Full 4-channel historical B matrix, row-major B11,B12,B21,B22.')
-    p.add_argument('--joint-b-layout', choices=('row_major', 'column_major'), default='row_major')
+    p.add_argument('--joint-b-file', default=None, help='Historical B matrix: repository default channels [B11,B22,B12,B21]; see --joint-b-layout.')
+    p.add_argument('--joint-b-layout', choices=('diag_first', 'row_major', 'column_major'), default='diag_first')
     p.add_argument('--joint-cov-floor', type=float, default=0.1, help='Ridge added to normalized covariance for stable joint drift loss.')
     p.add_argument('--sde-a-file', default=None, help='Override the configured A coefficient NPY file.')
     p.add_argument('--sde-b-file', default=None, help='Override the configured B coefficient NPY file.')
