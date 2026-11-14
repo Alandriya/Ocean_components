@@ -1,7 +1,7 @@
 """Render cached ocean-analysis results and manuscript figures (1--8).
 
 Based on the latest GitHub main_plotter.py (including FP2D/hybrid tasks).
-All prior visualization entry points are retained. No refitting is performed.
+All prior visualization entry points are retained.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from Plotting.map_workflows import (
 )
 from Plotting.stationary_plots import plot_stationary_distributions
 from Plotting.hybrid_stationary_plots import plot_hybrid_stationary_distributions
+from Plotting.hybrid_fp2d_marginal_overlay import plot_hybrid_fp2d_marginal_overlay
 from Plotting.functional_fit_plots import plot_functional_fits
 from Plotting.fokker_planck_2d_plots import (
     plot_fp2d_stationary_comparison,
@@ -118,7 +119,7 @@ def main():
     # --------------------------------------------------------------------------
     # FOKKER-PLANCK 2D COMPARISON:
     # empirical joint density, stationary FP density, differences and marginals.
-    task = "fokker_planck_2d_compare"
+    # task = "fokker_planck_2d_compare"
     fp2d_plot_method = "sp"
     fp2d_plot_bins = (80, 80)
     fp2d_relative_floor = 0.01
@@ -130,6 +131,15 @@ def main():
     # task = "fokker_planck_2d_convergence"
     fp2d_convergence_resolutions = (60, 80, 100)
     fp2d_convergence_common_resolution = 800
+
+    # --------------------------------------------------------------------------
+    # HYBRID vs 2D FP MARGINALS:
+    # Compare ERA5 histogram, 1D hybrid stationary density and 2D marginal
+    # in two separate per-variable figures.
+    # The saved 2D stationary solution must already exist.
+    task = "hybrid_fp2d_marginal_overlay"
+    overlay_stationary_file = None        # None: use standard FP2D saved NPZ
+    overlay_dpi = 300
 
     # ==========================================================================
     # SHARED SETTINGS: select both years explicitly, without implicit overrides.
@@ -242,6 +252,24 @@ def main():
             resolutions=fp2d_convergence_resolutions,
             common_resolution=fp2d_convergence_common_resolution,
             dpi=fp2d_plot_dpi,
+        )
+    if task == "hybrid_fp2d_marginal_overlay":
+        return plot_hybrid_fp2d_marginal_overlay(
+            files_path_prefix, start_year, end_year,
+            names=names, method=fp2d_plot_method, bins=fp2d_plot_bins,
+            stationary_file=overlay_stationary_file,
+            histogram_bins=histogram_bins,
+            histogram_chunk_days=histogram_chunk_days,
+            refresh_histograms=refresh_histograms,
+            tail_quantile=hybrid_tail_quantile,
+            transition_quantile=hybrid_transition_quantile,
+            reference_weight=hybrid_reference_weight,
+            reference_period=hybrid_reference_period,
+            sample_days=hybrid_sample_days,
+            pixels_per_day=hybrid_pixels_per_day,
+            refresh_samples=hybrid_refresh_samples,
+            refresh_hybrid=hybrid_refresh_hybrid,
+            dpi=overlay_dpi,
         )
     raise ValueError(f"Unsupported plotting task: {task}")
 
