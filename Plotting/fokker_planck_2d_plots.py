@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import json
 import math
+import os.path
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+import seaborn as sns
 
 def _stationary_path(root, names, start_year, end_year, method, bins):
     """Return the conventional stationary 2D Fokker-Planck result path."""
@@ -290,7 +291,7 @@ def plot_fp2d_stationary_comparison(
         )
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
 
-    folder = root / "Plots" / "Functional" / "FokkerPlanck2D"
+    folder = root / "Plots" / "Functional" / "FokkerPlanck2D/"
     comparison_path = _save_figure(
         fig,
         folder / (
@@ -299,7 +300,7 @@ def plot_fp2d_stationary_comparison(
         ),
         dpi,
     )
-
+    sns.set_style("whitegrid")
     stationary_px, stationary_py = _marginals(
         result["stationary_mass"],
         x_edges,
@@ -322,11 +323,13 @@ def plot_fp2d_stationary_comparison(
             x_centers,
             empirical_px,
             label="Empirical",
+            c='green',
         )
         axes[0].plot(
             x_centers,
             stationary_px,
             label="Stationary FP",
+            c='red',
         )
         axes[0].set_title(f"{names[0]} marginal")
         axes[0].set_xlabel(names[0])
@@ -337,22 +340,24 @@ def plot_fp2d_stationary_comparison(
             y_centers,
             empirical_py,
             label="Empirical",
+            c='green',
         )
         axes[1].plot(
             y_centers,
             stationary_py,
             label="Stationary FP",
+            c='red',
         )
         axes[1].set_title(f"{names[1]} marginal")
         axes[1].set_xlabel(names[1])
         axes[1].set_ylabel("Probability density")
         axes[1].legend()
 
-        fig.suptitle(
-            f"Stationary marginal densities: "
-            f"{start_year}-{end_year}, {bins[0]}x{bins[1]}",
-            fontsize=15,
-        )
+        # fig.suptitle(
+        #     f"Stationary marginal densities: "
+        #     f"{start_year}-{end_year}, {bins[0]}x{bins[1]}",
+        #     fontsize=15,
+        # )
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
 
     marginals_path = _save_figure(
@@ -507,6 +512,7 @@ def plot_fp2d_grid_convergence(
         Paths to the convergence PNG and JSON summary.
     """
     root = Path(files_path_prefix)
+    sns.set_style("whitegrid")
     stationary_files = stationary_files or {}
     results = {}
 
@@ -624,10 +630,10 @@ def plot_fp2d_grid_convergence(
         axes[1, 1].set_ylabel("Correlation")
         axes[1, 1].legend()
 
-        fig.suptitle(
-            f"2D Fokker-Planck grid convergence: {start_year}-{end_year}",
-            fontsize=15,
-        )
+        # fig.suptitle(
+        #     f"2D Fokker-Planck grid convergence: {start_year}-{end_year}",
+        #     fontsize=15,
+        # )
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
 
     folder = root / "Plots" / "Functional" / "FokkerPlanck2D"

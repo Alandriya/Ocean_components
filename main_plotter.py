@@ -87,7 +87,7 @@ def main():
     # --------------------------------------------------------------------------
     # STATIONARY HYBRID: central FP density + smoothed empirical-GPD tails.
     # New PNG/NPZ outputs; never overwrites the old stationary density.
-    task = "stationary_hybrid"
+    # task = "stationary_hybrid"
     hybrid_tail_quantile = 0.975
     hybrid_transition_quantile = 0.90
     hybrid_reference_weight = 0.70
@@ -118,7 +118,7 @@ def main():
     # --------------------------------------------------------------------------
     # FOKKER-PLANCK 2D COMPARISON:
     # empirical joint density, stationary FP density, differences and marginals.
-    # task = "fokker_planck_2d_compare"
+    task = "fokker_planck_2d_compare"
     fp2d_plot_method = "sp"
     fp2d_plot_bins = (80, 80)
     fp2d_relative_floor = 0.01

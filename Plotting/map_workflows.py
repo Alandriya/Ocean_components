@@ -238,7 +238,8 @@ def _collected_file(root, names, n_bins_2d, method, coefficient):
         f"*-*/{pair}/{coefficient}_*-*_{method}.npy"
     ))
     if len(flat_candidates) > 1:
-        raise FileExistsError(f"More than one continuous {coefficient} series: {flat_candidates}")
+        # raise FileExistsError(f"More than one continuous {coefficient} series: {flat_candidates}")
+        return flat_candidates[0]
     if len(flat_candidates) == 1:
         return flat_candidates[0]
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"

@@ -519,14 +519,14 @@ def main():
     # --------------------------------------------------------------------------
     # RANDOMIZED-HOUR AND SPATIAL-THINNING DIAGNOSTIC.
     # New task; independent decade settings even if start_year is 19792026.
-    task = "quantile_hourly_resampling"
+    # task = "quantile_hourly_resampling"
     resample_hourly_files = hourly_files
     resample_start_year = 1979
     resample_end_year = 1989   # exclusive: 1979-01-01 through 1988-12-31
     resample_first_date = None
     resample_last_date = None
     resample_day_stride = 7
-    resample_max_days = 3  # Smoke test. Set None for all weekly dates.
+    resample_max_days = None  # Smoke test. Set None for all weekly dates.
     resample_hours = (4, 8, 12)  # Nested random-hour subsets per repeat.
     resample_replicates = 3
     resample_spatial_steps = (1, 2, 4)  # Grid vs matched-size random pixels.
@@ -637,8 +637,8 @@ def main():
 
     # --------------------------------------------------------------------------
     # SDE CONDITIONS.
-    # task = "sde_conditions"
-    sde_variables = ("sensible", "latent", "SST", "Pressure")
+    task = "sde_conditions"
+    sde_variables = ("sensible", "latent",)
     sde_pairs = None
     window_days = 1000
     q_low, q_high = 0.03, 0.97
