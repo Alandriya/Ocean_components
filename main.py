@@ -1,9 +1,11 @@
-"""Ocean numerical workflows; current task catalog with quantile diagnostics.
+"""Ocean numerical workflows; based on the current GitHub task catalog.
 
-Includes article workflows and scalar, bivariate and hourly quantile diagnostics.
+Adds reproducible article maps/regions and retains numerical workflows.
 """
 
 from __future__ import annotations
+
+from project_paths import files_path_prefix as SHARED_DATA_PREFIX
 
 import json
 from datetime import date, timedelta
@@ -30,7 +32,21 @@ PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
 
 
 def run_selected_task(task, **settings):
-    """Execute a numerical task using the settings defined in main()."""
+    """Execute a numeric task without creating plotted figures.
+
+    Parameters
+    ----------
+    task : str
+        One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
+        collect_eigenvalues, sde_conditions, mean_year, stationary, copulas.
+    **settings : dict
+        Settings matching the corresponding keyword variables in main().
+
+    Returns
+    -------
+    object
+        Task-specific paths, manifest, or numerical summary.
+    """
     root = settings["files_path_prefix"]
     names = tuple(settings["names"])
     start_year, end_year = settings["start_year"], settings["end_year"]
@@ -39,47 +55,7 @@ def run_selected_task(task, **settings):
     overwrite = settings["overwrite"]
     periods = settings.get("periods", PERIODS)
 
-    # --------------------------------------------------------------------------
-    # Diagnostics: the existing scalar / bivariate daily quantile experiments.
-    if task == "quantile_diagnostics":
-        from Coefficients.quantile_diagnostics import run_quantile_diagnostics
-        chosen_periods = (periods if settings.get("quantile_all_periods", True)
-                          else ((start_year, end_year),))
-        return run_quantile_diagnostics(
-            files_path_prefix=root, names=names, periods=chosen_periods,
-            mask=mask,
-            bins=settings.get("quantile_bins", (8, 12, 15, 20)),
-            thresholds=settings.get("quantile_thresholds", (2, 10, 20, 30, 50)),
-            first_transition=settings.get("quantile_start", 1),
-            stop_transition=settings.get("quantile_stop"),
-            every=settings.get("quantile_every", 1),
-            corr_every=settings.get("quantile_corr_every", 30),
-            corr_bins=settings.get("quantile_corr_bins", 15),
-            corr_lags=settings.get("quantile_corr_lags", (1, 4, 8)),
-            out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells",
-        )
-
-    if task == "quantile_diagnostics_1d":
-        from Coefficients.quantile_diagnostics import run_quantile_diagnostics_1d
-        chosen_periods = (periods if settings.get("quantile_1d_all_periods", True)
-                          else ((start_year, end_year),))
-        variable = settings.get("quantile_1d_variable", "sensible")
-        return run_quantile_diagnostics_1d(
-            files_path_prefix=root, variable=variable, periods=chosen_periods,
-            mask=mask,
-            bins=settings.get("quantile_1d_bins", (20, 50, 100, 144, 200, 250)),
-            thresholds=settings.get("quantile_1d_thresholds", (2, 10, 20, 30, 50)),
-            first_transition=settings.get("quantile_1d_start", 1),
-            stop_transition=settings.get("quantile_1d_stop"),
-            every=settings.get("quantile_1d_every", 1),
-            corr_every=settings.get("quantile_1d_corr_every", 30),
-            corr_bins=settings.get("quantile_1d_corr_bins", 144),
-            corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
-            out_dir=Path(root) / "Functional" / "Diagnostics" /
-                    "quantile_cells_1d" / variable,
-        )
-
-    # Randomized-hour experiment: nested 4/8/12 draws and matched spatial thinning.
+    # Randomized-hour experiment (present in the current GitHub main.py).
     if task == "quantile_hourly_resampling":
         from Coefficients.quantile_resampling import run_quantile_hourly_resampling
         return run_quantile_hourly_resampling(
@@ -111,17 +87,47 @@ def run_selected_task(task, **settings):
                        f"{settings.get('resample_end_year', 1989)}",
         )
 
-    # NEW: compares the exact four-snapshot daily baseline with pooled hourly
-    # 4/8/12/24 observations, always at the same 24-hour transition lag.
+    # Current scalar and bivariate quantile diagnostics (retained).
+    if task == "quantile_diagnostics":
+        from Coefficients.quantile_diagnostics import run_quantile_diagnostics
+        chosen_periods = (periods if settings.get("quantile_all_periods", True)
+                          else ((start_year, end_year),))
+        return run_quantile_diagnostics(
+            files_path_prefix=root, names=names, periods=chosen_periods,
+            mask=mask, bins=settings.get("quantile_bins", (8, 12, 15, 20)),
+            thresholds=settings.get("quantile_thresholds", (2, 10, 20, 30, 50)),
+            first_transition=settings.get("quantile_start", 1),
+            stop_transition=settings.get("quantile_stop"),
+            every=settings.get("quantile_every", 1),
+            corr_every=settings.get("quantile_corr_every", 30),
+            corr_bins=settings.get("quantile_corr_bins", 15),
+            corr_lags=settings.get("quantile_corr_lags", (1, 4, 8)),
+            out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells",
+        )
+    if task == "quantile_diagnostics_1d":
+        from Coefficients.quantile_diagnostics import run_quantile_diagnostics_1d
+        chosen_periods = (periods if settings.get("quantile_1d_all_periods", True)
+                          else ((start_year, end_year),))
+        variable = settings.get("quantile_1d_variable", "sensible")
+        return run_quantile_diagnostics_1d(
+            files_path_prefix=root, variable=variable, periods=chosen_periods,
+            mask=mask,
+            bins=settings.get("quantile_1d_bins", (20, 50, 100, 144, 200, 250)),
+            thresholds=settings.get("quantile_1d_thresholds", (2, 10, 20, 30, 50)),
+            first_transition=settings.get("quantile_1d_start", 1),
+            stop_transition=settings.get("quantile_1d_stop"),
+            every=settings.get("quantile_1d_every", 1),
+            corr_every=settings.get("quantile_1d_corr_every", 30),
+            corr_bins=settings.get("quantile_1d_corr_bins", 144),
+            corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
+            out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells_1d" / variable,
+        )
     if task == "quantile_hourly":
         from Coefficients.quantile_hourly import run_hourly_quantile_diagnostics
         hourly_period_end = settings.get("hourly_end_year") or end_year
         return run_hourly_quantile_diagnostics(
-            files_path_prefix=root,
-            hourly_files=settings["hourly_files"],
-            mask=mask,
-            start_year=start_year,
-            end_year=hourly_period_end,
+            files_path_prefix=root, hourly_files=settings["hourly_files"],
+            mask=mask, start_year=start_year, end_year=hourly_period_end,
             first_date=settings.get("hourly_first_date"),
             last_date=settings.get("hourly_last_date"),
             day_stride=settings.get("hourly_day_stride", 1),
@@ -148,7 +154,7 @@ def run_selected_task(task, **settings):
                        f"{start_year}-{hourly_period_end}",
         )
 
-    # Article diagnostics retained from the current GitHub main.py.
+    # Article diagnostics: the first three geographical/probability figures.
     if task in ("article_prepare", "article_figures", "article_all",
                 "article_isolines", "article_regions", "article_classes"):
         opts = dict(
@@ -182,6 +188,8 @@ def run_selected_task(task, **settings):
 
     if task == "bbt":
         from Coefficients.bbt import BBT
+
+        # Process the assembled, time-first B array in bounded disk chunks.
         period = settings.get("bbt_period", "1979-2026")
         pair = f"{names[0]}_{names[1]}"
         folder = Path(root) / "Coefficients" / period / pair
@@ -212,7 +220,6 @@ def run_selected_task(task, **settings):
                 raise_on_failure=settings.get("bbt_raise_on_failure", False),
             )
         return results
-
     if task == "fokker_planck_2d_prepare":
         from Functional.fokker_planck_2d import prepare_phase_space_coefficients
         return prepare_phase_space_coefficients(
@@ -229,7 +236,6 @@ def run_selected_task(task, **settings):
             psd_atol=settings.get("fp2d_psd_atol", 1e-10),
             overwrite=overwrite,
         )
-
     if task == "fokker_planck_2d_solve":
         from Functional.fokker_planck_2d_solver import solve_stationary_fokker_planck_2d
         return solve_stationary_fokker_planck_2d(
@@ -269,15 +275,23 @@ def run_selected_task(task, **settings):
                 raise FileNotFoundError(f"Missing input NPY for variable {name}")
             source_files.append(str(file.resolve()))
         return run_parallel_period(
-            files_path_prefix=root, source_files=source_files,
-            mask=mask, names=names, start_year=start_year, end_year=end_year,
+            files_path_prefix=root,
+            source_files=source_files,
+            mask=mask,
+            names=names,
+            start_year=start_year,
+            end_year=end_year,
             start_index=offset,
             parallel_workers=settings.get("parallel_workers", 4),
             methods=coefficient_methods,
-            n_bins=settings["n_bins"], n_bins_2d=n_bins_2d,
-            n_components=settings["n_components"], n_init=settings["n_init"],
-            chunk_transitions=settings["chunk_transitions"], dt=settings["dt"],
-            run_1d=settings["run_1d"], run_2d=settings["run_2d"],
+            n_bins=settings["n_bins"],
+            n_bins_2d=n_bins_2d,
+            n_components=settings["n_components"],
+            n_init=settings["n_init"],
+            chunk_transitions=settings["chunk_transitions"],
+            dt=settings["dt"],
+            run_1d=settings["run_1d"],
+            run_2d=settings["run_2d"],
             overwrite=overwrite,
             delete_daily_after_collect=settings.get("delete_daily_after_collect", True),
         )
@@ -308,6 +322,7 @@ def run_selected_task(task, **settings):
         return results
     if task == "sde_conditions":
         from Data_processing.sde_conditions import run_all
+
         source = {
             "a_pattern": f"Coefficients/{{period}}/2d_bins_{n_bins_2d}/"
                          "{left}_{right}/Semiparametric_2d/A_{index1}-{}.npy",
@@ -342,6 +357,7 @@ def run_selected_task(task, **settings):
                           for i in range(len(values))]
         elif source in ("Coefficients", "Derived"):
             method = settings["method"]
+            # Prefer the canonical full-period A/B arrays from the manifest.
             manifest_path = (Path(root) / "Coefficients" / "continuous" /
                              f"manifest_{names[0]}_{names[1]}_{n_bins_2d}.json")
             coefficient_names = ("A", "B", "B_with_reg")
@@ -368,7 +384,7 @@ def run_selected_task(task, **settings):
             folder = Path(root) / "Eigenvalues" / f"{pair[0]}-{pair[1]}"
             paths = list(folder.glob(f"{kind}_collected_*-*.npy"))
             if len(paths) != 1:
-                raise FileNotFoundError("Expected one collected {kind} array")
+                raise FileNotFoundError(f"Expected one collected {kind} array")
             values = np.load(paths[0], mmap_mode="r")
             metadata = json.loads(paths[0].with_suffix(".json").read_text(encoding="utf-8"))
             timestamps = [date(1979, 1, 1) + timedelta(days=label - 1)
@@ -381,7 +397,7 @@ def run_selected_task(task, **settings):
     if task == "stationary":
         return estimate_stationary_characteristics(
             root, start_year, end_year,
-            names=names, b_type='simple',
+            names=names, b_type="simple",
             method=settings.get("stationary_method", "sp"),
             quantile_bins=settings.get("stationary_quantile_bins", 260),
             trim_bins=settings.get("stationary_trim_bins", 5),
@@ -418,9 +434,11 @@ def run_selected_task(task, **settings):
             overwrite=settings.get("grib_overwrite", False),
         )
     if task == "grib-check":
+        # Paths are relative to files_path_prefix unless explicitly absolute.
         def resolve_input(value):
             candidate = Path(value)
             return candidate if candidate.is_absolute() else Path(root) / candidate
+
         old = np.load(resolve_input(settings.get(
             "grib_check_old", "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
         )), mmap_mode="r")
@@ -451,85 +469,79 @@ def run_selected_task(task, **settings):
         return {"mismatching_cells": int(mismatch),
                 "maximum_absolute_error": maximum_error}
     elif task == 'collect':
-        collect_variable_periods(
-            root, name="latent", chunk_days=32, overwrite=False,
-        )
-    else:
-        raise ValueError(f"Unsupported numeric task: {task}")
+        collect_variable_periods(root, name="latent", chunk_days=32,
+                                 overwrite=False)
+        return None
+    raise ValueError(f"Unsupported numeric task: {task}")
 
 
 def main():
     """Configure numerical workflows and run the selected task."""
-    files_path_prefix = "D:/Nastya/Data/OceanFull/"
-    # files_path_prefix = "/home/aosipova/OceanFull/"
-    start_year = 19792026  # current GitHub default; resampling uses its own period.
+    files_path_prefix = SHARED_DATA_PREFIX
+    start_year = 19792026  # default: full period; 1979 for the first decade
 
     # --------------------------------------------------------------------------
-    # ARTICLE TASKS: preserved from current repository main.py.
-    # task = "article_figures"  # or article_prepare / article_all
-    # task = "article_isolines"
-    # task = "article_regions"
-    # task = "article_classes"
+    # ARTICLE: maps for Fig 1 (isoline anomalies), Fig 2 (5 regions), Fig 3
+    # (geographic class map) and optional copula Figs 4--8.
+    # task = "article_figures"  # or article_prepare, article_all,
+    # task = "article_isolines"  # only Fig 1
+    # task = "article_regions"  # only Fig 2
+    # task = "article_classes"  # only Fig 3
     article_regions_period = (1979, 2026)
     article_map_date = "1979-01-01"
-    article_density_source = "auto"
+    article_density_source = "auto"  # hybrid preferred; 'hybrid' / 'fp'
     article_hybrid_reference = (1979, 2026)
     article_chunk_days = 32
     article_compute_frequencies = False
-    article_language = "ru"
+    article_language = "ru"  # switch to 'en' for English figures
     article_dpi = 300
-    article_refresh = False
+    article_refresh = False  # explicit article cache invalidation
     article_isoline_levels = None
-    article_second_anomaly_files = None
+    article_second_anomaly_files = None  # optional {'sensible': 'file.npy'}
 
     # --------------------------------------------------------------------------
     # HOURLY QUANTILE DIAGNOSTICS: no time shifts, fixed h=24 hours.
-    # Specify the ACTUAL ERA5 download paths below (one file with both fields,
-    # two files, or multiple time-partitioned files). Extract any ZIP first.
     # task = "quantile_hourly"
     hourly_files = (
         "DATA/GRIB/sensible_1979-1989_hourly.grib",
         "DATA/GRIB/latent_1979-1989_hourly.grib",
     )
-    hourly_end_year = None  # None -> 1989 exclusive; 1990 includes calendar 1989.
-    hourly_first_date = None  # None = January 1 of start_year.
-    hourly_last_date = None   # None = December 31 of hourly_end_year-1.
+    hourly_end_year = None
+    hourly_first_date = None
+    hourly_last_date = None
     hourly_modes = ("daily_mean4", "hourly_4", "hourly_8", "hourly_12", "hourly_24")
     hourly_bins_1d = (20, 50, 100, 144, 200, 250)
     hourly_bins_2d = (8, 12, 15, 20)
     hourly_thresholds = (2, 10, 20, 30, 50)
-    hourly_day_stride = 1  # 7 or 30 to diagnose a sparse set of days.
-    hourly_max_days = 3  # Smoke test; set None for all available days.
+    hourly_day_stride = 1
+    hourly_max_days = 3
     hourly_corr_every = 30
     hourly_corr_bin_1d = 144
     hourly_corr_bin_2d = 15
     hourly_spatial_lags = (1, 4, 8)
-    hourly_temporal_lags = (1, 2, 3, 6)  # Physical hours, not sampled slots.
-    hourly_spatial_stride = "auto"  # Auto 0.25 -> 0.5 degree when mask is 161x181.
-    hourly_npy_start = None  # Required only if hourly_files are .npy (T,H,W).
+    hourly_temporal_lags = (1, 2, 3, 6)
+    hourly_spatial_stride = "auto"
+    hourly_npy_start = None
     hourly_npy_variable_names = None
-    hourly_compare_daily = True  # Verify direct 00/06/12/18 mean against archived NPY.
+    hourly_compare_daily = True
     hourly_compare_min_group_size = 30
     hourly_progress_every = 10
-    # Large GRIB files: sequential streaming cache; reused after a completed scan.
-    # None -> Functional/Diagnostics/quantile_hourly/1979-1989/_grib_day_cache.
     hourly_grib_cache_dir = None
-    hourly_resume = True  # Reuse fully written days in existing hourly CSV files.
+    hourly_resume = True
 
     # --------------------------------------------------------------------------
-    # RANDOMIZED-HOUR AND SPATIAL-THINNING DIAGNOSTIC.
-    # New task; independent decade settings even if start_year is 19792026.
+    # RANDOMIZED-HOUR / SPATIAL-THINNING DIAGNOSTIC (current GitHub feature).
     # task = "quantile_hourly_resampling"
     resample_hourly_files = hourly_files
     resample_start_year = 1979
-    resample_end_year = 1989   # exclusive: 1979-01-01 through 1988-12-31
+    resample_end_year = 1989
     resample_first_date = None
     resample_last_date = None
     resample_day_stride = 7
-    resample_max_days = None  # Smoke test. Set None for all weekly dates.
-    resample_hours = (4, 8, 12)  # Nested random-hour subsets per repeat.
+    resample_max_days = None
+    resample_hours = (4, 8, 12)
     resample_replicates = 3
-    resample_spatial_steps = (1, 2, 4)  # Grid vs matched-size random pixels.
+    resample_spatial_steps = (1, 2, 4)
     resample_bins_1d = (144,)
     resample_bins_2d = (15, 20)
     resample_min_group_size = 30
@@ -537,12 +549,12 @@ def main():
     resample_source_spatial_stride = "auto"
     resample_npy_start = None
     resample_npy_variable_names = None
-    resample_grib_cache_dir = None  # Auto-reuse validated earlier GRIB day cache.
+    resample_grib_cache_dir = None
     resample_resume = True
     resample_progress_every = 10
 
     # --------------------------------------------------------------------------
-    # DAILY QUANTILE DIAGNOSTICS: previous 2D and 1D tasks retained.
+    # DAILY QUANTILE DIAGNOSTICS: current 1D/2D routes retained.
     # task = "quantile_diagnostics"
     quantile_all_periods = True
     quantile_bins = (8, 12, 15, 20)
@@ -577,18 +589,11 @@ def main():
     parallel_workers = 8
     delete_daily_after_collect = False
 
-    # --------------------------------------------------------------------------
-    # BRIDGE COEFFICIENTS: calculate cross-period transitions and assemble them.
     # task = "bridge_coefficients"
-
-    # --------------------------------------------------------------------------
-    # BBT: multiply each assembled two-dimensional diffusion matrix by its transpose.
     # task = "bbt"
     bbt_period = "1979-2026"
     bbt_chunk_days = 32
 
-    # --------------------------------------------------------------------------
-    # BBT DIAGNOSTICS: validate existing B and BBT arrays.
     # task = "validate_bbt"
     bbt_validation_chunk_days = 32
     bbt_comparison_rtol = 1e-5
@@ -597,8 +602,6 @@ def main():
     bbt_psd_atol = 1e-10
     bbt_raise_on_failure = False
 
-    # --------------------------------------------------------------------------
-    # FOKKER-PLANCK 2D PREPARE: reconstruct A(x1,x2) and D(x1,x2)=BBT.
     # task = "fokker_planck_2d_prepare"
     fp2d_method = "sp"
     fp2d_bins = (80, 80)
@@ -611,8 +614,6 @@ def main():
     fp2d_psd_rtol = 1e-7
     fp2d_psd_atol = 1e-10
 
-    # --------------------------------------------------------------------------
-    # FOKKER-PLANCK 2D SOLVE.
     # task = "fokker_planck_2d_solve"
     fp2d_solver_max_stencil_radius = 9
     fp2d_solver_max_hole_cells = 16
@@ -620,39 +621,26 @@ def main():
     fp2d_solver_rate_tolerance = 1e-10
     fp2d_solver_negative_tolerance = 1e-12
 
-    # --------------------------------------------------------------------------
-    # DERIVED CF: calculate C, F and FS from the continuous coefficient series.
     # task = "derived_cf"
     correlation_window = 14
     mean_width = 7
 
-    # --------------------------------------------------------------------------
-    # EIGENVALUES: calculate period-level eigenvalues and singular values.
     # task = "eigenvalues"
     save_counts = False
-
-    # --------------------------------------------------------------------------
-    # COLLECT EIGENVALUES: assemble spectral series across periods.
     # task = "collect_eigenvalues"
 
-    # --------------------------------------------------------------------------
-    # SDE CONDITIONS.
     task = "sde_conditions"
-    sde_variables = ("sensible", "latent",)
+    sde_variables = ("sensible", "latent", "SST", "Pressure")
     sde_pairs = None
     window_days = 1000
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
 
-    # --------------------------------------------------------------------------
-    # MEAN YEAR.
     # task = "mean_year"
     mean_year_source = "Variables"
     mean_year_name = "sensible"
     spectral_pair = ("Flux", "Flux")
 
-    # --------------------------------------------------------------------------
-    # STATIONARY.
     # task = "stationary"
     stationary_method = "sp"
     stationary_quantile_bins = 260
@@ -662,15 +650,11 @@ def main():
     stationary_sample_size = 400000
     stationary_refresh_grouped = False
 
-    # --------------------------------------------------------------------------
-    # COPULAS.
     # task = "copulas"
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
 
-    # --------------------------------------------------------------------------
-    # GRIB: convert ERA5 GRIB messages into daily arrays.
     # task = "grib"
     grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "data.grib",)
     grib_variables = ("avg_ishf", "avg_slhtf")
@@ -682,8 +666,6 @@ def main():
     grib_derive_flux = True
     grib_overwrite = False
 
-    # --------------------------------------------------------------------------
-    # GRIB CHECK.
     # task = "grib-check"
     grib_check_old = "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
     grib_check_new = "DATA/Fluxes/sensible_1979-1989_grouped.npy"
@@ -693,7 +675,7 @@ def main():
     grib_check_atol = 1e-4
 
     # ==========================================================================
-    # SHARED SETTINGS.
+    # SHARED SETTINGS: preserved from the current GitHub entrypoint.
     end_year = start_year + 10
     if start_year == 2019:
         end_year = 2026
@@ -709,7 +691,7 @@ def main():
     n_components = 3
     n_init = 10
     dt = 1.0
-    overwrite = True
+    overwrite = True  # the original numerical-task default; article_refresh is separate
     spectral_variables = ("Flux", "SST", "Pressure")
 
     mask = (load_water_mask(read_ocean_mask(files_path_prefix))
@@ -717,7 +699,6 @@ def main():
                         "quantile_diagnostics", "quantile_diagnostics_1d", "quantile_hourly",
                         "quantile_hourly_resampling")
             else None)
-
     settings = locals().copy()
     settings.pop("task", None)
     return run_selected_task(task, **settings)

@@ -13,7 +13,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from project_paths import DATA_ROOT
 
 import numpy as np
 
@@ -94,7 +98,7 @@ def audit(root, names=("sensible", "latent")):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="D:/Nastya/Data/OceanFull/")
+    parser.add_argument("--root", default=str(DATA_ROOT))
     args = parser.parse_args()
     audit(args.root)
 

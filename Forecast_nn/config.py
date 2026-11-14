@@ -5,8 +5,9 @@ The default forecast targets are sensible and latent. Other solo targets
 Data length is inferred from the actual NPY header: the 2026 portion may be
 incomplete, and ``2026`` in a filename is *not* a last observation date.
 """
-import os
 from pathlib import Path
+
+from project_paths import DATA_ROOT
 
 from Forecast_nn.source_paths import (
     BASE_DATE, PERIOD, data_paths, grouped_length, joint_sde_source,
@@ -18,8 +19,8 @@ class Config:
     # -------------------------------------------------------------------------
     # Data
     # -------------------------------------------------------------------------
-    # Optionally set OCEAN_DATA_ROOT on a Linux cluster or another computer.
-    root_path = Path(os.environ.get('OCEAN_DATA_ROOT', r'D:/Nastya/Data/OceanFull'))
+    # Configured in the Git repository root: project_paths.py.
+    root_path = DATA_ROOT
     variable = 'sensible'  # Primary targets: 'sensible', 'latent', or 'joint'.
     period = PERIOD
     data_files = data_paths(root_path, period)

@@ -1,10 +1,12 @@
 """Render cached ocean-analysis results and manuscript figures (1--8).
 
 Based on the latest GitHub main_plotter.py (including FP2D/hybrid tasks).
-All prior visualization entry points are retained.
+All prior visualization entry points are retained. No refitting is performed.
 """
 
 from __future__ import annotations
+
+from project_paths import files_path_prefix as SHARED_DATA_PREFIX
 
 from Plotting.workflows import (
     plot_spectral_modes, coefficient_video, plot_copula_results,
@@ -25,8 +27,7 @@ from Plotting.article_figures import plot_article_figures
 
 def main():
     """Configure visualization workflows and run the selected plotting task."""
-    files_path_prefix = "D:/Nastya/Data/OceanFull/"
-    # files_path_prefix = "/home/aosipova/OceanFull/"
+    files_path_prefix = SHARED_DATA_PREFIX
     start_year = 19792026
 
     # --------------------------------------------------------------------------
@@ -133,12 +134,9 @@ def main():
     fp2d_convergence_common_resolution = 800
 
     # --------------------------------------------------------------------------
-    # HYBRID vs 2D FP MARGINALS:
-    # Compare ERA5 histogram, 1D hybrid stationary density and 2D marginal
-    # in two separate per-variable figures.
-    # The saved 2D stationary solution must already exist.
+    # HYBRID vs 2D FP MARGINALS (new upstream task).
     task = "hybrid_fp2d_marginal_overlay"
-    overlay_stationary_file = None        # None: use standard FP2D saved NPZ
+    overlay_stationary_file = None
     overlay_dpi = 300
 
     # ==========================================================================

@@ -6,19 +6,17 @@ from Forecast_probs.graph import Graph, HIST_LEN, n_components
 import random
 from struct import unpack
 from Plotting.nn_plotter import plot_predictions
-files_path_prefix = 'D:/Nastya/Data/OceanFull/'
+from project_paths import files_path_prefix
 from Forecast_nn.config import cfg
 
 
 def load_mask(files_path_prefix):
-    # Mask
-    maskfile = open(files_path_prefix + "DATA/mask", "rb")
-    binary_values = maskfile.read(29141)
-    maskfile.close()
+    # Mask is in the DATA root, not under the Git checkout.
+    with open(files_path_prefix + "DATA/mask", "rb") as maskfile:
+        binary_values = maskfile.read(29141)
     mask = unpack('?' * 29141, binary_values)
     mask = np.array(mask, dtype=int)
-    mask = mask.reshape((161, 181))[::2, ::2]
-    return mask
+    return mask.reshape((161, 181))[::2, ::2]
 
 
 forecast_steps = 3
@@ -26,33 +24,16 @@ forecast_steps = 3
 if __name__ == '__main__':
     random.seed(2025)
     np.random.seed(2025)
-
-
     mask = load_mask(files_path_prefix)
     graph = Graph(mask.shape[0], mask.shape[1], mask)
-
-    # load data
-    # flux_diff = np.load(files_path_prefix + f'DATA/FLUX_1979-2025_grouped_diff.npy')
-    # print(flux_diff.shape)
-    # np.save(files_path_prefix + f'DATA/FLUX_mini_diff.npy', flux_diff[-1000:, :, :])
-    # raise ValueError
-    flux_diff = np.load(files_path_prefix + f'DATA/FLUX_mini_diff.npy')
-
+    # This input is a separate legacy preprocessed array and is NOT automatically
+    # generated from the modern 1979-2026 grouped files.
+    flux_diff = np.load(files_path_prefix + 'DATA/FLUX_mini_diff.npy')
     prev_array = flux_diff[-HIST_LEN - forecast_steps-1:-forecast_steps-1]
     prev_array = np.moveaxis(prev_array, 0, 2)
     print(prev_array.shape)
     prev_array = np.nan_to_num(prev_array)
-
     graph.fill_prev(prev_array)
-    # print(graph.show_timestep(-1))
-
-    # graph.count_weights()
-    # print(graph.weights)
-    # graph.weights = np.nan_to_num(graph.weights)
-
-    # graph.get_clusters()
-    # print(graph.color_clusters())
-
     forecast = np.zeros((forecast_steps, 1, mask.shape[0], mask.shape[1]))
     for t in range(forecast_steps):
         graph.count_weights()
@@ -62,7 +43,6 @@ if __name__ == '__main__':
         graph.count_probs(n_components)
         forecast[t, 0] = -graph.get_forecast() * 10
         graph.update(forecast[t, 0])
-
     yreal = flux_diff[-forecast_steps-1:]
     yreal = yreal.reshape((yreal.shape[0], 1, yreal.shape[1], yreal.shape[2]))
     start_day = datetime.datetime(2019, 1, 1)

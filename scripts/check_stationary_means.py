@@ -16,6 +16,7 @@ import numpy as np
 
 # Allow: python scripts/check_stationary_means.py --root ...
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from project_paths import DATA_ROOT
 
 PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
            (2009, 2019), (2019, 2026), (1979, 2026))
@@ -42,7 +43,6 @@ def raw_field_summary(root, name, start_year, end_year, chunk_days=64):
 def report(root, names=("sensible", "latent"), *, read_raw=False, chunk_days=64):
     """Print PDF and, optionally, observed means for all known periods."""
     root = Path(root)
-    read_raw = True
     for name in names:
         print(f"\n{name} — MEAN DIAGNOSTICS")
         print("Period       stationary_PDF_mean    drift_RMSE       ERA5_raw_mean")
@@ -87,7 +87,7 @@ def report(root, names=("sensible", "latent"), *, read_raw=False, chunk_days=64)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="D:/Nastya/Data/OceanFull/",
+    parser.add_argument("--root", default=str(DATA_ROOT),
                         help="OceanFull data root")
     parser.add_argument("--read-raw", action="store_true",
                         help="Also stream ERA5 raw fields to compare empirical means")
