@@ -3,10 +3,7 @@
 *.sock
 *.ini
 *.log
-DATA/
-logs/
-Forecast/
-Forecast_nn/logs/
+Cluster/
 
 Forecast_nn/darts_logs/*
 .idea/misc.xml
