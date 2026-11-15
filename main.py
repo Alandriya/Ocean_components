@@ -55,7 +55,6 @@ def run_selected_task(task, **settings):
     overwrite = settings["overwrite"]
     periods = settings.get("periods", PERIODS)
 
-    # Randomized-hour experiment (present in the current GitHub main.py).
     if task == "quantile_hourly_resampling":
         from Coefficients.quantile_resampling import run_quantile_hourly_resampling
         return run_quantile_hourly_resampling(
@@ -86,9 +85,7 @@ def run_selected_task(task, **settings):
                        f"{settings.get('resample_start_year', 1979)}-"
                        f"{settings.get('resample_end_year', 1989)}",
         )
-
-    # Current scalar and bivariate quantile diagnostics (retained).
-    if task == "quantile_diagnostics":
+    elif task == "quantile_diagnostics":
         from Coefficients.quantile_diagnostics import run_quantile_diagnostics
         chosen_periods = (periods if settings.get("quantile_all_periods", True)
                           else ((start_year, end_year),))
@@ -104,7 +101,7 @@ def run_selected_task(task, **settings):
             corr_lags=settings.get("quantile_corr_lags", (1, 4, 8)),
             out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells",
         )
-    if task == "quantile_diagnostics_1d":
+    elif task == "quantile_diagnostics_1d":
         from Coefficients.quantile_diagnostics import run_quantile_diagnostics_1d
         chosen_periods = (periods if settings.get("quantile_1d_all_periods", True)
                           else ((start_year, end_year),))
@@ -122,7 +119,7 @@ def run_selected_task(task, **settings):
             corr_lags=settings.get("quantile_1d_corr_lags", (1, 4, 8)),
             out_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_cells_1d" / variable,
         )
-    if task == "quantile_hourly":
+    elif task == "quantile_hourly":
         from Coefficients.quantile_hourly import run_hourly_quantile_diagnostics
         hourly_period_end = settings.get("hourly_end_year") or end_year
         return run_hourly_quantile_diagnostics(
@@ -153,9 +150,7 @@ def run_selected_task(task, **settings):
             output_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_hourly" /
                        f"{start_year}-{hourly_period_end}",
         )
-
-    # Article diagnostics: the first three geographical/probability figures.
-    if task in ("article_prepare", "article_figures", "article_all",
+    elif task in ("article_prepare", "article_figures", "article_all",
                 "article_isolines", "article_regions", "article_classes"):
         opts = dict(
             regions_period=settings.get("article_regions_period", (1979, 1989)),
@@ -185,8 +180,7 @@ def run_selected_task(task, **settings):
             isoline_levels=settings.get("article_isoline_levels"),
             second_anomaly_files=settings.get("article_second_anomaly_files"),
             figures=figures, **opts)
-
-    if task == "bbt":
+    elif task == "bbt":
         from Coefficients.bbt import BBT
 
         # Process the assembled, time-first B array in bounded disk chunks.
@@ -201,8 +195,7 @@ def run_selected_task(task, **settings):
                 overwrite=overwrite,
             )
         return results
-
-    if task == "validate_bbt":
+    elif task == "validate_bbt":
         from Functional.bbt_diagnostics import validate_bbt_files
         period = settings.get("bbt_period", "1979-2026")
         pair = f"{names[0]}_{names[1]}"
@@ -220,7 +213,7 @@ def run_selected_task(task, **settings):
                 raise_on_failure=settings.get("bbt_raise_on_failure", False),
             )
         return results
-    if task == "fokker_planck_2d_prepare":
+    elif task == "fokker_planck_2d_prepare":
         from Functional.fokker_planck_2d import prepare_phase_space_coefficients
         return prepare_phase_space_coefficients(
             root, start_year, end_year, names=names,
@@ -236,7 +229,7 @@ def run_selected_task(task, **settings):
             psd_atol=settings.get("fp2d_psd_atol", 1e-10),
             overwrite=overwrite,
         )
-    if task == "fokker_planck_2d_solve":
+    elif task == "fokker_planck_2d_solve":
         from Functional.fokker_planck_2d_solver import solve_stationary_fokker_planck_2d
         return solve_stationary_fokker_planck_2d(
             root, start_year, end_year, names=names,
@@ -249,8 +242,7 @@ def run_selected_task(task, **settings):
             negative_tolerance=settings.get("fp2d_solver_negative_tolerance", 1e-12),
             overwrite=overwrite,
         )
-
-    if task == "coefficients":
+    elif task == "coefficients":
         coefficient_methods = normalize_methods(settings.get("coefficient_methods", "both"))
         offset = start_label(start_year)
         if settings["diagnostic_only"]:
@@ -295,32 +287,32 @@ def run_selected_task(task, **settings):
             overwrite=overwrite,
             delete_daily_after_collect=settings.get("delete_daily_after_collect", True),
         )
-    if task == "bridge_coefficients":
+    elif task == "bridge_coefficients":
         return run_boundary_workflow(root, periods, names, n_bins_2d=n_bins_2d,
                                      n_components=settings["n_components"],
                                      n_init=settings["n_init"], dt=settings["dt"],
                                      mask=mask,
                                      methods=normalize_methods(settings.get("coefficient_methods", "both")),
                                      overwrite=overwrite)
-    if task == "derived_cf":
+    elif task == "derived_cf":
         return run_continuous_cf(root, names, n_bins_2d=n_bins_2d,
                                  method=settings["method"], mask=mask,
                                  correlation_window=settings["correlation_window"],
                                  mean_width=settings["mean_width"], overwrite=overwrite)
-    if task == "eigenvalues":
+    elif task == "eigenvalues":
         return run_eigenvalues_for_period(
             files_path_prefix=str(root), start_year=start_year, end_year=end_year,
             n_bins=settings["n_bins"], n_components=settings["n_components"],
             dt=settings["dt"], overwrite=overwrite,
             save_counts=settings["save_counts"], variables=settings["spectral_variables"])
-    if task == "collect_eigenvalues":
+    elif task == "collect_eigenvalues":
         results = {}
         from itertools import combinations_with_replacement
         for pair in combinations_with_replacement(settings["spectral_variables"], 2):
             results[pair] = collect_spectral_values(root, pair, periods,
                                                      overwrite=overwrite)
         return results
-    if task == "sde_conditions":
+    elif task == "sde_conditions":
         from Data_processing.sde_conditions import run_all
 
         source = {
@@ -348,7 +340,7 @@ def run_selected_task(task, **settings):
                        mask_policy="auto", fail_on_missing=False,
                        coefficient_index_shift=1,
                        output=Path(root) / "Conditions")
-    if task == "mean_year":
+    elif task == "mean_year":
         source = settings["mean_year_source"]
         name = settings["mean_year_name"]
         if source == "Variables":
@@ -394,7 +386,7 @@ def run_selected_task(task, **settings):
         return save_mean_year(root, source, name, values, timestamps,
                               mask=mask if values.ndim >= 3 else None,
                               years=(start_year, end_year))
-    if task == "stationary":
+    elif task == "stationary":
         return estimate_stationary_characteristics(
             root, start_year, end_year,
             names=names, b_type="simple",
@@ -406,12 +398,12 @@ def run_selected_task(task, **settings):
             sample_size=settings.get("stationary_sample_size", 400000),
             refresh_grouped=settings.get("stationary_refresh_grouped", False),
         )
-    if task == "copulas":
+    elif task == "copulas":
         return estimate_copula_characteristics(root, start_year, end_year,
                                                names=names, sample_size=settings["sample_size"],
                                                empirical_bins=settings["empirical_bins"],
                                                checkerboard_bins=settings["checkerboard_bins"])
-    if task == "grib":
+    elif task == "grib":
         from Data_processing.grib import convert_era5_grib
         grib_files = settings.get(
             "grib_files", (Path(root) / "DATA" / "GRIB" / "data.grib",)
@@ -433,7 +425,7 @@ def run_selected_task(task, **settings):
             derive_flux=settings.get("grib_derive_flux", True),
             overwrite=settings.get("grib_overwrite", False),
         )
-    if task == "grib-check":
+    elif task == "grib-check":
         # Paths are relative to files_path_prefix unless explicitly absolute.
         def resolve_input(value):
             candidate = Path(value)
@@ -472,7 +464,24 @@ def run_selected_task(task, **settings):
         collect_variable_periods(root, name="latent", chunk_days=32,
                                  overwrite=False)
         return None
-    raise ValueError(f"Unsupported numeric task: {task}")
+    elif task == "extract_1d_series":
+        from Forecast_1d.extract_points import DEFAULT_SUBDIR, extract
+
+        data_root = Path(settings["files_path_prefix"])
+        points_file = settings.get("extract_1d_points_file")
+        output_dir = settings.get("extract_1d_output_dir")
+        return extract(
+            data_root=data_root,
+            points_file=Path(points_file) if points_file else
+            Path(__file__).resolve().parent / "Forecast_1d" / "points.json",
+            destination=Path(output_dir) if output_dir else
+            data_root / "DATA" / "Forecast_1d" / DEFAULT_SUBDIR,
+            chunk_days=int(settings.get("extract_1d_chunk_days", 64)),
+            overwrite=bool(settings.get("extract_1d_overwrite", False)),
+            dry_run=bool(settings.get("extract_1d_dry_run", False)),
+        )
+    else:
+        raise ValueError(f"Unsupported numeric task: {task}")
 
 
 def main():
@@ -588,12 +597,12 @@ def main():
     chunk_transitions = 7
     parallel_workers = 8
     delete_daily_after_collect = False
-
+    # --------------------------------------------------------------------------
     # task = "bridge_coefficients"
     # task = "bbt"
     bbt_period = "1979-2026"
     bbt_chunk_days = 32
-
+    # --------------------------------------------------------------------------
     # task = "validate_bbt"
     bbt_validation_chunk_days = 32
     bbt_comparison_rtol = 1e-5
@@ -601,7 +610,7 @@ def main():
     bbt_psd_rtol = 1e-7
     bbt_psd_atol = 1e-10
     bbt_raise_on_failure = False
-
+    # --------------------------------------------------------------------------
     # task = "fokker_planck_2d_prepare"
     fp2d_method = "sp"
     fp2d_bins = (80, 80)
@@ -620,27 +629,27 @@ def main():
     fp2d_solver_hole_neighbors = 4
     fp2d_solver_rate_tolerance = 1e-10
     fp2d_solver_negative_tolerance = 1e-12
-
+    # --------------------------------------------------------------------------
     # task = "derived_cf"
     correlation_window = 14
     mean_width = 7
-
+    # --------------------------------------------------------------------------
     # task = "eigenvalues"
     save_counts = False
     # task = "collect_eigenvalues"
-
-    task = "sde_conditions"
+    # --------------------------------------------------------------------------
+    # task = "sde_conditions"
     sde_variables = ("sensible", "latent", "SST", "Pressure")
     sde_pairs = None
     window_days = 1000
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
-
+    # --------------------------------------------------------------------------
     # task = "mean_year"
     mean_year_source = "Variables"
     mean_year_name = "sensible"
     spectral_pair = ("Flux", "Flux")
-
+    # --------------------------------------------------------------------------
     # task = "stationary"
     stationary_method = "sp"
     stationary_quantile_bins = 260
@@ -649,12 +658,12 @@ def main():
     stationary_spatial_block_size = 5
     stationary_sample_size = 400000
     stationary_refresh_grouped = False
-
+    # --------------------------------------------------------------------------
     # task = "copulas"
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
-
+    # --------------------------------------------------------------------------
     # task = "grib"
     grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "data.grib",)
     grib_variables = ("avg_ishf", "avg_slhtf")
@@ -665,7 +674,7 @@ def main():
     grib_sum_dtype = "float64"
     grib_derive_flux = True
     grib_overwrite = False
-
+    # --------------------------------------------------------------------------
     # task = "grib-check"
     grib_check_old = "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
     grib_check_new = "DATA/Fluxes/sensible_1979-1989_grouped.npy"
@@ -673,6 +682,14 @@ def main():
     grib_check_old_start = "1979-01-01"
     grib_check_rtol = 1e-5
     grib_check_atol = 1e-4
+    # --------------------------------------------------------------------------
+    # LOCAL 1D SERIES EXTRACTION: save offshore flux time series and patches.
+    task = "extract_1d_series"
+    extract_1d_points_file = None  # Use Forecast_1d/points.json by default.
+    extract_1d_output_dir = None  # Use DATA_ROOT/DATA/Forecast_1d/ by default.
+    extract_1d_chunk_days = 64
+    extract_1d_overwrite = False  # Never replace an existing dataset by default.
+    extract_1d_dry_run = False  # Set True to validate inputs without writing.
 
     # ==========================================================================
     # SHARED SETTINGS: preserved from the current GitHub entrypoint.
