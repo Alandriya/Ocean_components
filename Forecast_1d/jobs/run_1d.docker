@@ -1,0 +1,22 @@
+#!/bin/bash
+# Execute Forecast_1d commands inside the existing NGC PyTorch container.
+set -euo pipefail
+cd /home/aosipova/Ocean_Components
+# The cluster copy of project_paths.py must point to OceanFull.
+python - <<'PY'
+import numpy
+from project_paths import DATA_ROOT
+from pathlib import Path
+expected = Path('/home/aosipova/OceanFull')
+if Path(DATA_ROOT).resolve() != expected:
+    raise SystemExit(f'Invalid cluster DATA_ROOT={DATA_ROOT}; expected {expected}')
+print(f'[preflight] NumPy {numpy.__version__}; DATA_ROOT={DATA_ROOT}', flush=True)
+PY
+MODE="${1:?Expected train, test, or plot}"
+shift
+case "$MODE" in
+  train) exec python -u -m Forecast_1d.train "$@" ;;
+  test) exec python -u -m Forecast_1d.test "$@" ;;
+  plot) exec python -u -m Forecast_1d.plotting.plot_results "$@" ;;
+  *) echo "Unknown Forecast_1d mode: $MODE" >&2; exit 2 ;;
+esac
