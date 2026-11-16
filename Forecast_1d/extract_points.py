@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -152,9 +153,44 @@ def _write_points_csv(path: Path, points):
                              item['lat_deg'], item['lon_deg'], CHECK_WIDTH**2])
 
 
+def _close_output_memmaps(memmap_arrays):
+    """Flush and release every output mapping before Windows directory operations.
+
+    Deleting Python references alone is not sufficient if a loop variable still
+    holds the final memmap. Explicitly closing the underlying mappings avoids
+    WinError 5 / WinError 32 when renaming or cleaning up staging directories.
+    This helper is only used after all writes to these arrays have finished.
+    """
+    first_error = None
+    for array in memmap_arrays:
+        try:
+            array.flush()
+            mapping = getattr(array, '_mmap', None)
+            if mapping is not None and not mapping.closed:
+                mapping.close()
+        except Exception as exc:
+            if first_error is None:
+                first_error = exc
+    if first_error is not None:
+        raise first_error
+
+
+def _rename_with_retry(source: Path, destination: Path, *, attempts: int = 6):
+    """Allow transient Windows indexing/antivirus locks to disappear."""
+    for attempt in range(attempts):
+        try:
+            source.rename(destination)
+            return
+        except PermissionError:
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(min(0.2 * (attempt + 1), 1.0))
+
+
 def extract(data_root: Path, points_file: Path, destination: Path, *,
             chunk_days: int = 64, overwrite: bool = False, dry_run: bool = False):
     root = Path(data_root).expanduser()
+    destination = Path(destination).expanduser()
     if not root.is_dir():
         raise FileNotFoundError(f'DATA_ROOT is not a directory: {root}. Check project_paths.py')
     if chunk_days < 1:
@@ -191,40 +227,52 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
     staging = destination.parent / f'.{destination.name}.building-{uuid.uuid4().hex[:12]}'
     staging.mkdir()
     backup = None
+    publishing = False
+    published = False
     try:
         shape = (n_time, len(points), len(CHANNEL_NAMES), PATCH_WIDTH, PATCH_WIDTH)
-        patches = np.lib.format.open_memmap(staging/'patches_15x15.npy', mode='w+',
-                                             dtype=np.float32, shape=shape)
-        centers = np.lib.format.open_memmap(staging/'centers.npy', mode='w+',
-                                             dtype=np.float32, shape=(n_time, len(points), len(CHANNEL_NAMES)))
-        means = {n: np.lib.format.open_memmap(staging/f'mean_{n}x{n}.npy', mode='w+',
-                                dtype=np.float32, shape=centers.shape) for n in STAT_WIDTHS}
-        stds = {n: np.lib.format.open_memmap(staging/f'std_{n}x{n}.npy', mode='w+',
-                                dtype=np.float32, shape=centers.shape) for n in STAT_WIDTHS}
-        valid_centers = np.zeros((len(points),len(CHANNEL_NAMES)),dtype=np.int64)
-        valid_patch = np.zeros((len(points),len(CHANNEL_NAMES)),dtype=np.int64)
-        for begin in range(0, n_time, chunk_days):
-            end = min(begin + chunk_days, n_time)
-            for c, channel in enumerate(CHANNEL_NAMES):
-                _, data, layout = inputs[channel]
-                selected = _read_unique_pixels(data, layout, begin, end, unique)
-                local = selected[:, inverse].reshape(end-begin, len(points), PATCH_WIDTH, PATCH_WIDTH)
-                patches[begin:end, :, c] = local
-                central = local[..., PATCH_WIDTH//2, PATCH_WIDTH//2]
-                centers[begin:end, :, c] = central
-                valid_centers[:,c] += np.isfinite(central).sum(axis=0)
-                valid_patch[:,c] += np.isfinite(local).sum(axis=(0,2,3))
-                for w in STAT_WIDTHS:
-                    offset = (PATCH_WIDTH-w)//2
-                    selected_patch = local[..., offset:offset+w, offset:offset+w]
-                    avg, sd = _nanmean_std(selected_patch)
-                    means[w][begin:end, :, c] = avg
-                    stds[w][begin:end, :, c] = sd
-            if begin == 0 or end == n_time or end % (chunk_days*20) == 0:
-                print(f'[extract] days {end}/{n_time} ({100*end/n_time:.1f}%)', flush=True)
-        for mm in [patches, centers, *means.values(), *stds.values()]:
-            mm.flush()
-        del patches, centers, means, stds
+        writers = []
+
+        def create_writer(filename, array_shape):
+            array = np.lib.format.open_memmap(staging / filename, mode='w+',
+                                               dtype=np.float32, shape=array_shape)
+            writers.append(array)
+            return array
+
+        try:
+            patches = create_writer('patches_15x15.npy', shape)
+            centers = create_writer('centers.npy', (n_time, len(points), len(CHANNEL_NAMES)))
+            means = {n: create_writer(f'mean_{n}x{n}.npy', centers.shape)
+                     for n in STAT_WIDTHS}
+            stds = {n: create_writer(f'std_{n}x{n}.npy', centers.shape)
+                    for n in STAT_WIDTHS}
+            valid_centers = np.zeros((len(points),len(CHANNEL_NAMES)),dtype=np.int64)
+            valid_patch = np.zeros((len(points),len(CHANNEL_NAMES)),dtype=np.int64)
+            for begin in range(0, n_time, chunk_days):
+                end = min(begin + chunk_days, n_time)
+                for c, channel in enumerate(CHANNEL_NAMES):
+                    _, data, layout = inputs[channel]
+                    selected = _read_unique_pixels(data, layout, begin, end, unique)
+                    local = selected[:, inverse].reshape(end-begin, len(points), PATCH_WIDTH, PATCH_WIDTH)
+                    patches[begin:end, :, c] = local
+                    central = local[..., PATCH_WIDTH//2, PATCH_WIDTH//2]
+                    centers[begin:end, :, c] = central
+                    valid_centers[:,c] += np.isfinite(central).sum(axis=0)
+                    valid_patch[:,c] += np.isfinite(local).sum(axis=(0,2,3))
+                    for w in STAT_WIDTHS:
+                        offset = (PATCH_WIDTH-w)//2
+                        selected_patch = local[..., offset:offset+w, offset:offset+w]
+                        avg, sd = _nanmean_std(selected_patch)
+                        means[w][begin:end, :, c] = avg
+                        stds[w][begin:end, :, c] = sd
+                if begin == 0 or end == n_time or end % (chunk_days*20) == 0:
+                    print(f'[extract] days {end}/{n_time} ({100*end/n_time:.1f}%)', flush=True)
+        finally:
+            # Even if the loop fails, release every writable mapping before
+            # Windows attempts to delete or rename the temporary directory.
+            _close_output_memmaps(writers)
+            writers.clear()
+
         dates = np.datetime64(BASE_DATE.isoformat(), 'D') + np.arange(n_time, dtype='timedelta64[D]')
         np.save(staging/'dates.npy', dates, allow_pickle=False)
         np.save(staging/'patch_mask_15x15.npy',
@@ -259,25 +307,38 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
                      [f'{kind}_{w}x{w}.npy' for kind in ('mean','std') for w in STAT_WIDTHS],
         }
         (staging/'manifest.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2)+'\n',encoding='utf-8')
+        publishing = True
         if destination.exists():
             if not overwrite:
                 raise FileExistsError(f'Output already exists: {destination}')
             backup = destination.parent / f'.{destination.name}.previous-{uuid.uuid4().hex[:12]}'
-            os.rename(destination, backup)
+            _rename_with_retry(destination, backup)
         try:
-            os.rename(staging, destination)
+            _rename_with_retry(staging, destination)
         except BaseException:
             if backup is not None and not destination.exists() and backup.exists():
-                os.rename(backup, destination)
+                _rename_with_retry(backup, destination)
                 backup = None
             raise
+        published = True
         if backup is not None:
-            shutil.rmtree(backup)
+            try:
+                shutil.rmtree(backup)
+            except OSError as exc:
+                print(f'[warning] Previous output could not be removed: {backup}: {exc}', flush=True)
         print(f'[DONE] Saved {destination}', flush=True)
         return metadata
     finally:
+        # If publication fails, keep the fully written staging directory for
+        # later validation/recovery rather than deleting the user's work.
         if staging.exists():
-            shutil.rmtree(staging)
+            if publishing and not published:
+                print(f'[recovery] Output is available in staging: {staging}', flush=True)
+            else:
+                try:
+                    shutil.rmtree(staging)
+                except OSError as exc:
+                    print(f'[warning] Could not clean temporary directory {staging}: {exc}', flush=True)
 
 
 def main(argv=None):

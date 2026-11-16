@@ -638,8 +638,8 @@ def main():
     save_counts = False
     # task = "collect_eigenvalues"
     # --------------------------------------------------------------------------
-    # task = "sde_conditions"
-    sde_variables = ("sensible", "latent", "SST", "Pressure")
+    task = "sde_conditions"
+    sde_variables = ("sensible", "latent")
     sde_pairs = None
     window_days = 1000
     q_low, q_high = 0.03, 0.97
@@ -684,7 +684,7 @@ def main():
     grib_check_atol = 1e-4
     # --------------------------------------------------------------------------
     # LOCAL 1D SERIES EXTRACTION: save offshore flux time series and patches.
-    task = "extract_1d_series"
+    # task = "extract_1d_series"
     extract_1d_points_file = None  # Use Forecast_1d/points.json by default.
     extract_1d_output_dir = None  # Use DATA_ROOT/DATA/Forecast_1d/ by default.
     extract_1d_chunk_days = 64
