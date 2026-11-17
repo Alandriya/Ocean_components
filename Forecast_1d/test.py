@@ -1,8 +1,4 @@
-"""Evaluate train-free baselines and SARIMA using identical rolling forecast origins.
-
-At origin t, the prediction uses data observed no later than t. Parameters
-for SARIMA are never refitted on validation or test observations.
-"""
+"""Evaluate level-0 baselines/SARIMA and level-1 point-specific neural models."""
 from __future__ import annotations
 
 import argparse
@@ -16,115 +12,298 @@ from .metrics import save_json, score_predictions
 from .models.baselines import input_mean, persistence
 from .models.sarima import forecast_ar1, forecast_sarimax
 
+ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
+DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
 BASELINES = ("persistence", "input_mean")
+NEURAL_MODELS = ("mlp", "tcn", "gru")
+
+
+def point_key(point_ids):
+    return "_".join(point_ids)
+
+
+def evaluation_dir(root, split, point_ids):
+    """Keep the legacy flat directory for the original all-ten-point evaluation."""
+    base = root / "evaluations" / split
+    return base if tuple(point_ids) == ALL_POINTS else base / point_key(point_ids)
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="Evaluate 1D forecast models and baselines")
-    p.add_argument("--model", choices=["sarima", "persistence", "input_mean", "all"],
-                   default="all")
+    p = argparse.ArgumentParser(description="Evaluate Forecast_1d models")
+    p.add_argument(
+        "--model",
+        choices=["sarima", "persistence", "input_mean", "mlp", "tcn", "gru",
+                 "level0", "level1", "all"],
+        default="all"
+    )
+    p.add_argument("--points", nargs="+", choices=ALL_POINTS, default=list(DEFAULT_POINTS))
     p.add_argument("--split", choices=["val", "test"], default="test")
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
-    p.add_argument("--in-len", type=int, default=30)
+    p.add_argument("--in-len", type=int, default=60)
+    p.add_argument("--mean-days", type=int, default=30,
+                   help="Input-mean baseline window; independent of neural input length.")
     p.add_argument("--out-len", type=int, default=3)
     p.add_argument("--val-days", type=int, default=730)
     p.add_argument("--test-days", type=int, default=365)
+    p.add_argument("--batch-size", type=int, default=1024)
+    p.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     p.add_argument("--overwrite", action="store_true")
     return p
+
+
+def _selected_models(model):
+    if model == "level0":
+        return [*BASELINES, "sarima"]
+    if model == "level1":
+        return [*BASELINES, *NEURAL_MODELS]
+    if model == "all":
+        return [*BASELINES, "sarima"]  # Backward-compatible alias for level 0.
+    if model in BASELINES:
+        return list(BASELINES)
+    return [*BASELINES, model]
 
 
 def _load_trained_sarima(model_root, data, split):
     meta_path = model_root / "sarima" / "train_metadata.json"
     param_path = model_root / "sarima" / "params.npz"
     if not meta_path.is_file() or not param_path.is_file():
-        raise FileNotFoundError("SARIMA checkpoint missing; run python -m Forecast_1d.train first")
+        raise FileNotFoundError(
+            "SARIMA checkpoint missing; run python -m Forecast_1d.train --model sarima"
+        )
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     if (meta["train_end"] != split.train_end or
-        meta["val_days"] != split.val_end-split.val_start or
-        meta["test_days"] != split.test_end-split.test_start or
-        meta["in_len"] != split.in_len or meta["out_len"] != split.out_len):
-        raise ValueError("Evaluation split differs from training checkpoint")
+            meta["val_days"] != split.val_end - split.val_start or
+            meta["test_days"] != split.test_end - split.test_start or
+            meta["out_len"] != split.out_len):
+        raise ValueError("Evaluation split differs from SARIMA training checkpoint")
     if meta["dataset_fingerprint_sha256"] != data.fingerprint():
-        raise ValueError("Dataset fingerprint differs from training checkpoint")
+        raise ValueError("Dataset fingerprint differs from SARIMA checkpoint")
     with np.load(param_path, allow_pickle=False) as source:
         params = np.asarray(source["params"], dtype=np.float64)
     return meta, params
 
 
+def _resolve_device(torch, requested):
+    if requested == "cpu":
+        return torch.device("cpu")
+    if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA was requested but is not available")
+        return torch.device("cuda")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _forecast_neural(model_name, point_id, point_index, data, origins,
+                     model_root, split, args, device):
+    import torch
+    from .models.neural import build_model
+
+    model_dir = model_root / model_name / point_id
+    meta_path = model_dir / "train_metadata.json"
+    checkpoint_path = model_dir / "best.pt"
+    if not meta_path.is_file() or not checkpoint_path.is_file():
+        raise FileNotFoundError(
+            f"Missing {model_name}/{point_id} checkpoint; train this point first."
+        )
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    expected = {
+        "point_id": point_id,
+        "train_end": split.train_end,
+        "val_days": args.val_days,
+        "test_days": args.test_days,
+        "input_length": args.in_len,
+        "horizon": args.out_len,
+        "dataset_fingerprint_sha256": data.fingerprint(),
+    }
+    for key, value in expected.items():
+        if meta.get(key) != value:
+            raise ValueError(
+                f"Checkpoint mismatch for {model_name}/{point_id}: "
+                f"{key}={meta.get(key)!r}, expected {value!r}"
+            )
+    normalization = meta["normalization"]
+    mean = np.asarray(normalization["mean"], dtype=np.float32)
+    scale = np.asarray(normalization["scale"], dtype=np.float32)
+    in_len = args.in_len
+    windows = []
+    for origin in origins:
+        x = np.asarray(
+            data.values[origin - in_len + 1:origin + 1, point_index, :],
+            dtype=np.float32
+        )
+        if x.shape != (in_len, 2):
+            raise ValueError(f"Insufficient input history at origin {origin}")
+        x = np.where(np.isfinite(x), x, mean[None, :])
+        windows.append((x - mean) / scale)
+    x_array = np.stack(windows).astype(np.float32)
+
+    model = build_model(
+        model_name, in_len, args.out_len, meta["model_config"],
+        input_channels=int(meta.get("input_channels", 2))
+    ).to(device)
+    try:
+        checkpoint = torch.load(
+            checkpoint_path, map_location=device, weights_only=True
+        )
+    except TypeError:
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint["state_dict"])
+    model.eval()
+    batches = []
+    with torch.no_grad():
+        for start in range(0, len(x_array), args.batch_size):
+            xb = torch.from_numpy(x_array[start:start + args.batch_size]).to(device)
+            batches.append(model(xb).cpu().numpy())
+    normalized = np.concatenate(batches, axis=0)
+    prediction = normalized * scale[None, None, :] + mean[None, None, :]
+    return prediction.transpose(0, 2, 1).astype(np.float64)
+
+
 def run(args):
     data = PointDataset(dataset_dir(args.dataset_dir))
-    split = data.get_splits(args.val_days, args.test_days, args.in_len, args.out_len)
+    requested_points = getattr(args, "points", None)
+    point_ids = tuple(ALL_POINTS if requested_points is None else (requested_points or DEFAULT_POINTS))
+    if len(set(point_ids)) != len(point_ids):
+        raise ValueError("Point IDs must be unique")
+    point_indices = np.asarray([int(p[1:]) - 1 for p in point_ids], dtype=np.int64)
+    in_len = getattr(args, "in_len", 60)
+    mean_days = getattr(args, "mean_days", getattr(args, "in_len", 30))
+    split = data.get_splits(
+        args.val_days, args.test_days, in_len, args.out_len
+    )
     origins = split.origins(args.split)
     if origins.size == 0:
-        raise ValueError("No valid origins in evaluation interval")
+        raise ValueError("No valid forecast origins")
     model_root = results_dir(args.results_dir)
-    dest = model_root / "evaluations" / args.split
-    names = list(BASELINES) + (["sarima"] if args.model in ("sarima", "all") else [])
-    if args.model in BASELINES:
-        names = list(BASELINES)  # Always include both training-free baselines.
+    names = _selected_models(args.model)
+    key = point_key(point_ids)
+    dest = evaluation_dir(model_root, args.split, point_ids)
     dest.mkdir(parents=True, exist_ok=True)
-    for name in names:
-        if (dest / f"{name}_predictions.npz").exists() and not args.overwrite:
-            raise FileExistsError(f"Prediction files already exist in {dest}; pass --overwrite")
-    if (dest / "metrics.json").exists() and not args.overwrite:
-        raise FileExistsError(f"Existing metrics in {dest}; pass --overwrite")
-    target = np.stack([np.asarray(data.values[origins + h], dtype=np.float64)
-                       for h in range(1, split.out_len+1)], axis=-1)
+
+    target = np.stack([
+        np.asarray(data.values[origins + h][:, point_indices, :], dtype=np.float64)
+        for h in range(1, split.out_len + 1)
+    ], axis=-1)
+
+    full_persistence = persistence(data.values, origins, split.out_len)
+    full_mean = input_mean(data.values, origins, split.out_len, mean_days)
     forecasts = {
-        "persistence": persistence(data.values, origins, split.out_len),
-        "input_mean": input_mean(data.values, origins, split.out_len, split.in_len),
+        "persistence": full_persistence[:, point_indices, :, :],
+        "input_mean": full_mean[:, point_indices, :, :],
     }
+
     if "sarima" in names:
         meta, params = _load_trained_sarima(model_root, data, split)
         if meta["backend"] == "ar1_ols":
-            forecasts["sarima"] = forecast_ar1(data.values, origins, split.out_len, params)
+            full = forecast_ar1(data.values, origins, split.out_len, params)
         elif meta["backend"] == "statsmodels":
-            forecasts["sarima"] = forecast_sarimax(
+            full = forecast_sarimax(
                 data.values, origins, split.out_len, params,
                 meta["fit_start"], meta["fit_end"], meta["order"],
-                meta["seasonal_order"], meta["trend"])
+                meta["seasonal_order"], meta["trend"]
+            )
         else:
-            raise ValueError(f"Unknown SARIMA backend in checkpoint: {meta['backend']}")
-    shared_mask = np.isfinite(target)
+            raise ValueError(f"Unknown SARIMA backend: {meta['backend']}")
+        forecasts["sarima"] = full[:, point_indices, :, :]
+
+    neural_names = [name for name in names if name in NEURAL_MODELS]
+    if neural_names:
+        import torch
+        device = _resolve_device(torch, getattr(args, "device", "auto"))
+        for model_name in neural_names:
+            point_predictions = []
+            for point_id, point_index in zip(point_ids, point_indices):
+                prediction = _forecast_neural(
+                    model_name, point_id, int(point_index), data, origins,
+                    model_root, split, args, device
+                )
+                point_predictions.append(prediction)
+            forecasts[model_name] = np.stack(point_predictions, axis=1)
+            print(
+                f"[forecast] model={model_name} points={','.join(point_ids)} "
+                f"device={device}", flush=True
+            )
+
     for name in names:
-        shared_mask &= np.isfinite(forecasts[name])
-    summary = {
-        "split": args.split, "dataset": str(data.path),
-        "first_forecast_date": str(data.dates[int(origins[0])+1]),
-        "last_forecast_date": str(data.dates[int(origins[-1])+split.out_len]),
-        "train_end": split.train_end,
-        "eval_origin_count": int(len(origins)),
-        "common_finite_target_cells": int(shared_mask.sum()),
-        "in_len": split.in_len, "out_len": split.out_len,
-        "target_domain": "all ten offshore point centers, sensible and latent",
-        "rolling_origin": "observations up to origin only, fixed fitted parameters",
-        "models": {},
-    }
-    for name in names:
-        pred = forecasts[name]
-        scores = score_predictions(pred, target, baseline=forecasts["persistence"],
-                                   shared_mask=shared_mask)
-        summary["models"][name] = scores
-        filename = dest / f"{name}_predictions.npz"
-        np.savez_compressed(filename,
-                            prediction=pred.astype(np.float32),
-                            target=target.astype(np.float32),
-                            origins=origins,
-                            dates=data.dates[origins].astype("datetime64[D]"))
-        print(f"[saved] {filename}", flush=True)
-        for h, result in scores.items():
-            print(f"[score] {name} h{h}: rmse={result['joint']['rmse']:.5f} "
-                  f"skill={result['persistence_mse_skill']}", flush=True)
+        prediction_path = dest / f"{name}_predictions.npz"
+        if prediction_path.exists() and not args.overwrite:
+            if name in BASELINES:
+                with np.load(prediction_path, allow_pickle=False) as archive:
+                    old_origins = np.asarray(archive["origins"], dtype=np.int64)
+                    old_points = tuple(str(x) for x in archive["point_ids"].tolist())
+                    old_prediction = np.asarray(archive["prediction"], dtype=np.float64)
+                    old_target = np.asarray(archive["target"], dtype=np.float64)
+                if (old_points != point_ids or not np.array_equal(old_origins, origins)
+                        or old_target.shape != target.shape
+                        or not np.allclose(old_target, target, equal_nan=True, atol=1e-5)):
+                    raise ValueError(f"Existing baseline file is incompatible: {prediction_path}")
+                forecasts[name] = old_prediction
+            else:
+                raise FileExistsError(
+                    f"Prediction file exists: {prediction_path}; pass --overwrite"
+                )
+        else:
+            np.savez_compressed(
+                prediction_path,
+                prediction=forecasts[name].astype(np.float32),
+                target=target.astype(np.float32),
+                origins=origins,
+                dates=data.dates[origins].astype("datetime64[D]"),
+                point_ids=np.asarray(point_ids, dtype="U3"),
+            )
+            print(f"[saved] {prediction_path}", flush=True)
+
     summary_path = dest / "metrics.json"
+    if summary_path.exists():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if tuple(summary.get("point_ids", [])) != point_ids:
+            raise ValueError("Existing metrics file has a different point selection")
+        if summary.get("dataset_fingerprint_sha256") != data.fingerprint():
+            raise ValueError("Existing metrics file belongs to a different dataset")
+    else:
+        summary = {
+            "split": args.split,
+            "dataset": str(data.path),
+            "dataset_fingerprint_sha256": data.fingerprint(),
+            "point_ids": list(point_ids),
+            "first_forecast_date": str(data.dates[int(origins[0]) + 1]),
+            "last_forecast_date": str(data.dates[int(origins[-1]) + split.out_len]),
+            "train_end": split.train_end,
+            "eval_origin_count": int(len(origins)),
+            "in_len": in_len,
+            "mean_days": mean_days,
+            "out_len": split.out_len,
+            "val_days": args.val_days,
+            "test_days": args.test_days,
+            "target_domain": "selected offshore point centers, sensible and latent",
+            "rolling_origin": "observations up to origin only, fixed fitted parameters",
+            "models": {},
+        }
+
+    for name in names:
+        scores = score_predictions(
+            forecasts[name], target, baseline=forecasts["persistence"],
+            point_ids=point_ids
+        )
+        summary["models"][name] = scores
+        for horizon, result in scores.items():
+            print(
+                f"[score] model={name} h{horizon} "
+                f"joint_rmse={result['joint']['rmse']} "
+                f"persistence_skill={result.get('persistence_mse_skill')}",
+                flush=True
+            )
+    summary["updated_utc"] = __import__("datetime").datetime.now(
+        __import__("datetime").timezone.utc
+    ).isoformat()
     save_json(summary_path, summary)
     print(f"[saved] {summary_path}", flush=True)
     return dest
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
-    return run(args)
+    return run(build_parser().parse_args(argv))
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 #!/bin/bash
-# Create the shared log directory on the login node before Slurm opens log files.
+# Create the shared log directory before Slurm opens stdout/stderr files.
 # Usage:
-#   bash Forecast_1d/jobs/submit_1d.sh train --model sarima
-#   bash Forecast_1d/jobs/submit_1d.sh test --model all --split test
-#   bash Forecast_1d/jobs/submit_1d.sh plot --model sarima --split test
+#   bash Forecast_1d/jobs/submit_1d.sh train --model tcn --points P3 P5 P7 P9
+#   bash Forecast_1d/jobs/submit_1d.sh test --model level1 --split test
+#   bash Forecast_1d/jobs/submit_1d.sh plot --model tcn --split test --point P3
+#   bash Forecast_1d/jobs/submit_1d.sh collect --split test
 
 set -euo pipefail
 
@@ -19,17 +20,17 @@ fi
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
-    echo "Usage: bash Forecast_1d/jobs/submit_1d.sh {train|test|plot} [job arguments...]" >&2
+    echo "Usage: bash Forecast_1d/jobs/submit_1d.sh {train|test|plot|collect} [job arguments...]" >&2
     exit 2
 fi
 shift
 
 case "$MODE" in
-    train|test|plot)
+    train|test|plot|collect)
         JOB_SCRIPT="$JOB_DIR/$MODE.sbatch"
         ;;
     *)
-        echo "[error] Unknown mode '$MODE'. Choose train, test, or plot." >&2
+        echo "[error] Unknown mode '$MODE'. Choose train, test, plot, or collect." >&2
         exit 2
         ;;
 esac
@@ -39,10 +40,7 @@ if [[ ! -f "$JOB_SCRIPT" ]]; then
     exit 2
 fi
 
-# Slurm opens stdout/stderr files before the batch script starts.
-# Therefore this directory must be created before calling sbatch.
 mkdir -p "$LOG_DIR"
-
 echo "[submit] mode=$MODE"
 echo "[submit] logs=$LOG_DIR"
 exec sbatch \
