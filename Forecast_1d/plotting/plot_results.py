@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from ..data import CHANNELS, PointDataset, dataset_dir, results_dir
+from ..experiment import DEFAULT_HORIZON, horizon_root
 from ..test import DEFAULT_POINTS, ALL_POINTS, point_key, evaluation_dir
 
 
@@ -20,7 +21,11 @@ def build_parser():
     parser.add_argument("--split", choices=["val", "test"], default="test")
     parser.add_argument("--points", nargs="+", choices=ALL_POINTS, default=list(DEFAULT_POINTS))
     parser.add_argument("--point", choices=["all", *ALL_POINTS], default="all")
-    parser.add_argument("--horizon", type=int, nargs="+", default=[1, 2, 3])
+    parser.add_argument("--out-len", type=int, default=DEFAULT_HORIZON,
+                        help="Trained forecast length used to locate artifacts")
+    parser.add_argument("--horizon", type=int, nargs="+", default=None,
+                        help="Leads to plot; defaults to 1, 3, 7 and final lead (when available)")
+    parser.add_argument("--all-horizons", action="store_true", help="Plot every lead")
     parser.add_argument("--dataset-dir", type=Path, default=None)
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -52,7 +57,7 @@ def run(args):
     import matplotlib.dates as mdates
 
     data = PointDataset(dataset_dir(args.dataset_dir))
-    root = results_dir(args.results_dir)
+    root = horizon_root(results_dir(args.results_dir), getattr(args, "out_len", 3))
     requested_points = getattr(args, "points", None)
     requested_points = tuple(ALL_POINTS if requested_points is None else requested_points)
     key = point_key(requested_points)
@@ -78,7 +83,9 @@ def run(args):
 
     baselines = {}
     if args.show_baselines:
-        for name in ("persistence", "input_mean"):
+        for name in ("persistence", "input_mean", "sarima"):
+            if name == "sarima" and not (source / "sarima_predictions.npz").is_file():
+                continue
             if name != args.model:
                 baseline, _, baseline_origins, baseline_points = _load_predictions(
                     source / f"{name}_predictions.npz"
@@ -102,7 +109,13 @@ def run(args):
     output.mkdir(parents=True, exist_ok=True)
     image_paths = []
     target_days = data.dates[origins]
-    for horizon in args.horizon:
+    if prediction.shape[-1] != getattr(args, "out_len", 3):
+        raise ValueError("Saved forecast length differs from --out-len")
+    if getattr(args, "all_horizons", False):
+        horizons = list(range(1, prediction.shape[-1] + 1))
+    else:
+        horizons = args.horizon or (list(range(1, prediction.shape[-1] + 1)) if prediction.shape[-1] <= 3 else sorted({h for h in (1, 3, 7, prediction.shape[-1]) if h <= prediction.shape[-1]}))
+    for horizon in horizons:
         if not 1 <= horizon <= prediction.shape[-1]:
             raise ValueError(f"Horizon {horizon} unavailable (1..{prediction.shape[-1]})")
         plot_days = (

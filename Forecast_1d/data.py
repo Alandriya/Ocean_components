@@ -12,6 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .experiment import DEFAULT_HORIZON
+
 DEFAULT_SUBDIR = "atlantic10_native_1979-2026"
 CHANNELS = ("sensible", "latent")
 
@@ -60,7 +62,7 @@ class Splits:
 
 
 def split_dates(n_dates: int, *, val_days: int = 730, test_days: int = 365,
-                in_len: int = 30, out_len: int = 3) -> Splits:
+                in_len: int = 30, out_len: int = DEFAULT_HORIZON) -> Splits:
     if min(val_days, test_days, in_len, out_len) < 1:
         raise ValueError("Split lengths and history/horizon must be positive")
     train_end = n_dates - val_days - test_days
@@ -110,6 +112,6 @@ class PointDataset:
         hasher.update(json.dumps(self.points, sort_keys=True).encode("utf-8"))
         return hasher.hexdigest()
 
-    def get_splits(self, val_days=730, test_days=365, in_len=30, out_len=3):
+    def get_splits(self, val_days=730, test_days=365, in_len=30, out_len=DEFAULT_HORIZON):
         return split_dates(self.n_dates, val_days=val_days, test_days=test_days,
                            in_len=in_len, out_len=out_len)

@@ -9,11 +9,13 @@ import csv
 import json
 from pathlib import Path
 
+from .experiment import DEFAULT_HORIZON, horizon_root
+
 DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
 ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
 CSV_FIELDS = [
     "level", "model", "split", "point_id", "channel", "horizon_days",
-    "n", "rmse", "mae", "bias", "mse", "persistence_mse_skill",
+    "n", "rmse", "mae", "bias", "mse", "persistence_mse_skill", "sarima_mse_skill",
 ]
 
 
@@ -24,6 +26,7 @@ def build_parser():
     parser.add_argument("--split", choices=["val", "test"], default="test")
     parser.add_argument("--points", nargs="+", choices=ALL_POINTS,
                         default=list(DEFAULT_POINTS))
+    parser.add_argument("--out-len", type=int, default=DEFAULT_HORIZON)
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
     return parser
@@ -64,7 +67,7 @@ def _metric_row(model, split, point_id, channel, horizon, score):
 def collect(args):
     points = tuple(args.points)
     point_key = "_".join(points)
-    root = _results_root(args.results_dir)
+    root = horizon_root(_results_root(args.results_dir), args.out_len)
     evaluation_root = root / "evaluations" / args.split
     metrics_path = (
         evaluation_root / "metrics.json"
@@ -78,6 +81,8 @@ def collect(args):
     if tuple(payload.get("point_ids", ())) != points:
         raise ValueError("Requested point selection differs from metrics.json")
 
+    if payload.get("out_len") != args.out_len:
+        raise ValueError("Metrics forecast length does not match --out-len")
     rows = []
     for model, horizons in payload.get("models", {}).items():
         for horizon, result in horizons.items():
@@ -94,16 +99,26 @@ def collect(args):
                         model, args.split, point_id, channel, horizon, score
                     ))
 
+    reference = {(r["point_id"], r["channel"], r["horizon_days"]): r
+                 for r in rows if r["model"] == "sarima"}
+    for row in rows:
+        ref = reference.get((row["point_id"], row["channel"], row["horizon_days"]))
+        row["sarima_mse_skill"] = (1 - row["mse"] / ref["mse"]
+            if ref and ref["n"] == row["n"] and ref["mse"] not in (None, 0) and row["mse"] is not None
+            else None)
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir else root / "summary"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = f"forecast_1d_{args.split}_{point_key}"
+    if args.out_len != 3:
+        stem += f"_h{args.out_len}"
     json_path = output_dir / f"{stem}.json"
     csv_path = output_dir / f"{stem}.csv"
     result_payload = {
         "split": args.split,
+        "out_len": args.out_len,
         "point_ids": list(points),
         "source_metrics": str(metrics_path),
         "models": sorted(payload.get("models", {}).keys()),

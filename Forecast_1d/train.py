@@ -12,6 +12,7 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json
+from .experiment import DEFAULT_HORIZON, horizon_root
 from .models.sarima import fast_ar1_supported, fit_ar1, fit_sarimax, parse_order
 
 ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
@@ -32,7 +33,7 @@ def build_parser():
     p.add_argument("--backend", default="auto", choices=["auto", "ar1_ols", "statsmodels"])
     p.add_argument("--in-len", type=int, default=None,
                    help="Neural default: 60; SARIMA metadata default: 30.")
-    p.add_argument("--out-len", type=int, default=3)
+    p.add_argument("--out-len", type=int, default=DEFAULT_HORIZON)
     p.add_argument("--val-days", type=int, default=730)
     p.add_argument("--test-days", type=int, default=365)
     p.add_argument("--fit-days", type=int, default=0)
@@ -70,7 +71,7 @@ def _run_sarima(args):
     fit_end = split.train_end
     if fit_end - fit_start < 45:
         raise ValueError("Fitting interval must contain at least 45 days")
-    out_dir = results_dir(args.results_dir) / "sarima"
+    out_dir = horizon_root(results_dir(args.results_dir), args.out_len) / "sarima"
     out_dir.mkdir(parents=True, exist_ok=True)
     params_path, meta_path = out_dir / "params.npz", out_dir / "train_metadata.json"
     if (params_path.exists() or meta_path.exists()) and not args.overwrite:
@@ -197,7 +198,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     x_val_t = torch.from_numpy(x_val).to(device)
     y_val_t = torch.from_numpy(y_val).to(device)
 
-    out_dir = results_dir(args.results_dir) / args.model / point_id
+    out_dir = horizon_root(results_dir(args.results_dir), args.out_len) / args.model / point_id
     out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = out_dir / "best.pt"
     metadata_path = out_dir / "train_metadata.json"

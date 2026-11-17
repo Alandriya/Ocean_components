@@ -9,6 +9,7 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json, score_predictions
+from .experiment import DEFAULT_HORIZON, horizon_root
 from .models.baselines import input_mean, persistence
 from .models.sarima import forecast_ar1, forecast_sarimax
 
@@ -43,7 +44,7 @@ def build_parser():
     p.add_argument("--in-len", type=int, default=60)
     p.add_argument("--mean-days", type=int, default=30,
                    help="Input-mean baseline window; independent of neural input length.")
-    p.add_argument("--out-len", type=int, default=3)
+    p.add_argument("--out-len", type=int, default=DEFAULT_HORIZON)
     p.add_argument("--val-days", type=int, default=730)
     p.add_argument("--test-days", type=int, default=365)
     p.add_argument("--batch-size", type=int, default=1024)
@@ -58,7 +59,7 @@ def _selected_models(model):
     if model == "level1":
         return [*BASELINES, *NEURAL_MODELS]
     if model == "all":
-        return [*BASELINES, "sarima"]  # Backward-compatible alias for level 0.
+        return [*BASELINES, "sarima", *NEURAL_MODELS]
     if model in BASELINES:
         return list(BASELINES)
     return [*BASELINES, model]
@@ -172,10 +173,13 @@ def run(args):
     split = data.get_splits(
         args.val_days, args.test_days, in_len, args.out_len
     )
+    if mean_days < 1:
+        raise ValueError("mean-days must be positive")
     origins = split.origins(args.split)
+    origins = origins[origins >= mean_days - 1]
     if origins.size == 0:
         raise ValueError("No valid forecast origins")
-    model_root = results_dir(args.results_dir)
+    model_root = horizon_root(results_dir(args.results_dir), args.out_len)
     names = _selected_models(args.model)
     key = point_key(point_ids)
     dest = evaluation_dir(model_root, args.split, point_ids)
@@ -225,6 +229,34 @@ def run(args):
                 f"device={device}", flush=True
             )
 
+    # Validate the existing experiment before writing any artifacts.
+    summary_path = dest / "metrics.json"
+    protocol = {
+        "split": args.split,
+        "dataset_fingerprint_sha256": data.fingerprint(),
+        "point_ids": list(point_ids),
+        "first_forecast_date": str(data.dates[int(origins[0]) + 1]),
+        "last_forecast_date": str(data.dates[int(origins[-1]) + split.out_len]),
+        "train_end": split.train_end,
+        "eval_origin_count": int(len(origins)),
+        "in_len": in_len, "mean_days": mean_days, "out_len": split.out_len,
+        "val_days": args.val_days, "test_days": args.test_days,
+    }
+    if summary_path.exists():
+        previous = json.loads(summary_path.read_text(encoding="utf-8"))
+        for field, value in protocol.items():
+            if previous.get(field) != value:
+                raise ValueError(f"Existing evaluation protocol mismatch: {field}. Use a fresh --results-dir.")
+    # Fixed scoring support across separate model evaluations. Never reward a
+    # model for failing to predict a difficult, otherwise scorable observation.
+    common_mask = np.isfinite(target) & np.isfinite(forecasts["persistence"]) & np.isfinite(forecasts["input_mean"])
+    for name in names:
+        if not np.isfinite(forecasts[name][common_mask]).all():
+            raise ValueError(f"Non-finite {name} forecast on common evaluation support")
+        prediction_path = dest / f"{name}_predictions.npz"
+        if prediction_path.exists() and name not in BASELINES and not args.overwrite:
+            raise FileExistsError(f"Prediction file exists: {prediction_path}; pass --overwrite")
+
     for name in names:
         prediction_path = dest / f"{name}_predictions.npz"
         if prediction_path.exists() and not args.overwrite:
@@ -236,9 +268,11 @@ def run(args):
                     old_target = np.asarray(archive["target"], dtype=np.float64)
                 if (old_points != point_ids or not np.array_equal(old_origins, origins)
                         or old_target.shape != target.shape
-                        or not np.allclose(old_target, target, equal_nan=True, atol=1e-5)):
+                        or not np.allclose(old_target, target, equal_nan=True, atol=1e-5)
+                        or old_prediction.shape != forecasts[name].shape
+                        or not np.allclose(old_prediction, forecasts[name], equal_nan=True, atol=1e-5, rtol=1e-6)):
                     raise ValueError(f"Existing baseline file is incompatible: {prediction_path}")
-                forecasts[name] = old_prediction
+                # Keep full-precision freshly computed baseline for scoring.
             else:
                 raise FileExistsError(
                     f"Prediction file exists: {prediction_path}; pass --overwrite"
@@ -284,7 +318,7 @@ def run(args):
     for name in names:
         scores = score_predictions(
             forecasts[name], target, baseline=forecasts["persistence"],
-            point_ids=point_ids
+            point_ids=point_ids, shared_mask=common_mask
         )
         summary["models"][name] = scores
         for horizon, result in scores.items():
@@ -294,6 +328,7 @@ def run(args):
                 f"persistence_skill={result.get('persistence_mse_skill')}",
                 flush=True
             )
+    summary["common_finite_target_cells"] = int(common_mask.sum())
     summary["updated_utc"] = __import__("datetime").datetime.now(
         __import__("datetime").timezone.utc
     ).isoformat()

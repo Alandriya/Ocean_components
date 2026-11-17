@@ -107,7 +107,7 @@ class ForecastIntegrationTests(unittest.TestCase):
     def test_train_test_plot_and_no_refit(self):
         dataset = PointDataset(self.data_path)
         train_model(self._args())
-        result_dir = test_model(self._args(model="all"))
+        result_dir = test_model(self._args(model="level0"))
         with np.load(result_dir / "sarima_predictions.npz", allow_pickle=False) as file:
             pred = file["prediction"]
             origins = file["origins"]
@@ -117,7 +117,7 @@ class ForecastIntegrationTests(unittest.TestCase):
         # The first origin is the day immediately before the test interval.
         self.assertEqual(int(origins[0]), 139)
         with self.assertRaises(FileExistsError):
-            test_model(self._args(model="all"))
+            test_model(self._args(model="level0"))
         # Forecast values are independent of actual future targets.
         with np.load(self.result_path / "sarima" / "params.npz") as f:
             params = f["params"]
