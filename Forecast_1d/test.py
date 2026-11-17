@@ -15,8 +15,9 @@ from .models.sarima import forecast_ar1, forecast_sarimax
 
 ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
 DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
-BASELINES = ("persistence", "input_mean")
-NEURAL_MODELS = ("mlp", "tcn", "gru")
+from .registry import BASELINES, NEW_BASELINES, LEVEL0, LEVEL1, LEVEL2, NEURAL_MODELS, ALL_MODELS
+from .models.seasonal import fit_seasonal, forecast_seasonal
+from .models.ridge_var import fit_ridge, forecast_ridge
 
 
 def point_key(point_ids):
@@ -33,8 +34,7 @@ def build_parser():
     p = argparse.ArgumentParser(description="Evaluate Forecast_1d models")
     p.add_argument(
         "--model",
-        choices=["sarima", "persistence", "input_mean", "mlp", "tcn", "gru",
-                 "level0", "level1", "all"],
+        choices=[*ALL_MODELS, "level0", "level0_new", "level1", "level2", "level01", "all"],
         default="all"
     )
     p.add_argument("--points", nargs="+", choices=ALL_POINTS, default=list(DEFAULT_POINTS))
@@ -55,11 +55,17 @@ def build_parser():
 
 def _selected_models(model):
     if model == "level0":
-        return [*BASELINES, "sarima"]
+        return list(LEVEL0)
     if model == "level1":
-        return [*BASELINES, *NEURAL_MODELS]
+        return [*BASELINES, *LEVEL1]
+    if model == "level0_new":
+        return [*BASELINES, *NEW_BASELINES]
+    if model == "level2":
+        return [*BASELINES, *LEVEL2]
+    if model == "level01":
+        return [*BASELINES, "sarima", *LEVEL1]
     if model == "all":
-        return [*BASELINES, "sarima", *NEURAL_MODELS]
+        return list(ALL_MODELS)
     if model in BASELINES:
         return list(BASELINES)
     return [*BASELINES, model]
@@ -211,6 +217,21 @@ def run(args):
             raise ValueError(f"Unknown SARIMA backend: {meta['backend']}")
         forecasts["sarima"] = full[:, point_indices, :, :]
 
+    # Fixed baseline configurations; fit exclusively on the train interval.
+    baseline_config = {}
+    selected_values = data.values[:, point_indices, :]
+    if any(name in names for name in ("seasonal_climatology", "seasonal_ar1")):
+        clim, phi = fit_seasonal(selected_values, data.dates, split.train_end, radius=15)
+        if "seasonal_climatology" in names:
+            forecasts["seasonal_climatology"] = forecast_seasonal(selected_values, data.dates, origins, split.out_len, clim)
+            baseline_config["seasonal_climatology"] = {"radius_days": 15, "calendar": "366 month-day slots", "fit_end_exclusive": split.train_end}
+        if "seasonal_ar1" in names:
+            forecasts["seasonal_ar1"] = forecast_seasonal(selected_values, data.dates, origins, split.out_len, clim, phi)
+            baseline_config["seasonal_ar1"] = {"radius_days": 15, "phi": phi.tolist(), "fit_end_exclusive": split.train_end, "intercept": 0, "phi_clip": 0.999}
+    if "ridge_var" in names:
+        fitted = fit_ridge(selected_values, split.train_end, in_len, split.out_len, alpha=0.01)
+        forecasts["ridge_var"] = forecast_ridge(selected_values, origins, in_len, split.out_len, fitted)
+        baseline_config["ridge_var"] = {"alpha": 0.01, "input_length": in_len, "fit_end_exclusive": split.train_end, "direct_multioutput": True}
     neural_names = [name for name in names if name in NEURAL_MODELS]
     if neural_names:
         import torch
@@ -250,6 +271,8 @@ def run(args):
     # Fixed scoring support across separate model evaluations. Never reward a
     # model for failing to predict a difficult, otherwise scorable observation.
     common_mask = np.isfinite(target) & np.isfinite(forecasts["persistence"]) & np.isfinite(forecasts["input_mean"])
+    if summary_path.exists() and previous.get("common_finite_target_cells", int(common_mask.sum())) != int(common_mask.sum()):
+        raise ValueError("Existing evaluation support differs")
     for name in names:
         if not np.isfinite(forecasts[name][common_mask]).all():
             raise ValueError(f"Non-finite {name} forecast on common evaluation support")
@@ -328,6 +351,7 @@ def run(args):
                 f"persistence_skill={result.get('persistence_mse_skill')}",
                 flush=True
             )
+    summary.setdefault("baseline_config", {}).update(baseline_config)
     summary["common_finite_target_cells"] = int(common_mask.sum())
     summary["updated_utc"] = __import__("datetime").datetime.now(
         __import__("datetime").timezone.utc

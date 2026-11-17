@@ -9,13 +9,14 @@ import numpy as np
 from ..data import CHANNELS, PointDataset, dataset_dir, results_dir
 from ..experiment import DEFAULT_HORIZON, horizon_root
 from ..test import DEFAULT_POINTS, ALL_POINTS, point_key, evaluation_dir
+from ..registry import ALL_MODELS, LEVEL0
 
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Plot 1D forecast results")
     parser.add_argument(
         "--model",
-        choices=["sarima", "persistence", "input_mean", "mlp", "tcn", "gru"],
+        choices=ALL_MODELS,
         required=True
     )
     parser.add_argument("--split", choices=["val", "test"], default="test")
@@ -30,6 +31,8 @@ def build_parser():
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--show-baselines", action="store_true")
+    parser.add_argument("--compare", nargs="+", choices=ALL_MODELS, default=None,
+                        help="Explicit models to overlay instead of default baselines")
     parser.add_argument("--dpi", type=int, default=160)
     return parser
 
@@ -82,9 +85,11 @@ def run(args):
         raise ValueError("Saved evaluation targets differ from the source dataset")
 
     baselines = {}
-    if args.show_baselines:
-        for name in ("persistence", "input_mean", "sarima"):
-            if name == "sarima" and not (source / "sarima_predictions.npz").is_file():
+    if args.show_baselines or getattr(args, "compare", None):
+        for name in (getattr(args, "compare", None) or ("persistence", "input_mean", "sarima", "seasonal_climatology", "seasonal_ar1", "ridge_var")):
+            if not (source / f"{name}_predictions.npz").is_file():
+                if getattr(args, "compare", None):
+                    raise FileNotFoundError(f"Missing comparison model: {name}")
                 continue
             if name != args.model:
                 baseline, _, baseline_origins, baseline_points = _load_predictions(

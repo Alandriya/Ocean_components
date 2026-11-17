@@ -77,7 +77,7 @@ class Horizon14Tests(unittest.TestCase):
                     self.assertTrue((root/name/point/'best.pt').exists())
             self.assertEqual(old.read_bytes(),b'legacy-checkpoint')
             for part in ('val','test'):
-                dest = test.main(common+['--model','all','--split',part,'--device','cpu'])
+                dest = test.main(common+['--model','level01','--split',part,'--device','cpu'])
                 metrics = json.loads((dest/'metrics.json').read_text())
                 self.assertEqual(len(metrics['models']),6)
                 self.assertEqual(metrics['out_len'],14)

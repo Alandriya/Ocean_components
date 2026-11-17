@@ -1,4 +1,4 @@
-"""Train level-0 SARIMA or independent level-1 neural models per location."""
+"""Train level-0 SARIMA or independent level-1/2 neural models per location."""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +17,7 @@ from .models.sarima import fast_ar1_supported, fit_ar1, fit_sarimax, parse_order
 
 ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
 DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
-NEURAL_MODELS = ("mlp", "tcn", "gru")
+from .registry import NEURAL_MODELS, model_level
 
 
 def build_parser():
@@ -235,8 +235,8 @@ def _train_one_point(args, data, split, point_id, fingerprint):
 
         model.eval()
         with torch.no_grad():
-            val_prediction = model(x_val_t)
-            val_loss = float(loss_fn(val_prediction, y_val_t).cpu())
+            val_loss = sum(float(loss_fn(model(x_val_t[i:i+args.batch_size]), y_val_t[i:i+args.batch_size]).cpu()) * len(x_val_t[i:i+args.batch_size])
+                           for i in range(0, len(x_val_t), args.batch_size)) / len(x_val_t)
 
         history.append({
             "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss
@@ -267,7 +267,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
 
     metadata = {
         "model": args.model,
-        "model_level": 1,
+        "model_level": model_level(args.model),
         "point_id": point_id,
         "channels": ["sensible", "latent"],
         "input_channels": 2,
@@ -283,6 +283,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
             "fit_interval": [0, split.train_end],
         },
         "model_config": config,
+        "parameter_count": sum(p.numel() for p in model.parameters() if p.requires_grad),
         "best_epoch": best_epoch,
         "best_validation_loss_normalized": best_loss,
         "epochs_completed": len(history),

@@ -7,15 +7,17 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 from pathlib import Path
 
 from .experiment import DEFAULT_HORIZON, horizon_root
+from .registry import model_level, ALL_MODELS
 
 DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
 ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
 CSV_FIELDS = [
     "level", "model", "split", "point_id", "channel", "horizon_days",
-    "n", "rmse", "mae", "bias", "mse", "persistence_mse_skill", "sarima_mse_skill",
+    "n", "rmse", "mae", "bias", "mse", "persistence_mse_skill", "sarima_mse_skill", "seasonal_climatology_mse_skill", "seasonal_ar1_mse_skill", "ridge_var_mse_skill",
 ]
 
 
@@ -40,12 +42,7 @@ def _results_root(override):
 
 
 def _level_for(model):
-    if model in ("persistence", "input_mean", "sarima"):
-        return 0
-    if model in ("mlp", "tcn", "gru"):
-        return 1
-    return None
-
+    return model_level(model)
 
 def _metric_row(model, split, point_id, channel, horizon, score):
     return {
@@ -99,13 +96,32 @@ def collect(args):
                         model, args.split, point_id, channel, horizon, score
                     ))
 
-    reference = {(r["point_id"], r["channel"], r["horizon_days"]): r
-                 for r in rows if r["model"] == "sarima"}
-    for row in rows:
-        ref = reference.get((row["point_id"], row["channel"], row["horizon_days"]))
-        row["sarima_mse_skill"] = (1 - row["mse"] / ref["mse"]
-            if ref and ref["n"] == row["n"] and ref["mse"] not in (None, 0) and row["mse"] is not None
-            else None)
+    # References use identical evaluation cells, not just aggregated joint scores.
+    for reference_name in ("sarima", "seasonal_climatology", "seasonal_ar1", "ridge_var"):
+        reference = {(r["point_id"], r["channel"], r["horizon_days"]): r
+                     for r in rows if r["model"] == reference_name}
+        for row in rows:
+            ref = reference.get((row["point_id"], row["channel"], row["horizon_days"]))
+            row[reference_name + "_mse_skill"] = (1 - row["mse"] / ref["mse"]
+                if ref and ref["n"] == row["n"] and ref["mse"] not in (None, 0) and row["mse"] is not None
+                else None)
+    ranking = []
+    expected_cells = len(points)*2*args.out_len
+    for model in payload.get("models", {}):
+        joint = [r for r in rows if r["model"] == model and r["point_id"] == "ALL" and r["channel"] == "joint"]
+        local = [r for r in rows if r["model"] == model and r["point_id"] in points]
+        n = sum(r["n"] for r in joint)
+        if not n or len(joint) != args.out_len or len(local) != expected_cells:
+            raise ValueError(f"Incomplete metrics for {model}")
+        item = {"level": model_level(model), "model": model, "split": args.split,
+                "n": n, "rmse": math.sqrt(sum(r["n"]*r["mse"] for r in joint if r["n"])/n),
+                "mae": sum(r["n"]*r["mae"] for r in joint if r["n"])/n,
+                "bias": sum(r["n"]*r["bias"] for r in joint if r["n"])/n}
+        for ref_name in ("persistence", "sarima", "seasonal_climatology", "seasonal_ar1", "ridge_var"):
+            scores = [r.get(ref_name+"_mse_skill") for r in local]
+            item["macro_"+ref_name+"_mse_skill"] = (sum(scores)/expected_cells if all(v is not None for v in scores) else None)
+        ranking.append(item)
+    ranking.sort(key=lambda r: r["rmse"])
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir else root / "summary"
@@ -116,6 +132,7 @@ def collect(args):
         stem += f"_h{args.out_len}"
     json_path = output_dir / f"{stem}.json"
     csv_path = output_dir / f"{stem}.csv"
+    ranking_path = output_dir / f"{stem}_ranking.csv"
     result_payload = {
         "split": args.split,
         "out_len": args.out_len,
@@ -123,6 +140,8 @@ def collect(args):
         "source_metrics": str(metrics_path),
         "models": sorted(payload.get("models", {}).keys()),
         "rows": rows,
+        "ranking_by_rmse": ranking,
+        "missing_models": sorted(set(ALL_MODELS) - set(payload.get("models", {}))),
     }
     json_path.write_text(
         json.dumps(result_payload, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
@@ -132,6 +151,12 @@ def collect(args):
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    if ranking:
+        with ranking_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(ranking[0]))
+            writer.writeheader()
+            writer.writerows(ranking)
+        print(f"[saved] {ranking_path}", flush=True)
     print(f"[saved] {json_path}", flush=True)
     print(f"[saved] {csv_path}", flush=True)
     print(f"[summary] models={','.join(result_payload['models'])} rows={len(rows)}", flush=True)

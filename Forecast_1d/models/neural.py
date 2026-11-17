@@ -1,6 +1,8 @@
 """Independent neural forecasters for paired sensible/latent flux series."""
 from __future__ import annotations
 
+from ..registry import LEVEL2
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -8,6 +10,9 @@ import torch.nn.functional as F
 
 def default_config(name: str, hidden_size: int | None = None,
                    dropout: float = 0.1) -> dict:
+    if name in LEVEL2:
+        from .advanced import advanced_config
+        return advanced_config(name, hidden_size, dropout)
     if name == "mlp":
         hidden = [128, 64] if hidden_size is None else [
             int(hidden_size), max(8, int(hidden_size) // 2)
@@ -130,6 +135,9 @@ class GRUForecaster(nn.Module):
 def build_model(name: str, input_length: int, horizon: int,
                 config: dict | None = None, input_channels: int = 2) -> nn.Module:
     config = config or default_config(name)
+    if name in LEVEL2:
+        from .advanced import advanced_model
+        return advanced_model(name, input_length, horizon, input_channels, config)
     if name == "mlp":
         return MLPForecaster(
             input_length, horizon, config["hidden_sizes"], config["dropout"],
