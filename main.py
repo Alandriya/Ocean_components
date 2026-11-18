@@ -38,7 +38,7 @@ def run_selected_task(task, **settings):
     ----------
     task : str
         One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
-        collect_eigenvalues, sde_conditions, mean_year, stationary, copulas.
+        collect_eigenvalues, sde_conditions, mean_year, stationary, copulas, copula_quintiles.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -480,6 +480,17 @@ def run_selected_task(task, **settings):
             overwrite=bool(settings.get("extract_1d_overwrite", False)),
             dry_run=bool(settings.get("extract_1d_dry_run", False)),
         )
+    elif task == "copula_quintiles":
+        from Functional.copula_quintiles import estimate_joint_quantile_classes
+        chosen_periods = ((*periods, (start_year, end_year))
+                          if settings.get("copula_quintile_all_periods", False)
+                          else ((start_year, end_year),))
+        outputs = [estimate_joint_quantile_classes(
+            root, first, last, names=names,
+            classes=settings.get("copula_quintile_classes", 5),
+            hybrid_reference=settings.get("copula_quintile_hybrid_reference", (1979, 2026)),
+        ) for first, last in dict.fromkeys(chosen_periods)]
+        return outputs if len(outputs) > 1 else outputs[0]
     else:
         raise ValueError(f"Unsupported numeric task: {task}")
 
@@ -639,7 +650,7 @@ def main():
     save_counts = False
     # task = "collect_eigenvalues"
     # --------------------------------------------------------------------------
-    task = "sde_conditions"
+    # task = "sde_conditions"
     sde_variables = ("sensible", "latent")
     sde_pairs = None
     window_days = 1000
@@ -664,6 +675,12 @@ def main():
     sample_size = 300000
     empirical_bins = 60
     checkerboard_bins = 50
+
+    task = "copula_quintiles"  # use cached copula NPZ/JSON, no refitting
+    copula_quintile_classes = 5
+    copula_quintile_all_periods = False
+    copula_quintile_hybrid_reference = (1979, 2026)
+
     # --------------------------------------------------------------------------
     # task = "grib"
     grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "data.grib",)
