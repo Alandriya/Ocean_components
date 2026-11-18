@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
-import random
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,19 +10,18 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json
-from .experiment import DEFAULT_HORIZON, horizon_root
+from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, select_points
 from .models.sarima import fast_ar1_supported, fit_ar1, fit_sarimax, parse_order
 
-ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
-DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
+ALL_POINTS = DEFAULT_POINTS
 from .registry import NEURAL_MODELS, model_level
 
 
 def build_parser():
     p = argparse.ArgumentParser(description="Train Forecast_1d statistical or neural models")
     p.add_argument("--model", choices=["sarima", *NEURAL_MODELS], default="sarima")
-    p.add_argument("--points", nargs="+", choices=ALL_POINTS, default=None,
-                   help="Neural models default to P3 P5 P7 P9; SARIMA fits all ten points.")
+    p.add_argument("--points", nargs="+", default=None,
+                   help="Neural models default to all loaded locations; SARIMA fits all locations.")
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
     p.add_argument("--order", default="1,0,0")
@@ -44,6 +41,13 @@ def build_parser():
     p.add_argument("--weight-decay", type=float, default=1e-4)
     p.add_argument("--patience", type=int, default=15)
     p.add_argument("--min-delta", type=float, default=1e-5)
+    p.add_argument("--scheduler", choices=["none", "plateau"], default="none")
+    p.add_argument("--lr-patience", type=int, default=3)
+    p.add_argument("--lr-factor", type=float, default=0.5)
+    p.add_argument("--min-lr", type=float, default=1e-6)
+    p.add_argument("--monitor", choices=["normalized", "sar"], default="normalized",
+                   help="Checkpoint and scheduler criterion: normalized MSE or 1 - macro SAR skill on validation.")
+    p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--dropout", type=float, default=0.1)
     p.add_argument("--hidden-size", type=int, default=None)
     p.add_argument("--seed", type=int, default=42)
@@ -55,7 +59,7 @@ def build_parser():
 
 def _run_sarima(args):
     if getattr(args, "points", None):
-        raise ValueError("The SARIMA level-0 model is fitted independently at all ten points; omit --points.")
+        raise ValueError("The SARIMA level-0 model is fitted independently at all loaded points; omit --points.")
     in_len = getattr(args, "in_len", None) or 30
     data = PointDataset(dataset_dir(args.dataset_dir))
     split = data.get_splits(args.val_days, args.test_days, in_len, args.out_len)
@@ -147,13 +151,14 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     from torch.utils.data import DataLoader, TensorDataset
     from .models.neural import build_model, default_config
 
-    point_index = int(point_id[1:]) - 1
+    point_index = data.point_ids.index(point_id)
     in_len = args.in_len
     train_origins = np.arange(
         in_len - 1, split.train_end - args.out_len, dtype=np.int64
     )
     val_origins = split.origins("val")
     train_raw = np.asarray(data.values[:split.train_end, point_index, :], dtype=np.float64)
+    train_raw = np.where(np.isfinite(train_raw), train_raw, np.nan)
     means = np.array([
         np.nanmean(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
         for c in range(2)
@@ -189,6 +194,36 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
+    monitor = getattr(args, "monitor", "normalized")
+    scheduler_name = getattr(args, "scheduler", "none")
+    grad_clip = getattr(args, "grad_clip", 1.0)
+    lr_patience = getattr(args, "lr_patience", 3)
+    lr_factor = getattr(args, "lr_factor", 0.5)
+    min_lr = getattr(args, "min_lr", 1e-6)
+    if grad_clip <= 0 or args.patience < 1 or args.epochs < 1 or args.min_delta < 0:
+        raise ValueError("Invalid clipping, epoch or early stopping settings")
+    if scheduler_name == "plateau" and not (0 < min_lr <= args.learning_rate and 0 < lr_factor < 1 and lr_patience >= 0 and args.patience > lr_patience + 1):
+        raise ValueError("Invalid scheduler settings; early-stop patience must exceed LR patience + 1")
+    scheduler = (torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=lr_factor, patience=lr_patience,
+        threshold=args.min_delta, threshold_mode="abs", min_lr=min_lr)
+        if scheduler_name == "plateau" else None)
+    sar_denominator = None
+    if monitor == "sar":
+        # The denominator is used ONLY for validation/checkpoint selection.
+        # It is not propagated into the training objective.
+        from .models.seasonal import fit_seasonal, forecast_seasonal
+        values = data.values[:, point_index:point_index+1, :]
+        clim, phi = fit_seasonal(values, data.dates, split.train_end, radius=15)
+        sar = forecast_seasonal(values, data.dates, val_origins, args.out_len, clim, phi)[:, 0].transpose(0, 2, 1)
+        # Fail rather than silently compare different supports. All targets and
+        # last observations must be finite in this optional monitor.
+        if len(y_val) != len(val_origins) or not np.isfinite(sar).all():
+            raise ValueError("SAR monitor requires complete validation windows and finite last observations; use normalized monitor otherwise")
+        normalized_sar = (sar - means[None, None, :]) / scales[None, None, :]
+        sar_denominator = np.mean((normalized_sar - y_val.astype(np.float64)) ** 2, axis=0)
+        if not np.isfinite(sar_denominator).all() or np.any(sar_denominator <= 1e-12):
+            raise ValueError("Invalid/zero SAR validation MSE in a channel/lead")
     loss_fn = torch.nn.MSELoss()
     train_ds = TensorDataset(torch.from_numpy(x_train), torch.from_numpy(y_train))
     train_loader = DataLoader(
@@ -208,6 +243,10 @@ def _train_one_point(args, data, split, point_id, fingerprint):
 
     best_loss = float("inf")
     best_epoch = 0
+    best_normalized = float("inf")
+    best_sar_skill = None
+    patience_anchor = float("inf")
+    stop_reason = "max_epochs"
     best_state = None
     epochs_without_improvement = 0
     history = []
@@ -220,6 +259,8 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     for epoch in range(1, args.epochs + 1):
         model.train()
         train_sum, train_count = 0.0, 0
+        clipped, n_batches, grad_norm_sum = 0, 0, 0.0
+        lr_used = optimizer.param_groups[0]["lr"]
         for xb, yb in train_loader:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
@@ -227,35 +268,59 @@ def _train_one_point(args, data, split, point_id, fingerprint):
             prediction = model(xb)
             loss = loss_fn(prediction, yb)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip, error_if_nonfinite=True).detach().cpu())
+            n_batches += 1
+            clipped += int(grad_norm > grad_clip)
+            grad_norm_sum += grad_norm
             optimizer.step()
             train_sum += float(loss.detach().cpu()) * len(xb)
             train_count += len(xb)
         train_loss = train_sum / max(train_count, 1)
 
         model.eval()
+        squared_sum = torch.zeros((args.out_len, 2), dtype=torch.float64, device=device)
         with torch.no_grad():
-            val_loss = sum(float(loss_fn(model(x_val_t[i:i+args.batch_size]), y_val_t[i:i+args.batch_size]).cpu()) * len(x_val_t[i:i+args.batch_size])
-                           for i in range(0, len(x_val_t), args.batch_size)) / len(x_val_t)
-
+            for i in range(0, len(x_val_t), args.batch_size):
+                delta = (model(x_val_t[i:i+args.batch_size]) - y_val_t[i:i+args.batch_size]).double()
+                squared_sum += delta.square().sum(dim=0)
+        cell_mse = squared_sum.cpu().numpy() / len(x_val_t)
+        val_loss = float(cell_mse.mean())
+        selection_loss = (float((cell_mse / sar_denominator).mean())
+                          if sar_denominator is not None else val_loss)
+        if not np.isfinite(train_loss) or not np.isfinite(selection_loss):
+            raise RuntimeError(f"Nonfinite training or validation loss: {args.model}/{point_id}")
+        sar_skill = 1.0 - selection_loss if monitor == "sar" else None
+        if scheduler is not None:
+            scheduler.step(selection_loss)
         history.append({
-            "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss
+            "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
+            "selection_loss": selection_loss, "val_sar_skill": sar_skill,
+            "learning_rate": lr_used, "next_learning_rate": optimizer.param_groups[0]["lr"],
+            "mean_preclip_grad_norm": grad_norm_sum / n_batches,
+            "clip_fraction": clipped / n_batches,
         })
         print(
             f"[epoch] model={args.model} point={point_id} epoch={epoch}/{args.epochs} "
-            f"train_loss={train_loss:.7g} val_loss={val_loss:.7g}", flush=True
+            f"train_loss={train_loss:.7g} val_loss={val_loss:.7g} "
+            f"selection_loss={selection_loss:.7g} lr={lr_used:.3g} clip_fraction={clipped/n_batches:.3f}", flush=True
         )
-        if val_loss < best_loss - args.min_delta:
-            best_loss = val_loss
+        # Exact minimum controls checkpoint, min_delta controls patience only.
+        if selection_loss < best_loss:
+            best_loss = selection_loss
+            best_normalized = val_loss
+            best_sar_skill = sar_skill
             best_epoch = epoch
             best_state = {
                 key: value.detach().cpu().clone()
                 for key, value in model.state_dict().items()
             }
+        if selection_loss < patience_anchor - args.min_delta:
+            patience_anchor = selection_loss
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= args.patience:
+                stop_reason = "early_stopping"
                 print(f"[early-stop] model={args.model} point={point_id} epoch={epoch}", flush=True)
                 break
 
@@ -285,7 +350,17 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         "model_config": config,
         "parameter_count": sum(p.numel() for p in model.parameters() if p.requires_grad),
         "best_epoch": best_epoch,
-        "best_validation_loss_normalized": best_loss,
+        "best_validation_loss_normalized": best_normalized,
+        "selection_metric": monitor,
+        "best_selection_loss": best_loss,
+        "best_validation_sar_skill": best_sar_skill,
+        "stop_reason": stop_reason,
+        "training_config": {"optimizer": "AdamW", "learning_rate": args.learning_rate,
+                            "weight_decay": args.weight_decay, "batch_size": args.batch_size,
+                            "epochs": args.epochs, "patience": args.patience,
+                            "min_delta": args.min_delta, "grad_clip": grad_clip,
+                            "scheduler": scheduler_name, "lr_patience": lr_patience,
+                            "lr_factor": lr_factor, "min_lr": min_lr},
         "epochs_completed": len(history),
         "seed": args.seed,
         "dataset_fingerprint_sha256": fingerprint,
@@ -299,7 +374,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     print(f"[saved] {metadata_path}", flush=True)
     print(
         f"[best] model={args.model} point={point_id} epoch={best_epoch} "
-        f"val_loss={best_loss:.7g}", flush=True
+        f"selection_loss={best_loss:.7g}", flush=True
     )
     del model, optimizer, train_loader, x_val_t, y_val_t
     if device.type == "cuda":
@@ -312,10 +387,8 @@ def _run_neural(args):
         args.in_len = 60
     if args.in_len < 2 or args.out_len < 1:
         raise ValueError("Neural input length must be >=2 and horizon >=1")
-    point_ids = tuple(args.points or DEFAULT_POINTS)
-    if len(set(point_ids)) != len(point_ids):
-        raise ValueError("Point IDs must be unique")
     data = PointDataset(dataset_dir(args.dataset_dir))
+    point_ids = select_points(data.point_ids, args.points)
     split = data.get_splits(args.val_days, args.test_days, args.in_len, args.out_len)
     fingerprint = data.fingerprint()
     output = []

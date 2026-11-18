@@ -11,7 +11,7 @@
 set -euo pipefail
 
 CODE_ROOT=/home/aosipova/Ocean_Components
-RESULTS_ROOT=/home/aosipova/OceanFull/Forecast/Results/Forecast_1d
+RESULTS_ROOT=/home/aosipova/OceanFull/Forecast/Results/Forecast_1d/atlantic15
 cd "$CODE_ROOT"
 
 # CPU-only collector: use host Python and its standard library, not Docker.

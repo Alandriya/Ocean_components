@@ -48,9 +48,9 @@ class ExtractTest(unittest.TestCase):
     def test_offshore_points_and_latlon(self):
         ocean, digest = _mask_from_bytes(self.root/'DATA'/'mask')
         points = _validate_points(POINTS_JSON, ocean)
-        self.assertEqual(len(points),10)
+        self.assertEqual(len(points),15)
         if RECEIVED_MASK.exists():
-            self.assertEqual(sum(bool(ocean[int(p['grid_y']),int(p['grid_x'])]) for p in points),10)
+            self.assertEqual(sum(bool(ocean[int(p['grid_y']),int(p['grid_x'])]) for p in points),15)
 
     def test_extract_mixed_legacy_layouts(self):
         self.save_sources('time_hw', 'space_time')
@@ -60,7 +60,7 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(info['last_date'],'1979-02-04')
         arr = np.load(out/'patches_15x15.npy', mmap_mode='r')
         center = np.load(out/'centers.npy')
-        self.assertEqual(arr.shape,(self.days,10,2,15,15))
+        self.assertEqual(arr.shape,(self.days,15,2,15,15))
         self.assertTrue(np.array_equal(arr[:,:,:,7,7],center))
         pts=json.loads(POINTS_JSON.read_text())['points']
         for i, p in enumerate(pts):

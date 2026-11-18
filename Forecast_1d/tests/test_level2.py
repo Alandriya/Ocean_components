@@ -65,6 +65,7 @@ class Level2Tests(unittest.TestCase):
             (source/'points.json').write_text(json.dumps({'points':[{'id':f'P{i}','region':f'Test {i}'} for i in range(1,11)]}))
             common=['--dataset-dir',str(source),'--results-dir',str(results),'--in-len','60','--out-len','14','--val-days','35','--test-days','35']
             train.main(common+['--model','sarima'])
+            common += ['--points','P3','P5','P7','P9']
             for model in ('mlp','tcn','gru',*LEVEL2):
                 train.main(common+['--model',model,'--epochs','1','--batch-size','32','--hidden-size','8','--device','cpu'])
             for split in ('val','test'):
@@ -82,7 +83,7 @@ class Level2Tests(unittest.TestCase):
                     with np.load(dest/f'{name}_predictions.npz') as file:
                         self.assertEqual(file['prediction'].shape,(22,4,2,14))
                         self.assertTrue(np.isfinite(file['prediction']).all())
-                subprocess.run([sys.executable,'-S','-m','Forecast_1d.collect_results','--results-dir',str(results),'--split',split],check=True,capture_output=True)
+                subprocess.run([sys.executable,'-S','-m','Forecast_1d.collect_results','--results-dir',str(results),'--split',split,'--points','P3','P5','P7','P9'],check=True,capture_output=True)
                 report=json.loads((results/'h14'/'summary'/f'forecast_1d_{split}_P3_P5_P7_P9_h14.json').read_text())
                 self.assertEqual(len(report['ranking_by_rmse']),14)
                 self.assertFalse(report['missing_models'])
@@ -101,7 +102,7 @@ class Level2Tests(unittest.TestCase):
             for name in LEVEL2:
                 np.testing.assert_array_equal(original[name],predict(name))
             from Forecast_1d.plotting.plot_results import main as plot
-            outputs=plot(['--dataset-dir',str(source),'--results-dir',str(results),'--model','nhits','--point','P3','--horizon','14','--compare','seasonal_ar1','ridge_var','--dpi','50'])
+            outputs=plot(['--dataset-dir',str(source),'--results-dir',str(results),'--model','nhits','--points','P3','P5','P7','P9','--point','P3','--horizon','14','--compare','seasonal_ar1','ridge_var','--dpi','50'])
             self.assertEqual(len(outputs),1)
             self.assertTrue(outputs[0].is_file())
 

@@ -28,10 +28,10 @@ def fast_ar1_supported(order, seasonal_order, trend):
 def fit_ar1(values: np.ndarray, fit_start: int, fit_end: int) -> np.ndarray:
     """Return per-point/channel [intercept, phi, residual_variance, pair_count]."""
     series = np.asarray(values[fit_start:fit_end], dtype=np.float64)
-    if series.ndim != 3 or series.shape[1:] != (10, 2):
-        raise ValueError("Expected a [T,10,2] center series")
-    result = np.full((10, 2, 4), np.nan, dtype=np.float64)
-    for point in range(10):
+    if series.ndim != 3 or series.shape[1] < 1 or series.shape[2] != 2:
+        raise ValueError("Expected a [T,P,2] center series")
+    result = np.full((values.shape[1], 2, 4), np.nan, dtype=np.float64)
+    for point in range(values.shape[1]):
         for channel in range(2):
             x, y = series[:-1, point, channel], series[1:, point, channel]
             valid = np.isfinite(x) & np.isfinite(y)
@@ -53,10 +53,10 @@ def fit_ar1(values: np.ndarray, fit_start: int, fit_end: int) -> np.ndarray:
 
 def forecast_ar1(values: np.ndarray, origins: np.ndarray, horizon: int,
                  params: np.ndarray) -> np.ndarray:
-    if params.shape != (10, 2, 4):
+    if params.shape != (values.shape[1], 2, 4):
         raise ValueError(f"Invalid AR(1) parameter shape: {params.shape}")
     current = np.asarray(values[origins], dtype=np.float64)
-    forecast = np.full((len(origins), 10, 2, horizon), np.nan, dtype=np.float64)
+    forecast = np.full((len(origins), values.shape[1], 2, horizon), np.nan, dtype=np.float64)
     for h in range(horizon):
         current = params[None, :, :, 0] + params[None, :, :, 1] * current
         forecast[..., h] = current
@@ -79,7 +79,7 @@ def _sarimax_model(endog, order, seasonal_order, trend):
 def fit_sarimax(values, fit_start, fit_end, order, seasonal_order, trend, maxiter=200):
     """Estimate SARIMAX parameters independently for each location/channel."""
     result = []
-    for point in range(10):
+    for point in range(values.shape[1]):
         row = []
         for channel in range(2):
             series = np.asarray(values[fit_start:fit_end, point, channel], dtype=np.float64)
@@ -103,8 +103,8 @@ def forecast_sarimax(values, origins, horizon, params, fit_start, fit_end,
         raise ValueError("No forecast origins")
     if np.any(np.diff(origins) <= 0) or origins[0] < fit_end - 1:
         raise ValueError("Origins must be ordered and not precede fitted interval")
-    output = np.full((len(origins), 10, 2, horizon), np.nan, dtype=np.float64)
-    for point in range(10):
+    output = np.full((len(origins), values.shape[1], 2, horizon), np.nan, dtype=np.float64)
+    for point in range(values.shape[1]):
         for channel in range(2):
             history = np.asarray(values[fit_start:fit_end, point, channel], dtype=np.float64)
             model = _sarimax_model(history, order, seasonal_order, trend)

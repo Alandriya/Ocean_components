@@ -77,7 +77,7 @@ class WindowsMemmapTest(unittest.TestCase):
         with mock.patch.object(ep, '_rename_with_retry', side_effect=PermissionError('WinError 5')):
             with self.assertRaises(PermissionError):
                 ep.extract(self.root, POINTS, self.output, chunk_days=8)
-        candidates = list(self.output.parent.glob('.atlantic10_native_1979-2026.building-*'))
+        candidates = list(self.output.parent.glob('.atlantic15_native_1979-2026.building-*'))
         self.assertEqual(len(candidates), 1)
         good, msg = validate_staging(candidates[0])
         self.assertTrue(good, msg)
@@ -90,7 +90,7 @@ class WindowsMemmapTest(unittest.TestCase):
         with mock.patch.object(ep, '_rename_with_retry', side_effect=PermissionError('WinError 5')):
             with self.assertRaises(PermissionError):
                 ep.extract(self.root, POINTS, self.output, chunk_days=11)
-        stage, = self.output.parent.glob('.atlantic10_native_1979-2026.building-*')
+        stage, = self.output.parent.glob('.atlantic15_native_1979-2026.building-*')
         (stage / 'patches_15x15.npy').unlink()
         good, msg = validate_staging(stage)
         self.assertFalse(good)
@@ -112,7 +112,7 @@ class WindowsMemmapTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,'Read failure'):
                     ep.extract(self.root,POINTS,self.output)
         self.assertTrue(all(x._mmap.closed for x in held))
-        self.assertFalse(list(self.output.parent.glob('.atlantic10_native_1979-2026.building-*')))
+        self.assertFalse(list(self.output.parent.glob('.atlantic15_native_1979-2026.building-*')))
 
 if __name__=='__main__':
     unittest.main()

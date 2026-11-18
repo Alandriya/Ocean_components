@@ -1,4 +1,4 @@
-"""Validated access to the extracted ten-point daily flux dataset.
+"""Validated access to the extracted daily flux dataset.
 
 All forecast splits are chronological. Evaluation origins may use past observed
 values as inputs, but every forecast target lies inside its requested split.
@@ -12,9 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .experiment import DEFAULT_HORIZON
-
-DEFAULT_SUBDIR = "atlantic10_native_1979-2026"
+from .experiment import DEFAULT_HORIZON, DEFAULT_SUBDIR, DEFAULT_RESULTS_SUBDIR
 CHANNELS = ("sensible", "latent")
 
 
@@ -34,7 +32,7 @@ def dataset_dir(override=None, root_override=None) -> Path:
 def results_dir(override=None, root_override=None) -> Path:
     if override is not None:
         return Path(override).expanduser().resolve()
-    return data_root(root_override) / "Forecast" / "Results" / "Forecast_1d"
+    return data_root(root_override) / "Forecast" / "Results" / "Forecast_1d" / DEFAULT_RESULTS_SUBDIR
 
 
 @dataclass(frozen=True)
@@ -83,8 +81,8 @@ class PointDataset:
             raise FileNotFoundError(f"Expected centers.npy and dates.npy in {self.path}")
         self.values = np.load(centers_path, mmap_mode="r", allow_pickle=False)
         self.dates = np.load(dates_path, allow_pickle=False)
-        if self.values.ndim != 3 or self.values.shape[1:] != (10, 2):
-            raise ValueError(f"Expected centers [T,10,2]; got {self.values.shape}")
+        if self.values.ndim != 3 or self.values.shape[1] < 1 or self.values.shape[2] != 2:
+            raise ValueError(f"Expected centers [T,P,2]; got {self.values.shape}")
         if self.values.dtype.kind not in "fi":
             raise TypeError("centers must contain numeric values")
         if self.dates.shape != (self.values.shape[0],):
@@ -99,8 +97,10 @@ class PointDataset:
             raise FileNotFoundError(f"Missing points.json in {self.path}")
         metadata = json.loads(points_file.read_text(encoding="utf-8"))
         self.points = metadata.get("points", [])
-        if [p["id"] for p in self.points] != [f"P{i}" for i in range(1, 11)]:
-            raise ValueError("Point IDs/order do not match P1..P10")
+        self.point_ids = tuple(p["id"] for p in self.points)
+        self.n_points = self.values.shape[1]
+        if self.point_ids != tuple(f"P{i}" for i in range(1, self.n_points + 1)):
+            raise ValueError("Point IDs/order must match P1..Pn and centers.npy")
         self.n_dates = self.values.shape[0]
 
     def fingerprint(self) -> str:

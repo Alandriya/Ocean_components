@@ -9,12 +9,11 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json, score_predictions
-from .experiment import DEFAULT_HORIZON, horizon_root
+from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, LEGACY_POINTS, select_points
 from .models.baselines import input_mean, persistence
 from .models.sarima import forecast_ar1, forecast_sarimax
 
-ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
-DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
+ALL_POINTS = DEFAULT_POINTS
 from .registry import BASELINES, NEW_BASELINES, LEVEL0, LEVEL1, LEVEL2, NEURAL_MODELS, ALL_MODELS
 from .models.seasonal import fit_seasonal, forecast_seasonal
 from .models.ridge_var import fit_ridge, forecast_ridge
@@ -27,7 +26,7 @@ def point_key(point_ids):
 def evaluation_dir(root, split, point_ids):
     """Keep the legacy flat directory for the original all-ten-point evaluation."""
     base = root / "evaluations" / split
-    return base if tuple(point_ids) == ALL_POINTS else base / point_key(point_ids)
+    return base if tuple(point_ids) == LEGACY_POINTS else base / point_key(point_ids)
 
 
 def build_parser():
@@ -37,7 +36,7 @@ def build_parser():
         choices=[*ALL_MODELS, "level0", "level0_new", "level1", "level2", "level01", "all"],
         default="all"
     )
-    p.add_argument("--points", nargs="+", choices=ALL_POINTS, default=list(DEFAULT_POINTS))
+    p.add_argument("--points", nargs="+", default=None)
     p.add_argument("--split", choices=["val", "test"], default="test")
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
@@ -170,10 +169,8 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
 def run(args):
     data = PointDataset(dataset_dir(args.dataset_dir))
     requested_points = getattr(args, "points", None)
-    point_ids = tuple(ALL_POINTS if requested_points is None else (requested_points or DEFAULT_POINTS))
-    if len(set(point_ids)) != len(point_ids):
-        raise ValueError("Point IDs must be unique")
-    point_indices = np.asarray([int(p[1:]) - 1 for p in point_ids], dtype=np.int64)
+    point_ids = select_points(data.point_ids, requested_points)
+    point_indices = np.asarray([data.point_ids.index(p) for p in point_ids], dtype=np.int64)
     in_len = getattr(args, "in_len", 60)
     mean_days = getattr(args, "mean_days", getattr(args, "in_len", 30))
     split = data.get_splits(
@@ -307,7 +304,7 @@ def run(args):
                 target=target.astype(np.float32),
                 origins=origins,
                 dates=data.dates[origins].astype("datetime64[D]"),
-                point_ids=np.asarray(point_ids, dtype="U3"),
+                point_ids=np.asarray(point_ids, dtype=str),
             )
             print(f"[saved] {prediction_path}", flush=True)
 

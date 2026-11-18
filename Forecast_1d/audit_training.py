@@ -35,6 +35,11 @@ def audit(root):
                 'dataset_fingerprint_sha256': meta.get('dataset_fingerprint_sha256'),
                 'seed': meta.get('seed'), 'parameter_count': meta.get('parameter_count'),
                 'model_config': meta.get('model_config'),
+                'training_config': meta.get('training_config'),
+                'selection_metric': meta.get('selection_metric', 'normalized'),
+                'best_selection_loss': meta.get('best_selection_loss'),
+                'best_validation_sar_skill': meta.get('best_validation_sar_skill'),
+                'stop_reason': meta.get('stop_reason'),
                 'epochs_logged': len(history), 'finite_epochs': len(valid),
                 'first_train_loss': first['train_loss'], 'first_val_loss': first['val_loss'],
                 'last_epoch': last['epoch'], 'last_train_loss': last['train_loss'],
@@ -51,7 +56,7 @@ def audit(root):
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
             warnings.append({'path': str(path), 'error': str(exc)})
     return {'results_dir': str(root), 'record_count': len(records), 'warnings': warnings,
-            'note': 'Losses are normalized. Best observed epoch may differ from saved epoch due to min_delta. Stop reason cannot be inferred reliably from history alone.',
+            'note': 'train_loss and val_loss are normalized MSE. Saved epoch may differ from normalized MSE minimum if SAR selection is used; older jobs may lack stop_reason.',
             'records': records}
 
 

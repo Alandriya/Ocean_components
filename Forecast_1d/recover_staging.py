@@ -42,6 +42,12 @@ def validate_staging(staging: Path) -> tuple[bool, str]:
     try:
         metadata = json.loads(manifest_path.read_text(encoding='utf-8'))
         n = int(metadata['n_dates'])
+        points = json.loads((staging / 'points.json').read_text(encoding='utf-8'))['points']
+        p = len(points)
+        if not p or [v['id'] for v in points] != [f'P{i}' for i in range(1,p+1)]:
+            return False, 'invalid point identities'
+        if [v['id'] for v in metadata['points']] != [v['id'] for v in points]:
+            return False, 'point manifest mismatch'
         if n <= 0 or metadata['channels'] != ['sensible', 'latent']:
             return False, 'invalid manifest dates/channels'
         expected = set(metadata['files'])
@@ -56,14 +62,14 @@ def validate_staging(staging: Path) -> tuple[bool, str]:
                     str(dates[-1]) != metadata['last_date']):
                 return False, 'dates do not match manifest'
         with _open_array(staging / 'patches_15x15.npy') as patches:
-            if patches.shape != (n, 10, 2, PATCH_WIDTH, PATCH_WIDTH):
+            if patches.shape != (n, p, 2, PATCH_WIDTH, PATCH_WIDTH):
                 return False, 'invalid patches array shape'
             if patches.dtype != np.float32:
                 return False, 'invalid patches array dtype'
             samples = sorted(set((0, n // 2, n - 1)))
             sampled = np.array(patches[samples], copy=True)
         with _open_array(staging / 'centers.npy') as centers:
-            if centers.shape != (n, 10, 2):
+            if centers.shape != (n, p, 2):
                 return False, 'invalid centers array shape'
             center_samples = np.asarray(centers[samples])
             if not np.array_equal(sampled[..., 7, 7], center_samples, equal_nan=True):
@@ -83,13 +89,13 @@ def validate_staging(staging: Path) -> tuple[bool, str]:
             sds = np.sqrt(np.maximum(0.0, variances - means * means))
             for kind, check in (('mean', means), ('std', sds)):
                 with _open_array(staging / f'{kind}_{width}x{width}.npy') as arr:
-                    if arr.shape != (n, 10, 2):
+                    if arr.shape != (n, p, 2):
                         return False, f'invalid {kind}_{width}x{width}.npy shape'
                     if not np.allclose(arr[samples], check, atol=1e-4, rtol=1e-4,
                                        equal_nan=True):
                         return False, f'{kind}_{width}x{width}.npy samples disagree with patches'
         with _open_array(staging / 'patch_mask_15x15.npy') as mask:
-            if mask.shape != (10, 15, 15) or not np.all(mask == 1):
+            if mask.shape != (p, PATCH_WIDTH, PATCH_WIDTH) or not np.all(mask == 1):
                 return False, 'invalid patch mask'
     except (OSError, ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
         return False, f'validation failed: {exc}'

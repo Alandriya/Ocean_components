@@ -30,7 +30,7 @@ CHANNEL_NAMES = ('sensible', 'latent')
 PATCH_WIDTH = 15
 CHECK_WIDTH = 21
 STAT_WIDTHS = (3, 7, 15)
-DEFAULT_SUBDIR = 'atlantic10_native_1979-2026'
+from .experiment import DEFAULT_SUBDIR
 
 
 def _read_project_data_root() -> Path:
@@ -82,13 +82,13 @@ def _validate_points(path: Path, water: np.ndarray):
     if tuple(payload.get('grid_shape', ())) != GRID:
         raise ValueError(f'Point manifest expected native GRID={GRID}: {path}')
     entries = payload['points']
-    if len(entries) != 10 or len({p['id'] for p in entries}) != 10:
-        raise ValueError('Expected exactly ten different points')
+    if not entries or [p['id'] for p in entries] != [f'P{i}' for i in range(1, len(entries)+1)]:
+        raise ValueError('Expected ordered, unique point IDs P1..Pn')
+    if len({(p['grid_y'],p['grid_x']) for p in entries}) != len(entries):
+        raise ValueError('Point coordinates must be unique')
     points = []
     for item in entries:
         y, x = int(item['grid_y']), int(item['grid_x'])
-        if item['id'] not in [f'P{i}' for i in range(1, 11)]:
-            raise ValueError(f'Unexpected point ID: {item["id"]}')
         if not (0 <= y < GRID[0] and 0 <= x < GRID[1]):
             raise ValueError(f'Point {item["id"]} outside map: {(y,x)}')
         lat = 80.0 - 0.5 * y
@@ -280,7 +280,7 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
         _write_points_csv(staging/'points.csv', points)
         shutil.copyfile(points_file, staging/'points.json')
         metadata = {
-            'description': 'Unnormalized raw daily flux series; 10 offshore locations; no train/val/test split',
+            'description': f'Unnormalized raw daily flux series; {len(points)} offshore locations; no train/val/test split',
             'base_date': BASE_DATE.isoformat(),
             'last_date': last_date.isoformat(),
             'n_dates': n_time,
@@ -301,7 +301,7 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
             'finite_fraction_patches_15x15':(valid_patch/(n_time*PATCH_WIDTH**2)).tolist(),
             'dtype': 'float32',
             'value_processing': 'original physical values cast to float32; NaN/inf preserved; no normalization/filling',
-            'point_order': 'P1 through P10',
+            'point_order': f'P1 through P{len(points)}',
             'files': ['patches_15x15.npy','centers.npy', 'dates.npy', 'patch_mask_15x15.npy',
                       'points.csv','points.json', 'manifest.json'] +
                      [f'{kind}_{w}x{w}.npy' for kind in ('mean','std') for w in STAT_WIDTHS],
@@ -360,6 +360,8 @@ def main(argv=None):
         if actual != desired:
             parser.error(f'DATA_ROOT mismatch: project_paths.py points to {data_root}; '
                          f'expected {args.expected_data_root}. Set active DATA_ROOT in project_paths.py.')
+    if args.output is None and args.points.resolve() != Path(__file__).with_name('points.json').resolve():
+        parser.error('A custom --points file requires an explicit --output directory')
     destination = args.output or data_root / 'DATA' / 'Forecast_1d' / DEFAULT_SUBDIR
     extract(data_root, args.points, destination, chunk_days=args.chunk_days,
             overwrite=args.overwrite, dry_run=args.dry_run)

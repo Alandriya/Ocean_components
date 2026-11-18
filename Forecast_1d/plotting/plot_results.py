@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from ..data import CHANNELS, PointDataset, dataset_dir, results_dir
-from ..experiment import DEFAULT_HORIZON, horizon_root
+from ..experiment import DEFAULT_HORIZON, horizon_root, LEGACY_POINTS, select_points
 from ..test import DEFAULT_POINTS, ALL_POINTS, point_key, evaluation_dir
 from ..registry import ALL_MODELS, LEVEL0
 
@@ -20,8 +20,8 @@ def build_parser():
         required=True
     )
     parser.add_argument("--split", choices=["val", "test"], default="test")
-    parser.add_argument("--points", nargs="+", choices=ALL_POINTS, default=list(DEFAULT_POINTS))
-    parser.add_argument("--point", choices=["all", *ALL_POINTS], default="all")
+    parser.add_argument("--points", nargs="+", default=None)
+    parser.add_argument("--point", default="all")
     parser.add_argument("--out-len", type=int, default=DEFAULT_HORIZON,
                         help="Trained forecast length used to locate artifacts")
     parser.add_argument("--horizon", type=int, nargs="+", default=None,
@@ -43,7 +43,7 @@ def _load_predictions(path):
     with np.load(path, allow_pickle=False) as archive:
         point_ids = (
             tuple(str(x) for x in archive["point_ids"].tolist())
-            if "point_ids" in archive.files else ALL_POINTS
+            if "point_ids" in archive.files else LEGACY_POINTS
         )
         return (
             np.asarray(archive["prediction"]),
@@ -62,7 +62,7 @@ def run(args):
     data = PointDataset(dataset_dir(args.dataset_dir))
     root = horizon_root(results_dir(args.results_dir), getattr(args, "out_len", 3))
     requested_points = getattr(args, "points", None)
-    requested_points = tuple(ALL_POINTS if requested_points is None else requested_points)
+    requested_points = select_points(data.point_ids, requested_points)
     key = point_key(requested_points)
     source = evaluation_dir(root, args.split, requested_points)
     prediction, target, origins, saved_points = _load_predictions(
@@ -76,7 +76,7 @@ def run(args):
         raise ValueError("Predictions and targets must share [N,points,2,horizon]")
     if prediction.shape[0] != len(origins) or prediction.shape[1:3] != (len(saved_points), 2):
         raise ValueError("Invalid point count or origin metadata")
-    point_indices = np.asarray([int(p[1:]) - 1 for p in saved_points])
+    point_indices = np.asarray([data.point_ids.index(p) for p in saved_points])
     expected = np.stack([
         np.asarray(data.values[origins + h][:, point_indices, :])
         for h in range(1, prediction.shape[-1] + 1)

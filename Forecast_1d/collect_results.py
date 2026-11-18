@@ -10,11 +10,10 @@ import json
 import math
 from pathlib import Path
 
-from .experiment import DEFAULT_HORIZON, horizon_root
+from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, LEGACY_POINTS, DEFAULT_RESULTS_SUBDIR
 from .registry import model_level, ALL_MODELS
 
-DEFAULT_POINTS = ("P3", "P5", "P7", "P9")
-ALL_POINTS = tuple(f"P{i}" for i in range(1, 11))
+ALL_POINTS = DEFAULT_POINTS
 CSV_FIELDS = [
     "level", "model", "split", "point_id", "channel", "horizon_days",
     "n", "rmse", "mae", "bias", "mse", "persistence_mse_skill", "sarima_mse_skill", "seasonal_climatology_mse_skill", "seasonal_ar1_mse_skill", "ridge_var_mse_skill",
@@ -26,7 +25,7 @@ def build_parser():
         description="Collect Forecast_1d metrics without third-party dependencies"
     )
     parser.add_argument("--split", choices=["val", "test"], default="test")
-    parser.add_argument("--points", nargs="+", choices=ALL_POINTS,
+    parser.add_argument("--points", nargs="+", 
                         default=list(DEFAULT_POINTS))
     parser.add_argument("--out-len", type=int, default=DEFAULT_HORIZON)
     parser.add_argument("--results-dir", type=Path, default=None)
@@ -38,7 +37,7 @@ def _results_root(override):
     if override is not None:
         return Path(override).expanduser().resolve()
     from project_paths import DATA_ROOT
-    return Path(DATA_ROOT).expanduser().resolve() / "Forecast" / "Results" / "Forecast_1d"
+    return Path(DATA_ROOT).expanduser().resolve() / "Forecast" / "Results" / "Forecast_1d" / DEFAULT_RESULTS_SUBDIR
 
 
 def _level_for(model):
@@ -63,12 +62,14 @@ def _metric_row(model, split, point_id, channel, horizon, score):
 
 def collect(args):
     points = tuple(args.points)
+    if not points or len(set(points)) != len(points):
+        raise ValueError("Select nonempty unique point IDs")
     point_key = "_".join(points)
     root = horizon_root(_results_root(args.results_dir), args.out_len)
     evaluation_root = root / "evaluations" / args.split
     metrics_path = (
         evaluation_root / "metrics.json"
-        if points == ALL_POINTS else evaluation_root / point_key / "metrics.json"
+        if points == LEGACY_POINTS else evaluation_root / point_key / "metrics.json"
     )
     if not metrics_path.is_file():
         raise FileNotFoundError(
@@ -122,6 +123,8 @@ def collect(args):
             item["macro_"+ref_name+"_mse_skill"] = (sum(scores)/expected_cells if all(v is not None for v in scores) else None)
         ranking.append(item)
     ranking.sort(key=lambda r: r["rmse"])
+    sar_key = "macro_seasonal_ar1_mse_skill"
+    sar_ranking = sorted(ranking, key=lambda r: (r[sar_key] is None, -(r[sar_key] or 0.0)))
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir else root / "summary"
@@ -141,6 +144,8 @@ def collect(args):
         "models": sorted(payload.get("models", {}).keys()),
         "rows": rows,
         "ranking_by_rmse": ranking,
+        "ranking_by_sar_skill": sar_ranking,
+        "primary_reference": "seasonal_ar1",
         "missing_models": sorted(set(ALL_MODELS) - set(payload.get("models", {}))),
     }
     json_path.write_text(
@@ -156,6 +161,10 @@ def collect(args):
             writer = csv.DictWriter(handle, fieldnames=list(ranking[0]))
             writer.writeheader()
             writer.writerows(ranking)
+        with (output_dir / f"{stem}_sar_ranking.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(ranking[0]))
+            writer.writeheader()
+            writer.writerows(sar_ranking)
         print(f"[saved] {ranking_path}", flush=True)
     print(f"[saved] {json_path}", flush=True)
     print(f"[saved] {csv_path}", flush=True)

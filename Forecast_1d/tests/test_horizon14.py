@@ -69,6 +69,7 @@ class Horizon14Tests(unittest.TestCase):
             (source/'points.json').write_text(json.dumps({'points': [{'id':f'P{i}', 'region':f'Test {i}'} for i in range(1,11)]}))
             common = ['--dataset-dir',str(source),'--results-dir',str(results),'--in-len','60','--val-days','35','--test-days','35']
             train.main(common+['--model','sarima'])
+            common += ['--points','P3','P5','P7','P9']
             for name in ('mlp','tcn','gru'):
                 train.main(common+['--model',name,'--epochs','1','--batch-size','32','--hidden-size','8','--device','cpu'])
             root = horizon_root(results, 14)
@@ -89,13 +90,13 @@ class Horizon14Tests(unittest.TestCase):
                         np.testing.assert_array_equal(data['target'][...,13],values[data['origins']+14][:,[2,4,6,8],:])
                         self.assertTrue(np.isfinite(data['prediction']).all())
                 # CPU collector must run even with site-packages disabled.
-                subprocess.run([sys.executable,'-S','-m','Forecast_1d.collect_results','--results-dir',str(results),'--split',part],check=True,capture_output=True,text=True)
+                subprocess.run([sys.executable,'-S','-m','Forecast_1d.collect_results','--results-dir',str(results),'--split',part,'--points','P3','P5','P7','P9'],check=True,capture_output=True,text=True)
                 summary = root/'summary'/f'forecast_1d_{part}_P3_P5_P7_P9_h14.csv'
                 with summary.open() as f:
                     rows=list(csv.DictReader(f))
                 self.assertEqual(len(rows),6*14*11)
                 self.assertTrue(all(row['sarima_mse_skill'] != '' for row in rows))
-            outputs = plot_results.main(['--dataset-dir',str(source),'--results-dir',str(results),'--model','gru','--point','P3','--horizon','1','14','--show-baselines','--dpi','50'])
+            outputs = plot_results.main(['--dataset-dir',str(source),'--results-dir',str(results),'--model','gru','--points','P3','P5','P7','P9','--point','P3','--horizon','1','14','--show-baselines','--dpi','50'])
             self.assertEqual(len(outputs),2)
             self.assertTrue(all(p.is_file() for p in outputs))
             # Verify actual model inference against a future-only perturbation.

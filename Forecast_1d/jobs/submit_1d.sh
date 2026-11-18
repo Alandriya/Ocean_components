@@ -20,17 +20,20 @@ fi
 
 MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
-    echo "Usage: bash Forecast_1d/jobs/submit_1d.sh {train|test|plot|collect} [job arguments...]" >&2
+    echo "Usage: bash Forecast_1d/jobs/submit_1d.sh {extract|train|test|plot|collect} [job arguments...]" >&2
     exit 2
 fi
 shift
 
 case "$MODE" in
+    extract)
+        JOB_SCRIPT="$JOB_DIR/extract_points.sbatch"
+        ;;
     train|test|plot|collect)
         JOB_SCRIPT="$JOB_DIR/$MODE.sbatch"
         ;;
     *)
-        echo "[error] Unknown mode '$MODE'. Choose train, test, plot, or collect." >&2
+        echo "[error] Unknown mode '$MODE'. Choose extract, train, test, plot, or collect." >&2
         exit 2
         ;;
 esac

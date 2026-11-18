@@ -135,6 +135,71 @@
       "ocean_cells_7x7": 49,
       "ocean_cells_15x15": 225,
       "ocean_cells_21x21": 441
+    },
+    {
+      "id": "P11",
+      "region": "South of Gulf Stream front, offshore recirculation region",
+      "grid_y": 92,
+      "grid_x": 70,
+      "lat_deg": 34.0,
+      "lon_deg": -55.0,
+      "min_distance_to_land_grid_cells": 26.0,
+      "ocean_cells_3x3": 9,
+      "ocean_cells_7x7": 49,
+      "ocean_cells_15x15": 225,
+      "ocean_cells_21x21": 441
+    },
+    {
+      "id": "P12",
+      "region": "Gulf Stream to North Atlantic Current transition region",
+      "grid_y": 74,
+      "grid_x": 88,
+      "lat_deg": 43.0,
+      "lon_deg": -46.0,
+      "min_distance_to_land_grid_cells": 16.12,
+      "ocean_cells_3x3": 9,
+      "ocean_cells_7x7": 49,
+      "ocean_cells_15x15": 225,
+      "ocean_cells_21x21": 441
+    },
+    {
+      "id": "P13",
+      "region": "Southern Labrador Basin",
+      "grid_y": 52,
+      "grid_x": 84,
+      "lat_deg": 54.0,
+      "lon_deg": -48.0,
+      "min_distance_to_land_grid_cells": 14.76,
+      "ocean_cells_3x3": 9,
+      "ocean_cells_7x7": 49,
+      "ocean_cells_15x15": 225,
+      "ocean_cells_21x21": 441
+    },
+    {
+      "id": "P14",
+      "region": "Central subtropical gyre",
+      "grid_y": 96,
+      "grid_x": 106,
+      "lat_deg": 32.0,
+      "lon_deg": -37.0,
+      "min_distance_to_land_grid_cells": 43.74,
+      "ocean_cells_3x3": 9,
+      "ocean_cells_7x7": 49,
+      "ocean_cells_15x15": 225,
+      "ocean_cells_21x21": 441
+    },
+    {
+      "id": "P15",
+      "region": "Near-equatorial Atlantic",
+      "grid_y": 149,
+      "grid_x": 120,
+      "lat_deg": 5.5,
+      "lon_deg": -30.0,
+      "min_distance_to_land_grid_cells": 30.41,
+      "ocean_cells_3x3": 9,
+      "ocean_cells_7x7": 49,
+      "ocean_cells_15x15": 225,
+      "ocean_cells_21x21": 441
     }
   ]
 }
