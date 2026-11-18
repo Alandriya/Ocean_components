@@ -508,8 +508,9 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year):
     """Save every copula figure independently, using English figure text.
 
     Existing copula/FP NPZ files are read-only; all statistical calculations
-    have already been performed. The legacy YlOrRd palette and zoom intervals
-    are retained. Russian alternatives are commented at each label.
+    have already been performed. The legacy YlOrRd palette is retained; all
+    joint densities use the same physical display ranges. Russian alternatives
+    are commented at each label.
 
     Returns a list of independent image paths under
     Plots/Copulas/Figures/<pair>_<period>/, with *_eng.png filenames.
@@ -528,7 +529,7 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year):
     folder.mkdir(parents=True, exist_ok=True)
     outputs = []
     cmap = "YlOrRd"  # Keep the original yellow/orange/red palette.
-    display_ranges = {"sensible": (-300.0, 300.0), "latent": (-800.0, 300.0)}
+    display_ranges = {"sensible": (-100.0, 100.0), "latent": (-250.0, 50.0)}
     rank_models = (
         ("empirical", "centers", "Empirical copula", "copula_empirical_eng.png"),
         # RU: "Эмпирическая копула"
@@ -576,19 +577,19 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year):
         ax.set_aspect("equal", adjustable="box")
 
     def _bounds(coordinate, density, variable):
-        coordinate = np.asarray(coordinate, dtype=float)
         if variable in display_ranges:
-            lo, hi = display_ranges[variable]
+            # Keep the requested physical limits even for a narrower/coarser grid.
+            return display_ranges[variable]
+        coordinate = np.asarray(coordinate, dtype=float)
+        # Use the central 99% of the saved marginal for other variables.
+        density = np.maximum(np.asarray(density, dtype=float), 0.0)
+        weights = 0.5 * (density[:-1] + density[1:]) * np.diff(coordinate)
+        cdf = np.concatenate(([0.0], np.cumsum(weights)))
+        if cdf[-1] > 0:
+            cdf /= cdf[-1]
+            lo, hi = np.interp((0.005, 0.995), cdf, coordinate)
         else:
-            # Use the central 99% of the saved marginal for other variables.
-            density = np.maximum(np.asarray(density, dtype=float), 0.0)
-            weights = 0.5 * (density[:-1] + density[1:]) * np.diff(coordinate)
-            cdf = np.concatenate(([0.0], np.cumsum(weights)))
-            if cdf[-1] > 0:
-                cdf /= cdf[-1]
-                lo, hi = np.interp((0.005, 0.995), cdf, coordinate)
-            else:
-                lo, hi = coordinate[0], coordinate[-1]
+            lo, hi = coordinate[0], coordinate[-1]
         lo = max(float(lo), float(coordinate[0]))
         hi = min(float(hi), float(coordinate[-1]))
         visible = int(np.count_nonzero((coordinate >= lo) & (coordinate <= hi)))
@@ -689,26 +690,16 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year):
                 raise ValueError(f"{key}: expected {(len(x2), len(x1))}, got {pdf.shape}")
             joint[key] = (pdf, title, filename)
         ref = joint["joint_gaussian"][0]
-        default_bounds_x = _bounds(x1, np.trapezoid(ref, x2, axis=0), names[0])
-        default_bounds_y = _bounds(x2, np.trapezoid(ref, x1, axis=1), names[1])
-        zoom_by_joint = {
-            # Legacy article-style zoom used for the Bernstein sensible/latent panel.
-            ("sensible", "latent", "joint_bernstein"): ((-50.0, 150.0), (-250.0, 50.0)),
-            ("latent", "sensible", "joint_bernstein"): ((-250.0, 50.0), (-50.0, 150.0)),
-        }
-        visible_windows = {}
-        for key in joint:
-            bx, by = zoom_by_joint.get((names[0], names[1], key), (default_bounds_x, default_bounds_y))
-            visible_windows[key] = (
-                (x1 >= bx[0]) & (x1 <= bx[1]),
-                (x2 >= by[0]) & (x2 <= by[1]),
-            )
+        bounds_x = _bounds(x1, np.trapezoid(ref, x2, axis=0), names[0])
+        bounds_y = _bounds(x2, np.trapezoid(ref, x1, axis=1), names[1])
+        # All models use identical physical bounds and the same colour scale.
+        visible_x = (x1 >= bounds_x[0]) & (x1 <= bounds_x[1])
+        visible_y = (x2 >= bounds_y[0]) & (x2 <= bounds_y[1])
         vmax = _cap([
-            joint[key][0][np.ix_(visible_windows[key][1], visible_windows[key][0])]
-            for key in joint
+            pdf[np.ix_(visible_y, visible_x)]
+            for pdf, _, _ in joint.values()
         ], percentile=99.5)
         for key, (pdf, title, filename) in joint.items():
-            bounds_x, bounds_y = zoom_by_joint.get((names[0], names[1], key), (default_bounds_x, default_bounds_y))
             fig, ax = plt.subplots(figsize=(7, 5.5), constrained_layout=True)
             try:
                 image = ax.pcolormesh(x1, x2, np.ma.masked_invalid(pdf),
