@@ -85,7 +85,7 @@ class PlotPolicyTests(unittest.TestCase):
             ax.set_xlabel("Longitude")
             saved = save_figure(fig, Path(folder) / "videos" / "Eigenvalues" / "pair" / "sample.png")
             self.assertEqual(saved, Path(folder) / "Plots" / "Eigenvalues" / "pair" / "sample.png")
-            self.assertEqual(ax.get_xlabel(), "Долгота")
+            self.assertEqual(ax.get_xlabel(), "Longitude")  # save must not mutate its source labels
             self.assertTrue(saved.is_file())
             plt.close(fig)
 

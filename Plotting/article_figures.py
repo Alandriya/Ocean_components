@@ -25,6 +25,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 from Functional.article_diagnostics import prepare_article_diagnostics
+from Plotting.language import with_plot_language
 
 # Original yellow/orange/pink/violet classes, light-green land.
 # The ordering is lower to higher heat-flux value, not chronological order.
@@ -71,7 +72,7 @@ ISOLINE_LEVELS = {
 
 
 def _save(fig, path, dpi):
-    """Save directly: Plotting.paths.save_figure otherwise translates EN to RU."""
+    """Save with the shared, scoped figure language."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=dpi, bbox_inches="tight", facecolor="white")
@@ -113,6 +114,7 @@ def _map_background(ax, ocean):
               interpolation="nearest", zorder=0, aspect="auto")
 
 
+@with_plot_language
 def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi=300,
                       display_xlim=None):
     """Figure 2: exactly five shaded quintiles of an existing reference PDF."""
@@ -153,6 +155,7 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
         plt.close(fig)
 
 
+@with_plot_language
 def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
                           dpi=300, levels=None, second_map=None, second_label=None):
     """Figure 1: correct Delta X = ERA5 time mean minus a *model* reference mean.
@@ -213,6 +216,7 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
         plt.close(fig)
 
 
+@with_plot_language
 def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=300):
     """Figure 3: 1979-01-01 ERA5 map, quantile-classified by Figure 2 thresholds."""
     t = LABELS[language]
@@ -242,6 +246,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
         plt.close(fig)
 
 
+@with_plot_language
 def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en", dpi=300):
     """Optional supplementary map: local frequency of regions 1/5 over the period."""
     with np.load(cache, allow_pickle=False) as data:
@@ -305,6 +310,7 @@ def _copula_contours(root, pair, period, output_dir, language, dpi):
     return outputs
 
 
+@with_plot_language
 def plot_article_copulas(files_path_prefix, names=("sensible", "latent"),
                          start_year=1979, end_year=2026, *, language="en", dpi=300):
     """Restore manuscript Figures 4--8 from the stored copula results.
@@ -333,7 +339,10 @@ def plot_article_copulas(files_path_prefix, names=("sensible", "latent"),
     for item in existing:
         item = Path(item)
         if item.name in mapped:
-            target = dest / mapped[item.name]
+            target_name = mapped[item.name]
+            if language == "ru":
+                target_name = target_name.replace("_eng.png", "_ru.png")
+            target = dest / target_name
             if item.resolve() != target.resolve():
                 shutil.copy2(item, target)
             outputs.append(target)
@@ -341,6 +350,7 @@ def plot_article_copulas(files_path_prefix, names=("sensible", "latent"),
     return outputs
 
 
+@with_plot_language
 def plot_article_figures(files_path_prefix, names=("sensible", "latent"),
                          start_year=1979, end_year=2026, *,
                          regions_period=(1979, 1989), map_date="1979-01-01",

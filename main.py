@@ -502,7 +502,8 @@ def main():
     article_hybrid_reference = (1979, 2026)
     article_chunk_days = 32
     article_compute_frequencies = False
-    article_language = "ru"  # switch to 'en' for English figures
+    from Plotting.language import get_plot_language
+    article_language = get_plot_language()  # default en; standalone override via env
     article_dpi = 300
     article_refresh = False  # explicit article cache invalidation
     article_isoline_levels = None

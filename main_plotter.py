@@ -7,6 +7,7 @@ All prior visualization entry points are retained. No refitting is performed.
 from __future__ import annotations
 
 from project_paths import files_path_prefix as SHARED_DATA_PREFIX
+from Plotting.language import set_plot_language
 
 from Plotting.workflows import (
     plot_spectral_modes, coefficient_video, plot_copula_results,
@@ -27,6 +28,11 @@ from Plotting.article_figures import plot_article_figures
 
 def main():
     """Configure visualization workflows and run the selected plotting task."""
+    # GLOBAL FIGURE LANGUAGE — choose one: "en" or "ru".
+    # plot_language = "en"
+    plot_language = "ru"
+    set_plot_language(plot_language)
+
     files_path_prefix = SHARED_DATA_PREFIX
     start_year = 19792026
 
@@ -46,7 +52,7 @@ def main():
     article_chunk_days = 32
     article_compute_frequencies = False  # optional supplementary maps
     article_refresh = False             # True recomputes cached spatial means
-    article_language = "en"             # ru available for the Russian article
+    article_language = plot_language     # use the global figure language
     article_dpi = 300
     article_isoline_levels = None        # None = manuscript-inspired levels
     article_second_anomaly_files = None  # optional 2D anomaly maps by variable

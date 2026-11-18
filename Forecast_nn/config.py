@@ -6,6 +6,7 @@ Data length is inferred from the actual NPY header: the 2026 portion may be
 incomplete, and ``2026`` in a filename is *not* a last observation date.
 """
 from pathlib import Path
+import os
 
 from project_paths import DATA_ROOT
 
@@ -192,7 +193,7 @@ class Config:
     # Evaluation / plotting
     # -------------------------------------------------------------------------
     plot_samples = (0,)
-    plot_language = 'ru'
+    plot_language = os.environ.get('OCEAN_PLOT_LANGUAGE', 'en')
     ssim_window = 11
     ssim_sigma = 1.5
     results_root = root_path / 'Forecast' / 'Results'

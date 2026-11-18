@@ -2,104 +2,27 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from matplotlib import rcParams
 
 rcParams["font.family"] = "DejaVu Sans"
 
-_TRANSLATIONS = (
-    ("Gaussian copula", "Гауссовская копула"),
-    ("Empirical copula", "Эмпирическая копула"),
-    ("Student t copula", "Копула Стьюдента"),
-    ("Stationary density", "Плотность стационарного распределения"),
-    ("stationary distribution", "стационарное распределение"),
-    ("eigenvectors", "собственные векторы"),
-    ("eigenvalues", "собственные значения"),
-    ("singular values", "сингулярные значения"),
-    ("eigenvector", "собственный вектор"),
-    ("sensible heat flux", "поток явного тепла"),
-    ("latent heat flux", "поток скрытого тепла"),
-    ("Sensible flux", "Явный тепловой поток"),
-    ("Latent flux", "Скрытый тепловой поток"),
-    ("pressure", "давление"),
-    ("temperature", "температура"),
-    ("longitude", "долгота"),
-    ("latitude", "широта"),
-    ("values", "значения"),
-    ("density", "плотность"),
-    ("frequency", "частота"),
-    ("observations", "наблюдения"),
-    ("correlation", "корреляция"),
-    ("diffusion", "диффузия"),
-    ("drift", "снос"),
-    ("distribution", "распределение"),
-    ("mean year", "средний год"),
-    ("difference", "разность"),
-    ("comparison", "сравнение"),
-    ("quantile", "квантиль"),
-    ("month", "месяц"),
-    ("year", "год"),
-    ("days", "дни"),
-    ("time", "время"),
-    ("Flux", "Поток"),
-    ("Sensible", "Явный"),
-    ("Latent", "Скрытый"),
-    ("Mean", "Среднее"),
-    ("min", "мин"),
-    ("max", "макс"),
-)
+from Plotting.language import translate_label, get_plot_language
 
 
-def translate_label(value):
-    """Translate frequent scientific labels while keeping symbols and units.
+def translate_figure(figure, language=None):
+    """Explicitly localize all currently created Text artists (legacy API).
 
-    Parameters
-    ----------
-    value : str
-        Visible text from a plot or legend.
-
-    Returns
-    -------
-    str
-        Russian text where an established translation is available.
+    Normal saving does not call this function: rendering is localized by
+    Plotting.language without permanently mutating the source strings.
     """
-    if not isinstance(value, str):
-        return value
-    result = value
-    for original, translated in _TRANSLATIONS:
-        def replace(match):
-            return translated[0].upper() + translated[1:] if match.group(0)[:1].isupper() else translated
-        result = re.sub(re.escape(original), replace, result, flags=re.IGNORECASE)
-    return result
-
-
-def translate_figure(figure):
-    """Translate existing axes titles and labels before saving a legacy figure.
-
-    Parameters
-    ----------
-    figure : matplotlib.figure.Figure
-        Figure whose visible metadata should be translated in place.
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-        The same figure for use by the caller.
-    """
-    if figure._suptitle is not None:
-        figure._suptitle.set_text(translate_label(figure._suptitle.get_text()))
-    for axis in figure.axes:
-        axis.set_title(translate_label(axis.get_title()))
-        axis.set_xlabel(translate_label(axis.get_xlabel()))
-        axis.set_ylabel(translate_label(axis.get_ylabel()))
-        for label in axis.get_xticklabels() + axis.get_yticklabels():
-            label.set_text(translate_label(label.get_text()))
-        legend = axis.get_legend()
-        if legend is not None:
-            for item in legend.get_texts():
-                item.set_text(translate_label(item.get_text()))
+    from matplotlib.text import Text
+    for artist in figure.findobj(match=Text):
+        value = artist.get_text()
+        translated = translate_label(value, language or get_plot_language())
+        if translated != value:
+            artist.set_text(translated)
     return figure
 
 
@@ -181,7 +104,7 @@ def save_figure(figure, filename, *args, **kwargs):
     """
     result = _legacy_path_to_plots(filename)
     result.parent.mkdir(parents=True, exist_ok=True)
-    translate_figure(figure)
+    # The shared rendering adapter localizes the text when drawing the figure.
     figure.savefig(str(result), *args, **kwargs)
     return result
 
