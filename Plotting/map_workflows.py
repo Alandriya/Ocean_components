@@ -11,6 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
 from Data_processing.io import BASE_DATE, load_field, start_label
+from Data_processing.mean_year import mean_year_parts, mean_year_paths
 from Plotting.paths import plot_path
 
 
@@ -154,20 +155,34 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
 
 
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
-                   *, day_indices=(45, 105, 165, 225, 285, 345)):
+                   *, day_indices=(45, 105, 165, 225, 285, 345),
+                   pair=None, method=None, n_bins_2d=None):
     """Display six representative calendar dates of an annual climatology."""
     root = Path(files_path_prefix)
-    data = np.load(root / "Mean_year" / category /
-                   f"{name}_{start_year}-{end_year}.npy", mmap_mode="r")
+    identity = dict(pair=pair, method=method, n_bins_2d=n_bins_2d)
+    parts = mean_year_parts(category, **identity)
+    source, _ = mean_year_paths(root, category, name,
+                                years=(start_year, end_year), **identity)
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"Missing annual climatology: {source}. Run mean_year in main.py "
+            "with matching period, name, pair, method and bin count."
+        )
+    data = np.load(source, mmap_mode="r", allow_pickle=False)
+    context = ""
+    if category in ("Coefficients", "Derived", "Eigenvalues"):
+        context = f" — {pair[0]}-{pair[1]}"
+        if category != "Eigenvalues":
+            context += f" ({method.upper()}, {n_bins_2d} bins)"
     outputs = []
     if data.ndim < 3:
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(np.arange(len(data)), data)
         ax.set_xlabel("Day of climatological year")
         ax.set_ylabel("Mean value")
-        fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}")
+        fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}{context}")
         fig.tight_layout()
-        outputs.append(save_figure(fig, plot_path(root, "Mean Year", category,
+        outputs.append(save_figure(fig, plot_path(root, "Mean Year", *parts,
                                                    f"{name}_{start_year}-{end_year}.png")))
         plt.close(fig)
     else:
@@ -179,9 +194,9 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                                   show_y_labels=(ax in axes[:, 0]))
                 _add_colorbar(fig, ax, image)
             description = (f" — component {channel_number + 1}" if data.ndim == 4 else "")
-            fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}{description}")
+            fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}{context}{description}")
             suffix = f"_ch{channel_number + 1}" if data.ndim == 4 else ""
-            outputs.append(save_figure(fig, plot_path(root, "Mean Year", category,
+            outputs.append(save_figure(fig, plot_path(root, "Mean Year", *parts,
                                                        f"{name}_{start_year}-{end_year}{suffix}.png")))
             plt.close(fig)
     return outputs

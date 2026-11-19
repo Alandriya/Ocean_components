@@ -76,7 +76,9 @@ def main():
     # MEAN YEAR: visualize the annual climatology of a selected variable.
     # task = "mean_year"
     mean_year_source = "Variables"
-    mean_year_name = "sensible"
+    mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
+    # Coefficients/Derived use shared names, method, n_bins_2d below.
+    spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
@@ -221,9 +223,14 @@ def main():
                            n_bins_2d=n_bins_2d, mode_extrema=trend_mode_extrema,
                            windows=trend_windows, language=plot_language, dpi=trend_dpi)
     if task == "mean_year":
+        identity = {}
+        if mean_year_source in ("Coefficients", "Derived"):
+            identity = dict(pair=names, method=method, n_bins_2d=n_bins_2d)
+        elif mean_year_source == "Eigenvalues":
+            identity = dict(pair=spectral_pair)
         return plot_mean_year(
             files_path_prefix, mean_year_source, mean_year_name,
-            start_year, end_year,
+            start_year, end_year, **identity,
         )
     if task == "coefficient_frames":
         return coefficient_frames(

@@ -337,12 +337,14 @@ def run_selected_task(task, **settings):
     elif task == "mean_year":
         source = settings["mean_year_source"]
         name = settings["mean_year_name"]
+        identity = {}
         if source == "Variables":
             values = load_field(root, name, start_year, end_year)
             timestamps = [date(start_year, 1, 1) + timedelta(days=i)
                           for i in range(len(values))]
         elif source in ("Coefficients", "Derived"):
             method = settings["method"]
+            identity = dict(pair=names, method=method, n_bins_2d=n_bins_2d)
             # Prefer the canonical full-period A/B arrays from the manifest.
             manifest_path = (Path(root) / "Coefficients" / "continuous" /
                              f"manifest_{names[0]}_{names[1]}_{n_bins_2d}.json")
@@ -366,6 +368,7 @@ def run_selected_task(task, **settings):
             timestamps = dates_from_labels(first_label, len(values), convention="end")
         elif source == "Eigenvalues":
             pair = settings["spectral_pair"]
+            identity = dict(pair=pair)
             kind = "eigenvalues" if pair[0] == pair[1] else "singular_values"
             folder = Path(root) / "Eigenvalues" / f"{pair[0]}-{pair[1]}"
             paths = list(folder.glob(f"{kind}_collected_*-*.npy"))
@@ -379,7 +382,7 @@ def run_selected_task(task, **settings):
             raise ValueError(f"Unknown mean-year source: {source}")
         return save_mean_year(root, source, name, values, timestamps,
                               mask=mask if values.ndim >= 3 else None,
-                              years=(start_year, end_year))
+                              years=(start_year, end_year), **identity)
     elif task == "stationary":
         return estimate_stationary_characteristics(
             root, start_year, end_year,
@@ -643,9 +646,12 @@ def main():
     epsilon = 0.1
     # --------------------------------------------------------------------------
     task = "mean_year"
-    mean_year_source = "Variables"
-    mean_year_name = "sensible"
-    spectral_pair = ("Flux", "Flux")
+    # mean_year_source = "Variables"
+    # mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
+    mean_year_source = "Coefficients"
+    mean_year_name = "A"
+    # Coefficients/Derived use shared names, method, n_bins_2d below.
+    spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
