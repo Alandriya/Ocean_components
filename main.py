@@ -21,7 +21,7 @@ from Coefficients.bridges import run_boundary_workflow
 from Coefficients.derived_workflows import run_continuous_cf
 from Data_processing.io import (load_field, field_candidates, read_ocean_mask, start_label,
                                 dates_from_labels)
-from Data_processing.mean_year import save_mean_year
+from Data_processing.mean_year import save_mean_year, load_scalar_mean_year_source
 from Data_processing.collect_variables import collect_variable_periods
 from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
 from Functional.stationary import estimate_stationary_characteristics
@@ -342,6 +342,16 @@ def run_selected_task(task, **settings):
             values = load_field(root, name, start_year, end_year)
             timestamps = [date(start_year, 1, 1) + timedelta(days=i)
                           for i in range(len(values))]
+        elif source == "Coefficients_1d":
+            variable = settings["mean_year_variable"]
+            method = settings["method"]
+            bins = settings.get("mean_year_bins_1d", settings.get("n_bins"))
+            identity = dict(variable=variable, method=method, n_bins_1d=bins)
+            values, timestamps = load_scalar_mean_year_source(
+                root, variable, name, start_year, end_year,
+                method=method, n_bins_1d=bins,
+                spatial_shape=mask.shape if mask is not None else (161, 181),
+            )
         elif source in ("Coefficients", "Derived"):
             method = settings["method"]
             identity = dict(pair=names, method=method, n_bins_2d=n_bins_2d)
@@ -382,7 +392,8 @@ def run_selected_task(task, **settings):
             raise ValueError(f"Unknown mean-year source: {source}")
         return save_mean_year(root, source, name, values, timestamps,
                               mask=mask if values.ndim >= 3 else None,
-                              years=(start_year, end_year), **identity)
+                              years=(start_year, end_year),
+                              progress=settings.get("mean_year_progress", True), **identity)
     elif task == "stationary":
         return estimate_stationary_characteristics(
             root, start_year, end_year,
@@ -648,10 +659,17 @@ def main():
     task = "mean_year"
     # mean_year_source = "Variables"
     # mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
+    # mean_year_source = "Coefficients_1d"
     mean_year_source = "Coefficients"
-    mean_year_name = "A"
+    mean_year_name = "B" #A, B, B_with_reg
+    # mean_year_source = "Derived"
+    # mean_year_name = "C" #C, F, CF
     # Coefficients/Derived use shared names, method, n_bins_2d below.
+    # mean_year_source = "Eigenvalues"
     spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
+
+    mean_year_bins_1d = 144
+    mean_year_progress = True
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
@@ -730,7 +748,8 @@ def main():
     elif start_year == 19792026:
         start_year = 1979
         end_year = 2026
-    names = ("sensible", "latent")
+    # names = ("sensible", "latent")
+    names = ("Flux", "SST")
     periods = PERIODS
     coefficient_methods = "sp"
     method = "sp"

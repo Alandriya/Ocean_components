@@ -41,7 +41,7 @@ def main():
     # monochrome = True  # Black-and-white versions for printing.
 
     files_path_prefix = SHARED_DATA_PREFIX
-    start_year = 2019
+    start_year = 19792026
 
     # --------------------------------------------------------------------------
     # STATIONARY SPATIAL: render cached anomalies, PDF quintiles, classes.
@@ -66,7 +66,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # EIGENVALUES: visualize saved eigenvalue and singular-value modes.
-    task = "eigenvalues"
+    # task = "eigenvalues"
     spectral_names = ("Flux", "Pressure")
     n_bins = None  # Auto-detect saved spectrum size; or set the original n_bins explicitly.
     # start_year/end_year must still match the spectral calculation period.
@@ -74,10 +74,15 @@ def main():
 
     # --------------------------------------------------------------------------
     # MEAN YEAR: visualize the annual climatology of a selected variable.
-    # task = "mean_year"
-    mean_year_source = "Variables"
-    mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
-    # Coefficients/Derived use shared names, method, n_bins_2d below.
+    task = "mean_year"
+    # mean_year_source = "Variables"
+    # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
+    # mean_year_source = "Derived"  # C/F/FS
+    mean_year_source = "Coefficients_1d"
+    mean_year_name = "A"  # A/B/B_with_reg (SP); A/B (NP)
+    mean_year_variable = "sensible"
+    mean_year_bins_1d = 144
+    # Coefficients_1d uses shared method; Coefficients/Derived use names, method, n_bins_2d below.
     spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
@@ -181,7 +186,7 @@ def main():
     # last_day = 365
     first_day = (datetime.datetime(2025, 1, 1)-datetime.datetime(2019, 1, 1)).days
     last_day = (datetime.datetime(2026, 1, 1)-datetime.datetime(2019, 1, 1)).days
-    method = "np"
+    method = "sp"
     coefficient = "A"
 
     if task in ("stationary_spatial", "stationary_isolines",
@@ -224,7 +229,9 @@ def main():
                            windows=trend_windows, language=plot_language, dpi=trend_dpi)
     if task == "mean_year":
         identity = {}
-        if mean_year_source in ("Coefficients", "Derived"):
+        if mean_year_source == "Coefficients_1d":
+            identity = dict(variable=mean_year_variable, method=method, n_bins_1d=mean_year_bins_1d)
+        elif mean_year_source in ("Coefficients", "Derived"):
             identity = dict(pair=names, method=method, n_bins_2d=n_bins_2d)
         elif mean_year_source == "Eigenvalues":
             identity = dict(pair=spectral_pair)

@@ -156,10 +156,12 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
 
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                    *, day_indices=(45, 105, 165, 225, 285, 345),
-                   pair=None, method=None, n_bins_2d=None):
+                   pair=None, method=None, n_bins_2d=None,
+                   variable=None, n_bins_1d=None):
     """Display six representative calendar dates of an annual climatology."""
     root = Path(files_path_prefix)
-    identity = dict(pair=pair, method=method, n_bins_2d=n_bins_2d)
+    identity = dict(pair=pair, method=method, n_bins_2d=n_bins_2d,
+                    variable=variable, n_bins_1d=n_bins_1d)
     parts = mean_year_parts(category, **identity)
     source, _ = mean_year_paths(root, category, name,
                                 years=(start_year, end_year), **identity)
@@ -170,7 +172,9 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
         )
     data = np.load(source, mmap_mode="r", allow_pickle=False)
     context = ""
-    if category in ("Coefficients", "Derived", "Eigenvalues"):
+    if category == "Coefficients_1d":
+        context = f" — {NAMES_EN.get(variable, variable)} ({method.upper()}, {n_bins_1d} bins)"
+    elif category in ("Coefficients", "Derived", "Eigenvalues"):
         context = f" — {pair[0]}-{pair[1]}"
         if category != "Eigenvalues":
             context += f" ({method.upper()}, {n_bins_2d} bins)"
