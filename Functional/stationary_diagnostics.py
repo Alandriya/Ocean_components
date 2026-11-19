@@ -1,13 +1,7 @@
-"""Reproducible numerical data behind article figures 1--3.
+"""Stationary-reference spatial diagnostics from existing PDFs and ERA5.
 
-Revives pre-refactor ``get_isolines`` / ``plot_areas`` / ``plot_areas_map``
-without their obsolete videos paths. No model is refitted here. The reference
-PDF is either the classical stationary FP solution or the cached, explicitly
-labelled semiparametric hybrid PDF. All spatial statistics use ERA5 observations.
-
-Scientific note: the full-period stationary-model coordinate and the raw ERA5
-flux coordinate need not coincide. A spatial deviation from a model mean is a
-*diagnostic* comparison, not a theorem about the original SDE's stationary law.
+No model is refitted here. Spatial deviations are diagnostic comparisons
+because the model coordinate may differ from the raw ERA5 flux coordinate.
 """
 
 from __future__ import annotations
@@ -22,9 +16,9 @@ from scipy.integrate import cumulative_trapezoid
 from Data_processing.io import field_candidates, load_field, read_ocean_mask
 
 DEFAULT_PAIR = ("sensible", "latent")
-DEFAULT_REGIONS_PERIOD = (1979, 1989)  # Figure 2 in the manuscript
-DEFAULT_REFERENCE_PERIOD = (1979, 2026)  # Figure 1 in the manuscript
-DEFAULT_DATE = "1979-01-01"  # Figure 3 in the manuscript
+DEFAULT_REGIONS_PERIOD = (1979, 1989)
+DEFAULT_REFERENCE_PERIOD = (1979, 2026)
+DEFAULT_DATE = "1979-01-01"
 DEFAULT_HYBRID_REFERENCE = (1979, 2026)
 DEFAULT_LON_RANGE = (-90.0, 0.0)
 DEFAULT_LAT_RANGE = (80.0, 0.0)  # array row 0 corresponds to northern boundary
@@ -166,7 +160,7 @@ def _spatial_statistics(field, ocean, *, chunk_days, thresholds=None,
             for k in range(5):
                 hit[k] += ((cat == k) & valid).sum(axis=0)
         if left == 0 or right == len(field) or right // chunk_days % 60 == 0:
-            print(f"[article] ERA5 spatial statistics {right}/{len(field)} days", flush=True)
+            print(f"[stationary spatial] ERA5 spatial statistics {right}/{len(field)} days", flush=True)
     mean = np.full(shape, np.nan, dtype=np.float64)
     np.divide(sums, counts, out=mean, where=counts > 0)
     if hit is None:
@@ -176,30 +170,33 @@ def _spatial_statistics(field, ocean, *, chunk_days, thresholds=None,
     return mean, counts, frequencies
 
 
-def _cache_file(root, name, period, region_period, date_str, pdf_kind, frequencies):
+def _cache_file(root, name, period, region_period, date_str, pdf_kind, frequencies, *, legacy=False):
     root = Path(root)
     fragment = "_freq" if frequencies else ""
-    return (root / "Functional" / "Article" / f"{period[0]}-{period[1]}" /
+    base = root / "Functional"
+    base = base / "Article" if legacy else base / "Stationary" / "Spatial"
+    return (base / f"{period[0]}-{period[1]}" /
             f"{name}_regions_{region_period[0]}-{region_period[1]}_"
             f"{date_str}_{pdf_kind}{fragment}.npz")
 
 
-def prepare_article_diagnostics(files_path_prefix, names=DEFAULT_PAIR,
+def prepare_stationary_diagnostics(files_path_prefix, names=DEFAULT_PAIR,
                                 start_year=1979, end_year=2026, *,
                                 regions_period=DEFAULT_REGIONS_PERIOD,
                                 map_date=DEFAULT_DATE, density_source="auto",
                                 hybrid_reference=DEFAULT_HYBRID_REFERENCE,
                                 chunk_days=32, compute_frequencies=False,
-                                overwrite=False):
-    """Make cached arrays for the manuscript's geographical Figures 1--3.
+                                overwrite=False, cache_only=False):
+    """Prepare reference-relative anomalies, PDF quintiles and daily classes.
 
-    Fig 1: Delta X = ERA5 time mean over [start_year,end_year] minus its model
-    reference mean over the *same* period. Fig 2 uses the reference PDF and
-    quintiles from regions_period. Fig 3 classifies the specified daily ERA5
-    map (1979-01-01 by default), using those exact Fig-2 quintiles.
-
-    A separate file is produced per variable. Loaded arrays remain read-only.
+    The time mean and model reference use the same period. Quintiles use
+    regions_period; the selected daily map uses exactly these thresholds.
+    cache_only=True validates and loads existing cache paths without reading
+    the large ERA5 arrays; otherwise an absent or stale cache is calculated.
+    Legacy caches are accepted only with matching metadata.
     """
+    if cache_only and overwrite:
+        raise ValueError("cache_only and overwrite are mutually exclusive")
     root = Path(files_path_prefix)
     names = tuple(dict.fromkeys(names))
     period = (int(start_year), int(end_year))
@@ -238,11 +235,22 @@ def prepare_article_diagnostics(files_path_prefix, names=DEFAULT_PAIR,
                 "diagnostics; the hybrid is not the original stationary SDE solution."),
         }
         meta_path = cache.with_suffix(".json")
-        if cache.is_file() and meta_path.is_file() and not overwrite:
-            if _read_json(meta_path) == metadata:
-                print(f"[article] Reuse {name}: {cache}", flush=True)
-                outputs[name] = cache
+        legacy_cache = _cache_file(root, name, period, regions_period, map_day.isoformat(),
+                                   f"{full['kind']}-{regions['kind']}", compute_frequencies,
+                                   legacy=True)
+        if not overwrite:
+            for candidate in (cache, legacy_cache):
+                candidate_meta = candidate.with_suffix(".json")
+                if candidate.is_file() and candidate_meta.is_file() and _read_json(candidate_meta) == metadata:
+                    print(f"[stationary spatial] Reuse {name}: {candidate}", flush=True)
+                    outputs[name] = candidate
+                    break
+            if name in outputs:
                 continue
+        if cache_only:
+            raise FileNotFoundError(
+                f"Matching stationary spatial cache not found: {cache}. "
+                "Run main.py with task='stationary_spatial' and identical settings first.")
         field = load_field(root, name, *period)
         if not (0 <= offset < len(field)):
             raise IndexError(f"Date {map_day} not in observed {name} field of {len(field)} days")
@@ -269,7 +277,7 @@ def prepare_article_diagnostics(files_path_prefix, names=DEFAULT_PAIR,
         np.savez_compressed(cache, **output)
         _save_json(meta_path, metadata)
         outputs[name] = cache
-        print(f"[article] {name}: source={full['kind']}, mu={full['mean']:.4f}, "
+        print(f"[stationary spatial] {name}: source={full['kind']}, mu={full['mean']:.4f}, "
               f"sigma={full['std']:.4f}, q={thresholds.round(3)}, "
               f"quintile masses={masses.round(5)}, output={cache}", flush=True)
     return outputs

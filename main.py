@@ -1,6 +1,6 @@
 """Ocean numerical workflows; based on the current GitHub task catalog.
 
-Adds reproducible article maps/regions and retains numerical workflows.
+Includes stationary spatial diagnostics and retains numerical workflows.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def run_selected_task(task, **settings):
     ----------
     task : str
         One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
-        collect_eigenvalues, sde_conditions, mean_year, stationary, copulas, copula_quintiles.
+        collect_eigenvalues, sde_conditions, mean_year, stationary, stationary_spatial, copulas, copula_quintiles.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -150,36 +150,18 @@ def run_selected_task(task, **settings):
             output_dir=Path(root) / "Functional" / "Diagnostics" / "quantile_hourly" /
                        f"{start_year}-{hourly_period_end}",
         )
-    elif task in ("article_prepare", "article_figures", "article_all",
-                "article_isolines", "article_regions", "article_classes"):
-        opts = dict(
-            regions_period=settings.get("article_regions_period", (1979, 1989)),
-            map_date=settings.get("article_map_date", "1979-01-01"),
-            density_source=settings.get("article_density_source", "auto"),
-            hybrid_reference=settings.get("article_hybrid_reference", (1979, 2026)),
-            chunk_days=settings.get("article_chunk_days", 32),
-            compute_frequencies=settings.get("article_compute_frequencies", False),
-        )
-        if task == "article_prepare":
-            from Functional.article_diagnostics import prepare_article_diagnostics
-            return prepare_article_diagnostics(
-                root, names, start_year, end_year,
-                overwrite=settings.get("article_refresh", False), **opts)
-        from Plotting.article_figures import plot_article_figures
-        figures = {
-            "article_isolines": ("isolines",),
-            "article_regions": ("regions",),
-            "article_classes": ("classes",),
-        }.get(task, ("isolines", "regions", "classes"))
-        return plot_article_figures(
+    elif task == "stationary_spatial":
+        from Functional.stationary_diagnostics import prepare_stationary_diagnostics
+        return prepare_stationary_diagnostics(
             root, names, start_year, end_year,
-            refresh=settings.get("article_refresh", False),
-            language=settings.get("article_language", "en"),
-            dpi=settings.get("article_dpi", 300),
-            include_copulas=(task == "article_all"),
-            isoline_levels=settings.get("article_isoline_levels"),
-            second_anomaly_files=settings.get("article_second_anomaly_files"),
-            figures=figures, **opts)
+            regions_period=settings.get("spatial_regions_period", (1979, 2026)),
+            map_date=settings.get("spatial_map_date", "1979-01-01"),
+            density_source=settings.get("spatial_density_source", "auto"),
+            hybrid_reference=settings.get("spatial_hybrid_reference", (1979, 2026)),
+            chunk_days=settings.get("spatial_chunk_days", 32),
+            compute_frequencies=settings.get("spatial_compute_frequencies", False),
+            overwrite=settings.get("spatial_refresh", False),
+        )
     elif task == "bbt":
         from Coefficients.bbt import BBT
 
@@ -501,24 +483,15 @@ def main():
     start_year = 19792026  # default: full period; 1979 for the first decade
 
     # --------------------------------------------------------------------------
-    # ARTICLE: maps for Fig 1 (isoline anomalies), Fig 2 (5 regions), Fig 3
-    # (geographic class map) and optional copula Figs 4--8.
-    # task = "article_figures"  # or article_prepare, article_all,
-    # task = "article_isolines"  # only Fig 1
-    # task = "article_regions"  # only Fig 2
-    # task = "article_classes"  # only Fig 3
-    article_regions_period = (1979, 2026)
-    article_map_date = "1979-01-01"
-    article_density_source = "auto"  # hybrid preferred; 'hybrid' / 'fp'
-    article_hybrid_reference = (1979, 2026)
-    article_chunk_days = 32
-    article_compute_frequencies = False
-    from Plotting.language import get_plot_language
-    article_language = get_plot_language()  # default en; standalone override via env
-    article_dpi = 300
-    article_refresh = False  # explicit article cache invalidation
-    article_isoline_levels = None
-    article_second_anomaly_files = None  # optional {'sensible': 'file.npy'}
+    # STATIONARY SPATIAL DIAGNOSTICS: anomalies, quintiles, daily classes.
+    # task = "stationary_spatial"
+    spatial_regions_period = (1979, 2026)
+    spatial_map_date = "1979-01-01"
+    spatial_density_source = "auto"  # hybrid preferred; 'hybrid' / 'fp'
+    spatial_hybrid_reference = (1979, 2026)
+    spatial_chunk_days = 32
+    spatial_compute_frequencies = False
+    spatial_refresh = False  # explicit spatial cache invalidation
 
     # --------------------------------------------------------------------------
     # HOURLY QUANTILE DIAGNOSTICS: no time shifts, fixed h=24 hours.
@@ -726,7 +699,7 @@ def main():
     n_components = 3
     n_init = 10
     dt = 1.0
-    overwrite = True  # the original numerical-task default; article_refresh is separate
+    overwrite = True  # the original numerical-task default; spatial_refresh is separate
     spectral_variables = ("Flux", "SST", "Pressure")
 
     mask = (load_water_mask(read_ocean_mask(files_path_prefix))

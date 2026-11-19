@@ -1,7 +1,7 @@
-"""Render cached ocean-analysis results and manuscript figures (1--8).
+"""Render cached ocean-analysis results and stationary spatial diagnostics.
 
 Based on the latest GitHub main_plotter.py (including FP2D/hybrid tasks).
-All prior visualization entry points are retained. No refitting is performed.
+Visualization tasks use cached numerical results. No refitting is performed.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from project_paths import files_path_prefix as SHARED_DATA_PREFIX
 from Plotting.language import set_plot_language
 
 from Plotting.workflows import (
-    plot_spectral_modes, coefficient_video, plot_copula_results,
+    plot_spectral_modes, coefficient_video,
 )
 from Plotting.map_workflows import (
     plot_variables, plot_mean_year, coefficient_frames,
@@ -25,7 +25,8 @@ from Plotting.fokker_planck_2d_plots import (
     plot_fp2d_stationary_comparison,
     plot_fp2d_grid_convergence,
 )
-from Plotting.article_figures import plot_article_figures
+from Plotting.stationary_spatial_plots import plot_stationary_spatial
+from Plotting.copula_plotting import plot_copula_results
 
 
 def main():
@@ -35,30 +36,29 @@ def main():
     plot_language = "ru"
     set_plot_language(plot_language)
 
+    # Monochrome for stationary maps/regions and individual copula contours.
+    monochrome = False
+    # monochrome = True  # Black-and-white versions for printing.
+
     files_path_prefix = SHARED_DATA_PREFIX
     start_year = 2019
 
     # --------------------------------------------------------------------------
-    # ARTICLE FIGURES: rebuild the manuscript from cached stationary PDFs and
-    # ERA5. Fig 1 = anomaly isolines; Fig 2 = five equal-probability areas;
-    # Fig 3 = daily class maps; article_all adds copula Figs 4--8.
-    # task = "article_figures"
-    # task = "article_isolines"  # geographic Figure 1 only
-    # task = "article_regions"   # five shaded quintiles, Figure 2 only
-    # task = "article_classes"   # geographic Figure 3 only
-    # task = "article_all"       # also regenerate copula Figures 4--8
-    article_regions_period = (1979, 2026)  # Fig 2 uses the first decade
-    article_map_date = "1979-01-01"       # Fig 3 uses this exact ERA5 day
-    article_density_source = "auto"      # prefer existing hybrid, else FP
-    article_hybrid_reference = (1979, 2026)
-    article_chunk_days = 32
-    article_compute_frequencies = False  # optional supplementary maps
-    article_refresh = False             # True recomputes cached spatial means
-    article_language = plot_language     # use the global figure language
-    article_dpi = 300
-    article_isoline_levels = None        # None = manuscript-inspired levels
-    article_second_anomaly_files = None  # optional 2D anomaly maps by variable
-    # Example: {'sensible': 'Functional/Some2D/sensible_anomaly.npy'}
+    # STATIONARY SPATIAL: render cached anomalies, PDF quintiles, classes.
+    # task = "stationary_spatial"   # all three plot types
+    # task = "stationary_isolines"
+    # task = "stationary_regions"
+    # task = "stationary_classes"
+    # Match the numerical settings in main.py (task="stationary_spatial").
+    spatial_regions_period = (1979, 2026)
+    spatial_map_date = "1979-01-01"
+    spatial_density_source = "auto"
+    spatial_hybrid_reference = (1979, 2026)
+    spatial_chunk_days = 32
+    spatial_compute_frequencies = False
+    spatial_dpi = 300
+    spatial_isoline_levels = None
+    spatial_second_anomaly_files = None  # optional {'sensible': 'file.npy'}
 
     # --------------------------------------------------------------------------
     # VARIABLES: maps of fluxes, sea-surface temperature and pressure.
@@ -110,8 +110,9 @@ def main():
     hybrid_show_original = True
 
     # --------------------------------------------------------------------------
-    # COPULAS: visualize saved copula and joint-density results.
+    # COPULAS: saved rank densities, individual/combined contours, joint densities and marginals.
     # task = "copulas"
+    copula_plot_dpi = 300
 
     # --------------------------------------------------------------------------
     # FUNCTIONAL FITS: read exactly the grouped inputs used by stationary.
@@ -165,24 +166,23 @@ def main():
     method = "np"
     coefficient = "A"
 
-    if task in ("article_figures", "article_all", "article_isolines",
-                "article_regions", "article_classes"):
-        chosen = {"article_isolines": ("isolines",),
-                  "article_regions": ("regions",),
-                  "article_classes": ("classes",)}.get(
+    if task in ("stationary_spatial", "stationary_isolines",
+                "stationary_regions", "stationary_classes"):
+        chosen = {"stationary_isolines": ("isolines",),
+                  "stationary_regions": ("regions",),
+                  "stationary_classes": ("classes",)}.get(
             task, ("isolines", "regions", "classes"))
-        return plot_article_figures(
+        return plot_stationary_spatial(
             files_path_prefix, names, start_year, end_year,
-            regions_period=article_regions_period, map_date=article_map_date,
-            density_source=article_density_source,
-            hybrid_reference=article_hybrid_reference,
-            chunk_days=article_chunk_days, refresh=article_refresh,
-            language=article_language, dpi=article_dpi,
-            include_copulas=(task == "article_all"),
-            compute_frequencies=article_compute_frequencies,
-            isoline_levels=article_isoline_levels,
-            second_anomaly_files=article_second_anomaly_files,
-            figures=chosen,
+            regions_period=spatial_regions_period, map_date=spatial_map_date,
+            density_source=spatial_density_source,
+            hybrid_reference=spatial_hybrid_reference,
+            chunk_days=spatial_chunk_days,
+            language=plot_language, dpi=spatial_dpi,
+            compute_frequencies=spatial_compute_frequencies,
+            isoline_levels=spatial_isoline_levels,
+            second_anomaly_files=spatial_second_anomaly_files,
+            figures=chosen, monochrome=monochrome,
         )
     if task == "variables":
         return plot_variables(
@@ -235,6 +235,7 @@ def main():
     if task == "copulas":
         return plot_copula_results(
             files_path_prefix, names, start_year, end_year,
+            language=plot_language, dpi=copula_plot_dpi, monochrome=monochrome,
         )
     if task == "functional_fits":
         return plot_functional_fits(

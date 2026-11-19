@@ -114,16 +114,10 @@ class LanguageTests(unittest.TestCase):
         install_matplotlib_localization()
         self.assertIs(Text.draw, original)
 
-    def test_article_regions_isolines_and_classes(self):
-        # The full project supplies Functional.article_diagnostics. Only the
-        # renderer is being tested here, so precomputed synthetic caches suffice.
-        import sys
-        import types
+    def test_stationary_regions_isolines_and_classes(self):
+        # Only the renderer is being tested here: use precomputed synthetic caches.
         from unittest.mock import patch
-        dummy = types.ModuleType("Functional.article_diagnostics")
-        dummy.prepare_article_diagnostics = lambda *args, **kwargs: None
-        with patch.dict(sys.modules, {"Functional.article_diagnostics": dummy}):
-            from Plotting import article_figures as a
+        from Plotting import stationary_spatial_plots as a
         images = {}
         def capture(fig, path, dpi):
             images[str(path.name)] = svg(fig)
@@ -142,12 +136,12 @@ class LanguageTests(unittest.TestCase):
                     a.plot_area_density(path, "sensible", (1979, 2026), Path(d), language=lang)
                     a.plot_anomaly_isolines(path, "sensible", (1979, 2026), Path(d), language=lang)
                     a.plot_class_map(path, "sensible", "1979-01-01", Path(d), language=lang)
-        self.assertIn("Probability density", images["fig02_sensible_regions_en.png"])
-        self.assertIn("Плотность вероятности", images["fig02_sensible_regions_ru.png"])
-        self.assertIn("1D stationary-reference anomaly", images["fig01_sensible_isolines_en.png"])
-        self.assertIn("Аномалия относительно 1D стационарного уровня", images["fig01_sensible_isolines_ru.png"])
-        self.assertIn("Area 1", images["fig03_sensible_classes_1979-01-01_en.png"])
-        self.assertIn("Область 1", images["fig03_sensible_classes_1979-01-01_ru.png"])
+        self.assertIn("Probability density", images["sensible_regions_en.png"])
+        self.assertIn("Плотность вероятности", images["sensible_regions_ru.png"])
+        self.assertIn("1D stationary-reference anomaly", images["sensible_isolines_en.png"])
+        self.assertIn("Аномалия относительно 1D стационарного уровня", images["sensible_isolines_ru.png"])
+        self.assertIn("Area 1", images["sensible_classes_1979-01-01_en.png"])
+        self.assertIn("Область 1", images["sensible_classes_1979-01-01_ru.png"])
         self.assertEqual(get_plot_language(), "en")
 
 

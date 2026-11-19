@@ -1,6 +1,4 @@
-"""Synthetic end-to-end smoke test for the restored copula plotter."""
-import importlib
-import sys
+"""Synthetic end-to-end smoke test for the consolidated copula plotter."""
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,48 +9,10 @@ matplotlib.use('Agg')
 import matplotlib.axes
 import numpy as np
 
+from Plotting.copula_plotting import plot_copula_results
+
 
 class TestRestoredCopulaPlots(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.project = tempfile.TemporaryDirectory()
-        top = Path(cls.project.name)
-        for name in ('Plotting', 'Data_processing'):
-            (top/name).mkdir()
-            (top/name/'__init__.py').write_text('')
-        source = Path(__file__).resolve().parents[1]/'Plotting'/'workflows.py'
-        (top/'Plotting'/'workflows.py').write_bytes(source.read_bytes())
-        (top/'Plotting'/'paths.py').write_text('''from pathlib import Path
-
-def plot_path(root,*parts):
-    p=Path(root)/'Plots'
-    for part in parts: p=p/part
-    p.parent.mkdir(parents=True,exist_ok=True)
-    return p
-
-def save_figure(fig,path,**kwargs):
-    fig.savefig(path,dpi=100,bbox_inches='tight')
-    return path
-''')
-        (top/'Data_processing'/'io.py').write_text('''from datetime import date
-BASE_DATE = date(1979,1,1)
-def load_field(*args):raise NotImplementedError()
-def load_spectral_field(*args):raise NotImplementedError()
-def read_ocean_mask(*args):raise NotImplementedError()
-def start_label(*args):raise NotImplementedError()
-''')
-        sys.path.insert(0,str(top))
-        cls.module = importlib.import_module('Plotting.workflows')
-        cls.original_dir = top
-
-    @classmethod
-    def tearDownClass(cls):
-        sys.path.remove(str(cls.original_dir))
-        for k in list(sys.modules):
-            if k=='Plotting' or k.startswith('Plotting.') or k=='Data_processing' or k.startswith('Data_processing.'):
-                del sys.modules[k]
-        cls.project.cleanup()
-
     def test_saved_grids_legacy_palette_and_files(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
@@ -76,19 +36,39 @@ def start_label(*args):raise NotImplementedError()
             before=file.read_bytes()
             original=matplotlib.axes.Axes.pcolormesh
             kwargs_seen=[]
+            axes_seen=[]
             def record(ax,*args,**kwargs):
                 kwargs_seen.append(kwargs.copy())
+                if kwargs.get('cmap')=='YlOrRd':
+                    axes_seen.append(ax)
                 return original(ax,*args,**kwargs)
             with patch.object(matplotlib.axes.Axes,'pcolormesh',record):
-                figures=self.module.plot_copula_results(root,('sensible','latent'),1979,1989)
-            self.assertEqual(len(figures),10)
+                figures=plot_copula_results(root,('sensible','latent'),1979,1989,language='en',dpi=75)
+            self.assertEqual(len(figures),14)
+            self.assertEqual(len(set(figures)),14)
             self.assertTrue(all(f.is_file() and f.stat().st_size>1000 for f in figures))
             self.assertEqual(before,file.read_bytes(),'Must not rewrite computed copula NPZ')
             self.assertTrue(any(x.get('cmap')=='YlOrRd' for x in kwargs_seen))
             self.assertGreaterEqual(len(kwargs_seen),10)
-            self.assertIn('Comparison',str(figures[0]))
-            self.assertIn('Joint',str(figures[-1]))
-            self.assertIn('empirical',str(figures[1]))
+            self.assertTrue(all(f.parent==root/'Plots'/'Copulas'/'Figures'/'sensible-latent_1979-1989' for f in figures))
+            expected={f'copula_{m}_contours_eng.png' for m in ('gaussian','student_t','checkerboard','bernstein')}
+            self.assertTrue(expected.issubset({f.name for f in figures}))
+            self.assertTrue(all(f.name.endswith('_eng.png') for f in figures))
+            self.assertFalse((root/'Plots'/'Article').exists())
+            # All three joint-density maps retain the existing physical display limits.
+            physical=[ax for ax in axes_seen if ax.get_xlabel()=='Sensible heat flux']
+            self.assertEqual(len(physical),3)
+            for ax in physical:
+                np.testing.assert_allclose(ax.get_xlim(),[-100,100])
+                np.testing.assert_allclose(ax.get_ylim(),[-250,50])
+            contour_paths = {p: p.read_bytes() for p in figures if p.name in expected}
+            bw = plot_copula_results(root,('sensible','latent'),1979,1989,
+                                     language='en',dpi=75,monochrome=True)
+            self.assertEqual(len(bw), 14)
+            self.assertEqual({p.name for p in bw if p.name.endswith('_bw.png')},
+                             {n.replace('.png','_bw.png') for n in expected})
+            self.assertEqual(before, file.read_bytes())
+            self.assertTrue(all(p.read_bytes() == content for p, content in contour_paths.items()))
 
 
 if __name__=='__main__':unittest.main()

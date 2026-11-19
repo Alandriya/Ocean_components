@@ -1,22 +1,8 @@
-"""Publication-ready maps and probability regions for the Ocean_components paper.
-
-Revives plot_isolines_map / plot_areas / plot_areas_map from the pre-refactor
-Plotting/plot_func_estimations.py. All output is a separate, 300-dpi PNG.
-English captions are the default; the corresponding Russian texts are in
-LABELS['ru'] for a future Russian-language edition.
-
-Figure numbering follows main-ru.pdf, pp. 6--15:
-  Fig. 1: geographic anomalies (sensible/latent)
-  Fig. 2: five 20%-probability stationary regions (sensible/latent)
-  Fig. 3: geographic classes for the selected map date (sensible/latent)
-  Figs. 4--8: existing stored copula models, per-model contours and marginals.
-"""
+"""Plots of stationary quantile regions, anomaly isolines and geographic classes."""
 
 from __future__ import annotations
 
 import json
-import shutil
-from datetime import date
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -27,15 +13,12 @@ from matplotlib.path import Path as MplPath
 from matplotlib.lines import Line2D
 import numpy as np
 
-from Functional.article_diagnostics import prepare_article_diagnostics
+from Functional.stationary_diagnostics import prepare_stationary_diagnostics
 from Plotting.language import with_plot_language
 
 # Original yellow/orange/pink/violet classes, light-green land.
 # The ordering is lower to higher heat-flux value, not chronological order.
 AREA_COLORS = ("#ffff86", "#ffd27d", "#ff8083", "#f6a9dc", "#7774fb")
-# Choose one mode. Color is the default for the electronic manuscript.
-MONOCHROME = False
-# MONOCHROME = True  # Black-and-white duplicates for printing.
 # Monochrome: identical class order and hatches in both figures.
 AREA_HATCHES = ("..", "||", "//", r"\\", "xx")
 AREA_GRAYS = ("#ffffff", "#f5f5f5", "#ebebeb", "#e1e1e1", "#d7d7d7")
@@ -86,12 +69,12 @@ def _save(fig, path, dpi):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=dpi, bbox_inches="tight", facecolor="white")
-    print(f"[article figures] Saved {path}", flush=True)
+    print(f"[stationary spatial plots] Saved {path}", flush=True)
     return path
 
 
 def _figure_directory(root, period):
-    target = Path(root) / "Plots" / "Article" / f"{period[0]}-{period[1]}"
+    target = Path(root) / "Plots" / "Stationary" / "Spatial" / f"{period[0]}-{period[1]}"
     target.mkdir(parents=True, exist_ok=True)
     return target
 
@@ -116,9 +99,9 @@ def _lon_lat(shape):
             np.linspace(80, 0, height, dtype=np.float64))
 
 
-def _map_background(ax, ocean):
+def _map_background(ax, ocean, *, monochrome=False):
     bg = np.ma.array(np.ones(ocean.shape), mask=ocean)
-    cmap = ListedColormap([CLASS_LAND_GRAY if MONOCHROME else LAND_COLOR])
+    cmap = ListedColormap([CLASS_LAND_GRAY if monochrome else LAND_COLOR])
     cmap.set_bad("white")
     ax.imshow(bg, cmap=cmap, origin="upper", extent=MAP_EXTENT,
               interpolation="nearest", zorder=0, aspect="auto")
@@ -200,8 +183,8 @@ def _draw_hatched_classes(ax, ocean, classes):
 
 @with_plot_language
 def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi=300,
-                      display_xlim=None):
-    """Figure 2: exactly five shaded quintiles of an existing reference PDF."""
+                      display_xlim=None, monochrome=False):
+    """Exactly five shaded quintiles of an existing reference PDF."""
     t = LABELS[language]
     with np.load(cache, allow_pickle=False) as data:
         grid, pdf = np.asarray(data["grid"]), np.asarray(data["pdf"])
@@ -210,7 +193,7 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
     bounds = np.r_[grid[0], qs, grid[-1]]
     fig, ax = plt.subplots(figsize=(10, 5.4), constrained_layout=True)
     try:
-        if MONOCHROME:
+        if monochrome:
             for i, (left, right) in enumerate(zip(bounds[:-1], bounds[1:])):
                 inside = (grid > left) & (grid < right)
                 xx = np.r_[left, grid[inside], right]
@@ -247,11 +230,11 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
         ax.set_xlabel(t["heat"])
         ax.set_ylabel(t["density"])
         ax.grid(True, color="#dddddd", alpha=0.4, zorder=0)
-        if MONOCHROME:
+        if monochrome:
             ax.legend(loc="upper left", fontsize=9, handlelength=3, handleheight=1.5)
         else:
             ax.legend(loc="upper left", fontsize=9)
-        path = Path(output_dir) / f"fig02_{variable}_regions_{language}{'_bw' if MONOCHROME else ''}.png"
+        path = Path(output_dir) / f"{variable}_regions_{language}{'_bw' if monochrome else ''}.png"
         return _save(fig, path, dpi)
     finally:
         plt.close(fig)
@@ -259,8 +242,9 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
 
 @with_plot_language
 def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
-                          dpi=300, levels=None, second_map=None, second_label=None):
-    """Figure 1: correct Delta X = ERA5 time mean minus a *model* reference mean.
+                          dpi=300, levels=None, second_map=None, second_label=None,
+                          monochrome=False):
+    """Delta X = ERA5 time mean minus a *model* reference mean.
 
     Optional second_map is an explicitly supplied 2D anomaly (H,W) NPY. It is
     never inferred or fabricated from the 1D field.
@@ -282,8 +266,8 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
     levels = np.asarray(levels, dtype=float)
     fig, ax = plt.subplots(figsize=(10, 8.5), constrained_layout=True)
     try:
-        _map_background(ax, ocean)
-        if MONOCHROME:
+        _map_background(ax, ocean, monochrome=monochrome)
+        if monochrome:
             valid_levels = levels[(levels > np.nanmin(left)) & (levels < np.nanmax(left))]
             if valid_levels.size:
                 neg = valid_levels[valid_levels < 0]
@@ -378,15 +362,16 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
                 fontsize=9, transform=ax.transAxes,
                 va="top", bbox=dict(fc="white", ec="none", alpha=0.8, pad=3))
         ax.legend(handles=legend, loc="lower right", fontsize=9)
-        path = Path(output_dir) / f"fig01_{variable}_isolines_{language}{'_bw' if MONOCHROME else ''}.png"
+        path = Path(output_dir) / f"{variable}_isolines_{language}{'_bw' if monochrome else ''}.png"
         return _save(fig, path, dpi)
     finally:
         plt.close(fig)
 
 
 @with_plot_language
-def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=300):
-    """Figure 3: ERA5 map at map_date, classified by Figure 2 thresholds."""
+def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=300,
+                   monochrome=False):
+    """ERA5 map at map_date, classified by stationary quantile thresholds."""
     t = LABELS[language]
     with np.load(cache, allow_pickle=False) as data:
         ocean = np.asarray(data["ocean_mask"], dtype=bool)
@@ -395,7 +380,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
     lon, lat = _lon_lat(ocean.shape)
     fig, ax = plt.subplots(figsize=(10, 8.5), constrained_layout=True)
     try:
-        if MONOCHROME:
+        if monochrome:
             # Original categorical color map (disabled for monochrome printing):
             # img = np.ma.masked_where(~ocean | (classes == 0), classes)
             # cmap = ListedColormap(AREA_COLORS)
@@ -429,7 +414,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
         # ax.set_title(f"{t['classes']}: {t.get(variable, variable)} — {map_date}")
         # RU: Карта областей по квантильным порогам стационарной плотности
         # Retain numerical thresholds in JSON/NPZ rather than obscuring map labels.
-        path = Path(output_dir) / f"fig03_{variable}_classes_{map_date}_{language}{'_bw' if MONOCHROME else ''}.png"
+        path = Path(output_dir) / f"{variable}_classes_{map_date}_{language}{'_bw' if monochrome else ''}.png"
         return _save(fig, path, dpi)
     finally:
         plt.close(fig)
@@ -452,129 +437,38 @@ def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en",
             _map_style(ax, *_lon_lat(ocean.shape))
             # ax.set_title(f"{variable}: region {k+1} frequency, {period[0]}–{period[1]}")
             fig.colorbar(img, ax=ax, shrink=.78, label="Fraction of valid days")
-        output = Path(output_dir) / f"supp_{variable}_tail_frequency_{language}.png"
+        output = Path(output_dir) / f"{variable}_tail_frequency_{language}.png"
         return _save(fig, output, dpi)
     finally:
         plt.close(fig)
 
 
-def _copula_contours(root, pair, period, output_dir, language, dpi):
-    """Recreate Fig. 6 four individual model contours from cached rank PDFs."""
-    source = (Path(root) / "Functional" / "Copulas" /
-              f"{pair[0]}-{pair[1]}_{period[0]}-{period[1]}.npz")
-    with np.load(source, allow_pickle=False) as data:
-        models = ("gaussian", "student_t", "checkerboard", "bernstein")
-        outputs = []
-        titles_en = {"gaussian": "Gaussian copula", "student_t": "Student t copula",
-                     "checkerboard": "Checkerboard copula", "bernstein": "Bernstein copula"}
-        titles_ru = {"gaussian": "Гауссова копула", "student_t": "Копула Стьюдента",
-                     "checkerboard": "Шахматная копула", "bernstein": "Копула Бернштейна"}
-        for name in models:
-            coord_key = ("bernstein_grid" if name == "bernstein" else
-                         "checkerboard_centers" if name == "checkerboard" else "centers")
-            grid = np.asarray(data[coord_key], dtype=float)
-            pdf = np.asarray(data[name], dtype=float)
-            if pdf.shape != (len(grid), len(grid)):
-                raise ValueError(f"{name}: unexpected shape {pdf.shape}")
-            positive = pdf[np.isfinite(pdf)]
-            peak = float(positive.max()) if positive.size else 0.
-            if peak <= 0:
-                raise ValueError(f"{name}: no positive copula density")
-            fig, ax = plt.subplots(figsize=(7, 6), constrained_layout=True)
-            try:
-                if MONOCHROME:
-                    levels = np.linspace(0.05, 0.90, 10)
-                    line_styles = [":", "--", "-.", "-", ":", "--", "-.", "-", "--", "-"]
-                    line_widths = [1.0, 1.0, 1.1, 1.2, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45]
-                    contours = ax.contour(grid, grid, pdf / peak,
-                                          levels=levels,
-                                          colors="black", linewidths=line_widths,
-                                          linestyles=line_styles)
-                    ax.clabel(contours, inline=True, fontsize=7, fmt="%.2f", colors="black")
-                else:
-                    contours = ax.contour(grid, grid, pdf / peak,
-                                          levels=np.linspace(0.05, 0.90, 10),
-                                          cmap="YlOrRd", linewidths=1.5)
-                    ax.clabel(contours, inline=True, fontsize=7, fmt="%.2f")
-                ax.set_xlim(.02, .98)
-                ax.set_ylim(.02, .98)
-                ax.set_aspect("equal", adjustable="box")
-                ax.set_xlabel(r"$U=F_1(X_1)$")
-                ax.set_ylabel(r"$V=F_2(X_2)$")
-                # ax.set_title((titles_en if language == "en" else titles_ru)[name])
-                path = Path(output_dir) / f"fig06_{name}_contours_{language}{'_bw' if MONOCHROME else ''}.png"
-                outputs.append(_save(fig, path, dpi))
-            finally:
-                plt.close(fig)
-    return outputs
-
-
 @with_plot_language
-def plot_article_copulas(files_path_prefix, names=("sensible", "latent"),
-                         start_year=1979, end_year=2026, *, language="en", dpi=300):
-    """Restore manuscript Figures 4--8 from the stored copula results.
-
-    This does not refit a copula; the new individual contours of Fig. 6 are
-    drawn separately from the same cached density arrays.
-    """
-    from Plotting.workflows import plot_copula_results
-    root = Path(files_path_prefix)
-    period = (int(start_year), int(end_year))
-    dest = _figure_directory(root, period)
-    existing = plot_copula_results(root, tuple(names), *period)
-    mapped = {
-        "copula_empirical_eng.png": "fig04_empirical_copula_eng.png",
-        "copula_gaussian_eng.png": "fig04_gaussian_copula_eng.png",
-        "copula_student_t_eng.png": "fig04_student_t_copula_eng.png",
-        "copula_checkerboard_eng.png": "fig05_checkerboard_copula_eng.png",
-        "copula_bernstein_eng.png": "fig05_bernstein_copula_eng.png",
-        "gaussian_stationary_density_eng.png": "fig07_gaussian_joint_eng.png",
-        "checkerboard_stationary_density_eng.png": "fig07_checkerboard_joint_eng.png",
-        "bernstein_stationary_density_eng.png": "fig07_bernstein_joint_eng.png",
-        "bernstein_marginal_x1_eng.png": "fig08_bernstein_marginal_sensible_eng.png",
-        "bernstein_marginal_x2_eng.png": "fig08_bernstein_marginal_latent_eng.png",
-    }
-    outputs = []
-    for item in existing:
-        item = Path(item)
-        if item.name in mapped:
-            target_name = mapped[item.name]
-            if language == "ru":
-                target_name = target_name.replace("_eng.png", "_ru.png")
-            target = dest / target_name
-            if item.resolve() != target.resolve():
-                shutil.copy2(item, target)
-            outputs.append(target)
-    outputs += _copula_contours(root, tuple(names), period, dest, language, dpi)
-    return outputs
-
-
-@with_plot_language
-def plot_article_figures(files_path_prefix, names=("sensible", "latent"),
+def plot_stationary_spatial(files_path_prefix, names=("sensible", "latent"),
                          start_year=1979, end_year=2026, *,
                          regions_period=(1979, 1989), map_date="1979-01-01",
                          density_source="auto", hybrid_reference=(1979, 2026),
-                         chunk_days=32, refresh=False, language="en", dpi=300,
-                         include_copulas=False, compute_frequencies=False,
+                         chunk_days=32, language="en", dpi=300,
+                         compute_frequencies=False,
                          isoline_levels=None, second_anomaly_files=None,
-                         figures=("isolines", "regions", "classes")):
-    """Build article figures 1--3 (optional 4--8), all as independent PNGs."""
+                         figures=("isolines", "regions", "classes"), monochrome=False):
+    """Render spatial diagnostics from valid precomputed caches only."""
     if language not in LABELS:
         raise ValueError("language must be 'en' or 'ru'")
     root = Path(files_path_prefix)
     period = (int(start_year), int(end_year))
     output_dir = _figure_directory(root, period)
-    caches = prepare_article_diagnostics(root, tuple(names), *period,
+    caches = prepare_stationary_diagnostics(root, tuple(names), *period,
                                          regions_period=regions_period, map_date=map_date,
                                          density_source=density_source,
                                          hybrid_reference=hybrid_reference,
                                          chunk_days=chunk_days,
                                          compute_frequencies=compute_frequencies,
-                                         overwrite=refresh)
+                                         cache_only=True)
     allowed = {"isolines", "regions", "classes"}
     figures = tuple(figures)
     if not set(figures).issubset(allowed):
-        raise ValueError(f"Unknown article figure selector: {figures}")
+        raise ValueError(f"Unknown stationary spatial figure selector: {figures}")
     outputs = []
     for name, cache in caches.items():
         levels = isoline_levels.get(name) if isinstance(isoline_levels, dict) else isoline_levels
@@ -584,29 +478,31 @@ def plot_article_figures(files_path_prefix, names=("sensible", "latent"),
         if "isolines" in figures:
             outputs.append(plot_anomaly_isolines(cache, name, period, output_dir,
                                                  language=language, dpi=dpi,
-                                                 levels=levels, second_map=other))
+                                                 levels=levels, second_map=other,
+                                                 monochrome=monochrome))
         if "regions" in figures:
             outputs.append(plot_area_density(cache, name, regions_period, output_dir,
-                                             language=language, dpi=dpi))
+                                             language=language, dpi=dpi,
+                                             monochrome=monochrome))
         if "classes" in figures:
             outputs.append(plot_class_map(cache, name, map_date, output_dir,
-                                          language=language, dpi=dpi))
+                                          language=language, dpi=dpi,
+                                          monochrome=monochrome))
         if compute_frequencies:
             outputs.append(plot_tail_frequencies(cache, name, period, output_dir,
                                                   language=language, dpi=dpi))
-    if include_copulas:
-        outputs.extend(plot_article_copulas(root, tuple(names), *period,
-                                            language=language, dpi=dpi))
     manifest = {
-        "name": "Article figures", "period": list(period), "figure_language": language,
+        "name": "Stationary spatial diagnostics", "period": list(period), "figure_language": language,
         "regions_period": list(regions_period), "map_date": map_date,
         "density_source_setting": density_source,
         "figures": [str(p) for p in outputs],
         "data_cache": {k: str(v) for k, v in caches.items()},
-        "monochrome": MONOCHROME,
+        "monochrome": bool(monochrome),
         "important_note": "Reference-relative anomalies; hybrid PDF is not the original FP solution.",
     }
-    (output_dir / ("figure_manifest_bw.json" if MONOCHROME else "figure_manifest.json")).write_text(
+    selector = "-".join(figures) + ("-frequencies" if compute_frequencies else "")
+    (output_dir / f"figure_manifest_{selector}_{language}{'_bw' if monochrome else ''}.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"[article figures] Completed: {len(outputs)} figures in {output_dir}", flush=True)
+    print(f"[stationary spatial plots] Completed: {len(outputs)} figures in {output_dir}", flush=True)
     return outputs
+
