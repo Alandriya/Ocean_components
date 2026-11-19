@@ -116,16 +116,18 @@ def _map_norm(matrix, signed=True, fixed_limit=None):
     return mcolors.Normalize(vmin=vmin, vmax=vmax)
 
 
-def _map_cmap(signed=True):
+def _map_cmap(signed=True, cmap=None):
+    if cmap is not None:
+        return cmap
     return BLUE_WHITE_RED if signed else "viridis"
 
 
 def _draw_matrix(ax, matrix, title, signed=True, fixed_limit=None, *,
-                 show_x_labels=True, show_y_labels=True, aspect="auto"):
+                 show_x_labels=True, show_y_labels=True, aspect="auto", cmap=None):
     """Create an image once; subsequent frames use _update_matrix."""
     image = ax.imshow(
         matrix,
-        cmap=_map_cmap(signed),
+        cmap=_map_cmap(signed, cmap=cmap),
         norm=_map_norm(matrix, signed=signed, fixed_limit=fixed_limit),
         interpolation="none",
         origin="upper",
@@ -150,11 +152,12 @@ class _FrameFigure:
 
     def __init__(self, stack, rows, cols, shape, figsize, *, signed=True,
                  fixed_limit=None, xlabels_mode="all", ylabels_mode="all",
-                 aspect="auto"):
+                 aspect="auto", cmap=None):
         self.rows = rows
         self.cols = cols
         self.xlabels_mode = xlabels_mode
         self.ylabels_mode = ylabels_mode
+        self.cmap = cmap
         self.fig, axes = plt.subplots(rows, cols, figsize=figsize, squeeze=False,
                                       constrained_layout=False)
         self.fig.subplots_adjust(left=0.04, right=0.968, bottom=0.065, top=0.88,
@@ -173,7 +176,7 @@ class _FrameFigure:
                 show_y = self._show_y_labels(col)
                 image = _draw_matrix(ax, empty, "", signed, fixed_limit,
                                      show_x_labels=show_x, show_y_labels=show_y,
-                                     aspect=aspect)
+                                     aspect=aspect, cmap=self.cmap)
                 self.images[row, col] = image
                 divider = make_axes_locatable(ax)
                 cax = divider.append_axes("right", size="3.8%", pad=0.08)
@@ -403,7 +406,8 @@ def plot_eigenvalues(
                                        ylabels_mode="left")
                 if plot_contributions:
                     contributions = _FrameFigure(stack, 1, N, shape, (5.6 * N, 5.0),
-                                                 signed=mixed, ylabels_mode="left")
+                                                 signed=mixed, ylabels_mode="left",
+                                                 cmap="plasma")
                 if plot_reconstruction:
                     reconstruction = _FrameFigure(stack, 1, N, shape, (5.6 * N, 5.0),
                                                   signed=mixed, ylabels_mode="left",
@@ -530,7 +534,7 @@ def plot_mean_year(
     for i, (month, day) in enumerate(selected_dates):
         ax = axes.flat[i]
         image = _draw_matrix(ax, averages[i], f"{day} {month_names[month]}\nЧисло лет: {sample_counts[i]}",
-                             signed=mixed, fixed_limit=limit)
+                             signed=mixed, fixed_limit=limit, cmap="plasma")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="4.5%", pad=0.08)
         fig.colorbar(image, cax=cax)

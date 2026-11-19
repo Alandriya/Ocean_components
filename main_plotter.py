@@ -6,6 +6,8 @@ All prior visualization entry points are retained. No refitting is performed.
 
 from __future__ import annotations
 
+import datetime
+
 from project_paths import files_path_prefix as SHARED_DATA_PREFIX
 from Plotting.language import set_plot_language
 
@@ -156,8 +158,10 @@ def main():
         end_year = 2026
 
     names = ("sensible", "latent")
-    first_day = 0
-    last_day = 5
+    # first_day = 0
+    # last_day = 365
+    first_day = (datetime.datetime(2025, 1, 1)-datetime.datetime(2019, 1, 1)).days
+    last_day = (datetime.datetime(2026, 1, 1)-datetime.datetime(2019, 1, 1)).days
     method = "np"
     coefficient = "A"
 
