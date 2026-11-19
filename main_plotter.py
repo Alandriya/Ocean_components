@@ -77,6 +77,22 @@ def main():
     # task = "mean_year"
     mean_year_source = "Variables"
     mean_year_name = "sensible"
+    # --------------------------------------------------------------------------
+    # TRENDS: daily spatial extrema / linear regression over complete day blocks.
+    # task = "trends"
+    trend_sources = ("Variables", "Coefficients", "Eigenvalues")  # optional "Derived"
+    trend_variables = ("Flux", "SST", "Pressure", "sensible", "latent")
+    trend_coefficient_pairs = (("Flux", "SST"), ("SST", "Pressure"),
+                               ("Flux", "Pressure"), ("sensible", "latent"))
+    trend_coefficients = ("A", "B")
+    trend_derived_pair = ("sensible", "latent")
+    trend_derived = ("C", "F")
+    trend_spectral_pairs = (("Flux", "Flux"), ("Flux", "SST"), ("Flux", "Pressure"),
+                            ("SST", "SST"), ("SST", "Pressure"), ("Pressure", "Pressure"))
+    trend_method = "sp"
+    trend_windows = (30, 365)
+    trend_mode_extrema = True  # False: only leading eigenvalues / singular values
+    trend_dpi = 300
 
     # --------------------------------------------------------------------------
     # COEFFICIENT FRAMES: render A/B/C/F/FS maps for a selected time interval.
@@ -195,6 +211,15 @@ def main():
             names=spectral_names, first_day=first_day,
             last_day=last_day, n_bins=n_bins, n_modes=n_modes,
         )
+    if task == "trends":
+        from Plotting.trend_plots import plot_trends
+        return plot_trends(files_path_prefix, start_year, end_year,
+                           sources=trend_sources, variables=trend_variables,
+                           coefficient_pairs=trend_coefficient_pairs, coefficients=trend_coefficients,
+                           derived_pair=trend_derived_pair, derived=trend_derived,
+                           spectral_pairs=trend_spectral_pairs, method=trend_method,
+                           n_bins_2d=n_bins_2d, mode_extrema=trend_mode_extrema,
+                           windows=trend_windows, language=plot_language, dpi=trend_dpi)
     if task == "mean_year":
         return plot_mean_year(
             files_path_prefix, mean_year_source, mean_year_name,

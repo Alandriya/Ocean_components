@@ -94,6 +94,11 @@ def load_field(files_path_prefix, name, start_year, end_year, spatial_shape=GRID
     if path is None:
         raise FileNotFoundError("Missing %s (%s-%s); checked %s" %
                                 (name, start_year, end_year, ", ".join(map(str, candidates))))
+    print("Loading:", path.resolve())
+    print("File size:", path.stat().st_size)
+
+    with open(path, "rb") as f:
+        print("Header:", f.read(16))
     return coerce_series(np.load(path, mmap_mode="r", allow_pickle=False), spatial_shape)
 
 

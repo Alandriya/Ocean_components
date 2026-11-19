@@ -38,7 +38,7 @@ def run_selected_task(task, **settings):
     ----------
     task : str
         One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
-        collect_eigenvalues, sde_conditions, mean_year, stationary, stationary_spatial, copulas, copula_quintiles.
+        collect_eigenvalues, sde_conditions, mean_year, trends, stationary, stationary_spatial, copulas, copula_quintiles.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -322,6 +322,18 @@ def run_selected_task(task, **settings):
                        mask_policy="auto", fail_on_missing=False,
                        coefficient_index_shift=1,
                        output=Path(root) / "Conditions")
+    elif task == "trends":
+        from Data_processing.trends import run_trends
+        return run_trends(root, start_year, end_year,
+                          sources=settings["trend_sources"], variables=settings["trend_variables"],
+                          coefficient_pairs=settings["trend_coefficient_pairs"], coefficients=settings["trend_coefficients"],
+                          derived_pair=settings["trend_derived_pair"], derived=settings["trend_derived"],
+                          spectral_pairs=settings["trend_spectral_pairs"], method=settings["trend_method"],
+                          n_bins_2d=n_bins_2d, spectral_bins=settings["trend_spectral_bins"],
+                          spectral_periods=settings["trend_spectral_periods"], mode_extrema=settings["trend_mode_extrema"],
+                          windows=settings["trend_windows"], min_coverage=settings["trend_min_coverage"],
+                          last_date=settings["trend_last_date"], mask=mask, chunk_days=settings["trend_chunk_days"],
+                          overwrite=settings["trend_overwrite"], periods=periods)
     elif task == "mean_year":
         source = settings["mean_year_source"]
         name = settings["mean_year_name"]
@@ -635,6 +647,28 @@ def main():
     mean_year_name = "sensible"
     spectral_pair = ("Flux", "Flux")
     # --------------------------------------------------------------------------
+    # TRENDS: daily spatial extrema / linear regression over complete day blocks.
+    # task = "trends"
+    trend_sources = ("Variables", "Coefficients", "Eigenvalues")  # optional "Derived"
+    trend_variables = ("Flux", "SST", "Pressure", "sensible", "latent")
+    trend_coefficient_pairs = (("Flux", "SST"), ("SST", "Pressure"),
+                               ("Flux", "Pressure"), ("sensible", "latent"))
+    trend_coefficients = ("A", "B")
+    trend_derived_pair = ("sensible", "latent")
+    trend_derived = ("C", "F")
+    trend_spectral_pairs = (("Flux", "Flux"), ("Flux", "SST"), ("Flux", "Pressure"),
+                            ("SST", "SST"), ("SST", "Pressure"), ("Pressure", "Pressure"))
+    trend_method = "sp"
+    trend_windows = (30, 365)
+    trend_mode_extrema = True  # False: only leading eigenvalues / singular values
+    trend_spectral_bins = 144  # None to infer per spectrum; do not mix quantile schemes
+    trend_spectral_periods = PERIODS  # MUST match the original spectral quantile periods
+    # trend_spectral_periods = ((1979, 2026),)  # if calculated using full-period quantiles
+    trend_min_coverage = 0.9  # fraction of valid days required per complete 30/365-day block
+    trend_last_date = None  # e.g. "2026-01-10"; use actual available dates by default
+    trend_chunk_days = 16
+    trend_overwrite = True
+    # --------------------------------------------------------------------------
     # task = "stationary"
     stationary_method = "sp"
     stationary_quantile_bins = 260
@@ -703,7 +737,7 @@ def main():
     spectral_variables = ("Flux", "SST", "Pressure")
 
     mask = (load_water_mask(read_ocean_mask(files_path_prefix))
-            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year",
+            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year", "trends",
                         "quantile_diagnostics", "quantile_diagnostics_1d", "quantile_hourly",
                         "quantile_hourly_resampling")
             else None)
