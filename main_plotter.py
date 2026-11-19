@@ -34,7 +34,7 @@ def main():
     set_plot_language(plot_language)
 
     files_path_prefix = SHARED_DATA_PREFIX
-    start_year = 19792026
+    start_year = 2019
 
     # --------------------------------------------------------------------------
     # ARTICLE FIGURES: rebuild the manuscript from cached stationary PDFs and
@@ -64,9 +64,10 @@ def main():
 
     # --------------------------------------------------------------------------
     # EIGENVALUES: visualize saved eigenvalue and singular-value modes.
-    # task = "eigenvalues"
-    spectral_names = ("Flux", "SST")
-    n_bins = 250
+    task = "eigenvalues"
+    spectral_names = ("Flux", "Pressure")
+    n_bins = None  # Auto-detect saved spectrum size; or set the original n_bins explicitly.
+    # start_year/end_year must still match the spectral calculation period.
     n_modes = 3
 
     # --------------------------------------------------------------------------
@@ -141,7 +142,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # HYBRID vs 2D FP MARGINALS (new upstream task).
-    task = "hybrid_fp2d_marginal_overlay"
+    # task = "hybrid_fp2d_marginal_overlay"
     overlay_stationary_file = None
     overlay_dpi = 300
 

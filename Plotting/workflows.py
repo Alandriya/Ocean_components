@@ -94,40 +94,139 @@ def plot_variables(files_path_prefix, start_year, end_year, *, day=0):
     return outputs
 
 
-def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux", "SST"),
-                        first_day=0, last_day=5, n_bins=250, n_modes=3):
-    """Render saved spectral decompositions using the original scientific plotter.
+def _spectral_quantile_edges(series, n_bins, scratch_dir, *, chunk_elements=1_000_000):
+    """Exact finite-value linear quantiles with disk-backed working storage.
 
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Data root.
-    start_year, end_year : int
-        Requested period.
-    names : tuple of str
-        Self or mixed spectral variable pair.
-    first_day, last_day : int
-        Half-open local plotting interval.
-    n_bins : int
-        Quantile bin count used during spectral estimation.
-    n_modes : int
-        Number of displayed modes.
-
-    Returns
-    -------
-    None
-        Image files are written under Plots/Eigenvalues.
+    The calculation uses float64 values and np.quantile, as scale_to_bins did,
+    but never creates the full scaled array, mask or bin-index array in RAM.
+    Quantile order is independent of the traversal order. Follow the source
+    layout to make the sequential read efficient for either time orientation.
     """
-    from Plotting.plot_eigenvalues import plot_eigenvalues
-    from Data_processing.data_processing import scale_to_bins
+    import tempfile
+    from tqdm.auto import tqdm
+
+    n_bins = int(n_bins)
+    probabilities = np.linspace(0.0, 1.0, n_bins + 1)
+    with tempfile.TemporaryDirectory(prefix="quantiles-", dir=scratch_dir) as tmp:
+        path = Path(tmp) / "finite_values.bin"
+        count = 0
+        # Slice along the slower axis to keep chunks as contiguous as possible.
+        axis = int(abs(series.strides[1]) >= abs(series.strides[0]))
+        width = series.shape[1 - axis]
+        step = max(1, chunk_elements // max(1, width))
+        starts = range(0, series.shape[axis], step)
+        with path.open("wb") as stream:
+            for begin in tqdm(starts, desc="Read quantile data", unit="chunk", leave=False):
+                stop = begin + step
+                section = series[:, begin:stop] if axis == 1 else series[begin:stop, :]
+                chunk = np.asarray(section, dtype=np.float64)
+                finite = chunk[np.isfinite(chunk)]
+                finite.tofile(stream)
+                count += finite.size
+        if count == 0:
+            raise ValueError("No finite values to calculate quantiles")
+        # In-place partition of a writable, disposable 1D file mapping.
+        # Never partition the original read-only field. OS may cache pages.
+        data = np.memmap(path, dtype=np.float64, mode="r+", shape=(count,))
+        try:
+            edges = np.array(np.quantile(data, probabilities, overwrite_input=True), copy=True)
+        finally:
+            # Explicitly release the mapping before temporary-file deletion on Windows.
+            data._mmap.close()
+            del data
+    return edges
+
+
+def _cached_spectral_quantiles(root, name, start_year, end_year, n_bins, series):
+    """Reuse exact edges while the source file, period and bin count agree."""
+    import tempfile
+    from Data_processing.io import field_candidates
+
+    source = next((p for p in field_candidates(root, name, start_year, end_year)
+                   if p.is_file()), None)
+    if source is None:
+        raise FileNotFoundError(f"Missing spectral source for {name}, {start_year}-{end_year}")
+    stat = source.stat()
+    signature = json.dumps({"format": 1, "source": str(source.resolve()),
+                            "bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns,
+                            "shape": list(series.shape), "dtype": str(series.dtype),
+                            "n_bins": n_bins, "method": "linear-finite-float64",
+                            "numpy": np.__version__}, sort_keys=True)
+    folder = Path(root) / "Plots" / "Eigenvalues" / "_quantiles"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{name}_{start_year}-{end_year}_{n_bins}.npz"
+    if path.is_file():
+        try:
+            with np.load(path, allow_pickle=False) as cache:
+                edges = np.asarray(cache["edges"], dtype=float)
+                if (str(cache["signature"].item()) == signature and
+                        edges.shape == (n_bins + 1,) and np.all(np.isfinite(edges)) and
+                        np.all(np.diff(edges) >= 0)):
+                    print(f"[eigenvalues] Reusing quantile edges: {path}", flush=True)
+                    return edges
+        except (OSError, ValueError, KeyError, EOFError):
+            pass
+    print(f"[eigenvalues] Exact quantiles for {name}, {start_year}-{end_year}; "
+          f"temporary disk storage up to {series.size * 8 / 1024**3:.2f} GiB", flush=True)
+    edges = _spectral_quantile_edges(series, n_bins, folder)
+    # A changed file must not receive a cache for the previous contents.
+    current = source.stat()
+    if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
+        raise RuntimeError(f"Spectral input changed while reading quantiles: {source}")
+    # Atomic replacement prevents a partially written cache from being reused.
+    with tempfile.NamedTemporaryFile(dir=folder, suffix=".npz", delete=False) as handle:
+        temporary = Path(handle.name)
+    try:
+        np.savez(temporary, edges=edges, signature=signature)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return edges
+
+
+def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux", "SST"),
+                        first_day=0, last_day=5, n_bins=None, n_modes=3):
+    """Render daily cached spectra with read-only fields and cached exact edges.
+
+    start_year/end_year must describe the original spectral calculation period.
+    first_day/last_day select the half-open interval to draw within that period.
+    n_bins=None infers the bin count from the first complete daily spectrum.
+    It does not infer the period or prove that the original quantiles agree.
+    """
+    from Plotting.plot_eigenvalues import plot_eigenvalues, infer_spectral_bins
 
     root = Path(files_path_prefix)
-    series = [load_spectral_field(root, name, start_year, end_year) for name in names]
-    quantiles = [scale_to_bins(series[i], n_bins)[1] for i in range(2)]
-    plot_eigenvalues(str(root), n_modes, read_ocean_mask(root), first_day, last_day,
-                     start_label(start_year), series[1], quantiles[1], names=names,
-                     shape=(161, 181), array1=series[0], array1_quantiles=quantiles[0],
-                     save_mode_maps=False)
+    if len(names) != 2 or not 0 <= first_day <= last_day:
+        raise ValueError("Expected two variable names and 0 <= first_day <= last_day")
+    if first_day == last_day:
+        return 0
+    offset = start_label(start_year)
+    folder = root / "Eigenvalues" / f"{names[0]}-{names[1]}"
+    saved_bins = infer_spectral_bins(folder, offset, first_day, last_day, names[0] != names[1])
+    if n_bins is None:
+        n_bins = saved_bins
+    elif (not isinstance(n_bins, (int, np.integer)) or isinstance(n_bins, (bool, np.bool_))
+          or n_bins != saved_bins):
+        raise ValueError(f"{folder.name}: requested n_bins={n_bins}, saved n_bins={saved_bins}. "
+                         "Use n_bins=None or the number used during calculation.")
+    n_bins = int(n_bins)
+    print(f"[eigenvalues] {folder.name}: n_bins={n_bins}, n_modes={n_modes}; "
+          f"quantile period {start_year}-{end_year}", flush=True)
+
+    # load_spectral_field delegates to load_field, which opens .npy in mmap_mode='r'.
+    # For a self-pair, reuse the same mapping and the same cached quantiles.
+    fields = {name: load_spectral_field(root, name, start_year, end_year)
+              for name in dict.fromkeys(names)}
+    first, second = fields[names[0]], fields[names[1]]
+    if first.shape != second.shape or last_day > first.shape[1]:
+        raise ValueError(f"Inconsistent spectral fields or day range: {first.shape}, {second.shape}, "
+                         f"[{first_day}, {last_day})")
+    quantiles = {name: _cached_spectral_quantiles(root, name, start_year, end_year, n_bins, data)
+                 for name, data in fields.items()}
+    return plot_eigenvalues(str(root), n_modes, read_ocean_mask(root), first_day, last_day,
+                            offset, second, quantiles[names[1]], names=names,
+                            shape=(161, 181), array1=first, array1_quantiles=quantiles[names[0]],
+                            save_mode_maps=False)
 
 
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,

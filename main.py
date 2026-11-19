@@ -657,7 +657,7 @@ def main():
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
     # --------------------------------------------------------------------------
-    # task = "mean_year"
+    task = "mean_year"
     mean_year_source = "Variables"
     mean_year_name = "sensible"
     spectral_pair = ("Flux", "Flux")
@@ -676,7 +676,7 @@ def main():
     empirical_bins = 60
     checkerboard_bins = 50
 
-    task = "copula_quintiles"  # use cached copula NPZ/JSON, no refitting
+    # task = "copula_quintiles"  # use cached copula NPZ/JSON, no refitting
     copula_quintile_classes = 5
     copula_quintile_all_periods = False
     copula_quintile_hybrid_reference = (1979, 2026)
