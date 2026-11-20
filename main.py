@@ -613,9 +613,9 @@ def main():
 
     # --------------------------------------------------------------------------
     # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
-    # task = "components"
+    task = "components"
     components_variable = "sensible"
-    components_bins = 10
+    components_bins = 20
     components_window_days = 1  # for the baseline SP-style experiment use daily windows
     components_step_days = 1
     components_first_date = "2019-01-01"  # first observation, inclusive
@@ -689,7 +689,7 @@ def main():
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
     # --------------------------------------------------------------------------
-    task = "mean_year"
+    # task = "mean_year"
     # mean_year_source = "Variables"
     # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
     # mean_year_source = "Derived"  # C/F/FS

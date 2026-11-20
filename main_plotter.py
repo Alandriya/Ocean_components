@@ -1,6 +1,6 @@
 """Render cached ocean-analysis results and stationary spatial diagnostics.
 
-Based on the latest GitHub main_plotter.py (including FP2D/hybrid tasks).
+Based on the current GitHub main_plotter.py (including FP2D/hybrid tasks).
 Visualization tasks use cached numerical results. No refitting is performed.
 """
 
@@ -74,7 +74,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # MEAN YEAR: visualize the annual climatology of a selected variable.
-    task = "mean_year"
+    # task = "mean_year"
     # mean_year_source = "Variables"
     # mean_year_name = "Pressure"
     # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
@@ -86,6 +86,7 @@ def main():
     # Coefficients_1d uses shared method; Coefficients/Derived use names, method, n_bins_2d below.
     # mean_year_source = "Eigenvalues"
     spectral_pair = ("SST", "SST")  # only for mean_year_source="Eigenvalues"
+
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
@@ -108,21 +109,36 @@ def main():
     # task = "components"
     components_variable = "sensible"
     components_bins = 10
-    components_window_days = 1  # for the baseline SP-style experiment use daily windows
+    components_window_days = 1
     components_step_days = 1
-    components_first_date = "2019-01-01"  # first observation, inclusive
-    components_last_date = "2019-03-31"  # last observation, inclusive
-    components_spatial_stride = 1  # 2 or 3 for spatial-thinning sensitivity
-    components_plot_first_date = None  # optional subset of saved endpoints
+    components_first_date = "2019-01-01"
+    components_last_date = "2019-03-31"
+    components_spatial_stride = 1
+    components_plot_first_date = None
     components_plot_last_date = None
     components_plot_diffusion = True
-    components_corrected_diffusion = False  # use regularized fitted sigma by default
-    components_supported_only = False  # True hides weak groups (gray ocean)
-    components_drift_limit = None  # automatic shared absolute limit for all windows
+    components_corrected_diffusion = False
+    components_supported_only = False
+    components_drift_limit = None
     components_diffusion_limit = None
-    components_track_group = 5  # one-based quantile rank; None disables tracks
+    components_track_group = 5
     components_dpi = 200
     components_progress = True
+
+    # --------------------------------------------------------------------------
+    # COMPONENT DIAGNOSTICS: empirical histograms and densities for saved K=2 fits.
+    task = "components_diagnostics"
+    components_diag_variable = "sensible"
+    components_diag_bins = (10,)  # or (6, 10, 12, 15, 20) to compare all tested resolutions
+    components_diag_first_date = "2019-01-01"
+    components_diag_last_date = "2019-03-31"
+    components_diag_dates = ("2019-01-15", "2019-02-15", "2019-03-15")
+    components_diag_groups = None  # None: lower, central and upper group for each bin count
+    components_diag_hist_bins = 55
+    components_diag_zoom_quantiles = (0.01, 0.99)
+    components_diag_kde_points = 900
+    components_diag_dpi = 220
+    components_diag_progress = True
 
     # --------------------------------------------------------------------------
     # COEFFICIENT FRAMES: render A/B/C/F/FS maps for a selected time interval.
@@ -275,6 +291,22 @@ def main():
             diffusion_limit=components_diffusion_limit, track_group=components_track_group,
             language=plot_language, dpi=components_dpi, progress=components_progress,
         )
+    if task == "components_diagnostics":
+        from Plotting.component_diagnostics import plot_component_diagnostics
+        return plot_component_diagnostics(
+            files_path_prefix, start_year, end_year,
+            variable=components_diag_variable,
+            n_bins_values=components_diag_bins,
+            first_date=components_diag_first_date,
+            last_date=components_diag_last_date,
+            dates=components_diag_dates,
+            groups=components_diag_groups,
+            hist_bins=components_diag_hist_bins,
+            zoom_quantiles=components_diag_zoom_quantiles,
+            kde_points=components_diag_kde_points,
+            dpi=components_diag_dpi,
+            progress=components_diag_progress,
+        )
     if task == "coefficient_frames":
         return coefficient_frames(
             files_path_prefix, names, n_bins_2d, method,
@@ -353,7 +385,6 @@ def main():
             sample_days=hybrid_sample_days,
             pixels_per_day=hybrid_pixels_per_day,
             refresh_samples=hybrid_refresh_samples,
-            refresh_hybrid=hybrid_refresh_hybrid,
             dpi=overlay_dpi,
         )
     raise ValueError(f"Unsupported plotting task: {task}")
