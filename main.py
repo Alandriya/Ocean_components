@@ -38,7 +38,7 @@ def run_selected_task(task, **settings):
     ----------
     task : str
         One of coefficients, bridge_coefficients, bbt, derived_cf, eigenvalues,
-        collect_eigenvalues, sde_conditions, mean_year, trends, stationary, stationary_spatial, copulas, copula_quintiles.
+        collect_eigenvalues, sde_conditions, mean_year, trends, components, stationary, stationary_spatial, copulas, copula_quintiles.
     **settings : dict
         Settings matching the corresponding keyword variables in main().
 
@@ -223,6 +223,19 @@ def run_selected_task(task, **settings):
             rate_tolerance=settings.get("fp2d_solver_rate_tolerance", 1e-10),
             negative_tolerance=settings.get("fp2d_solver_negative_tolerance", 1e-12),
             overwrite=overwrite,
+        )
+    elif task == "components":
+        from Coefficients.spatial_components import run_components
+        return run_components(
+            root, start_year, end_year, variable=settings.get("components_variable", "sensible"),
+            n_bins=settings.get("components_bins", 10), window_days=settings.get("components_window_days", 30),
+            step_days=settings.get("components_step_days", 7), first_date=settings.get("components_first_date", "2019-01-01"),
+            last_date=settings.get("components_last_date", "2019-03-31"), spatial_stride=settings.get("components_spatial_stride", 1),
+            dt=settings.get("dt", 1.0), n_init=settings.get("components_n_init", 10),
+            reg_covar=settings.get("components_reg_covar", 1e-6), min_group_size=settings.get("components_min_group_size", 100),
+            min_weight=settings.get("components_min_weight", .05), min_effective_count=settings.get("components_min_effective_count", 20),
+            bic_threshold=settings.get("components_bic_threshold", 10.), random_state=settings.get("components_random_state", 42),
+            mask=mask, overwrite=settings.get("components_overwrite", False), progress=settings.get("components_progress", True),
         )
     elif task == "coefficients":
         coefficient_methods = normalize_methods(settings.get("coefficient_methods", "both"))
@@ -599,6 +612,26 @@ def main():
     quantile_1d_corr_lags = (1, 4, 8)
 
     # --------------------------------------------------------------------------
+    # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
+    task = "components"
+    components_variable = "sensible"
+    components_bins = 10
+    components_window_days = 30  # number of daily increments, not observations
+    components_step_days = 7
+    components_first_date = "2019-01-01"  # first observation, inclusive
+    components_last_date = "2019-03-31"  # last observation, inclusive
+    components_spatial_stride = 1  # 2 or 3 for spatial-thinning sensitivity
+    components_n_init = 10
+    components_reg_covar = 1e-6
+    components_min_group_size = 100
+    components_min_weight = 0.05
+    components_min_effective_count = 20
+    components_bic_threshold = 10.0
+    components_random_state = 42
+    components_overwrite = False  # resume, do not overwrite normal coefficients
+    components_progress = True
+
+    # --------------------------------------------------------------------------
     # COEFFICIENTS: estimate daily NP/SP drift and diffusion coefficients.
     # task = "coefficients"
     run_1d = False
@@ -656,7 +689,7 @@ def main():
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
     # --------------------------------------------------------------------------
-    task = "mean_year"
+    # task = "mean_year"
     # mean_year_source = "Variables"
     # mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
     # mean_year_source = "Coefficients_1d"
@@ -668,6 +701,7 @@ def main():
     # mean_year_source = "Eigenvalues"
     spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
 
+    mean_year_variable = "sensible"  # only for Coefficients_1d
     mean_year_bins_1d = 144
     mean_year_progress = True
     # --------------------------------------------------------------------------
@@ -762,7 +796,7 @@ def main():
     spectral_variables = ("Flux", "SST", "Pressure")
 
     mask = (load_water_mask(read_ocean_mask(files_path_prefix))
-            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year", "trends",
+            if task in ("coefficients", "bridge_coefficients", "derived_cf", "mean_year", "trends", "components",
                         "quantile_diagnostics", "quantile_diagnostics_1d", "quantile_hourly",
                         "quantile_hourly_resampling")
             else None)

@@ -74,7 +74,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # MEAN YEAR: visualize the annual climatology of a selected variable.
-    task = "mean_year"
+    # task = "mean_year"
     # mean_year_source = "Variables"
     # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
     # mean_year_source = "Derived"  # C/F/FS
@@ -100,6 +100,27 @@ def main():
     trend_windows = (30, 365)
     trend_mode_extrema = True  # False: only leading eigenvalues / singular values
     trend_dpi = 300
+
+    # --------------------------------------------------------------------------
+    # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
+    task = "components"
+    components_variable = "sensible"
+    components_bins = 10
+    components_window_days = 30  # number of daily increments, not observations
+    components_step_days = 7
+    components_first_date = "2019-01-01"  # first observation, inclusive
+    components_last_date = "2019-03-31"  # last observation, inclusive
+    components_spatial_stride = 1  # 2 or 3 for spatial-thinning sensitivity
+    components_plot_first_date = None  # optional subset of saved endpoints
+    components_plot_last_date = None
+    components_plot_diffusion = True
+    components_corrected_diffusion = False  # use regularized fitted sigma by default
+    components_supported_only = False  # True hides weak groups (gray ocean)
+    components_drift_limit = None  # automatic shared absolute limit for all windows
+    components_diffusion_limit = None
+    components_track_group = 5  # one-based quantile rank; None disables tracks
+    components_dpi = 200
+    components_progress = True
 
     # --------------------------------------------------------------------------
     # COEFFICIENT FRAMES: render A/B/C/F/FS maps for a selected time interval.
@@ -238,6 +259,18 @@ def main():
         return plot_mean_year(
             files_path_prefix, mean_year_source, mean_year_name,
             start_year, end_year, **identity,
+        )
+    if task == "components":
+        from Plotting.component_plots import plot_components
+        return plot_components(
+            files_path_prefix, start_year, end_year, variable=components_variable,
+            n_bins=components_bins, window_days=components_window_days, step_days=components_step_days,
+            first_date=components_first_date, last_date=components_last_date, spatial_stride=components_spatial_stride,
+            plot_first_date=components_plot_first_date, plot_last_date=components_plot_last_date,
+            plot_diffusion=components_plot_diffusion, corrected_diffusion=components_corrected_diffusion,
+            supported_only=components_supported_only, drift_limit=components_drift_limit,
+            diffusion_limit=components_diffusion_limit, track_group=components_track_group,
+            language=plot_language, dpi=components_dpi, progress=components_progress,
         )
     if task == "coefficient_frames":
         return coefficient_frames(
