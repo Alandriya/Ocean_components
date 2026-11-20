@@ -75,16 +75,17 @@ def main():
     # --------------------------------------------------------------------------
     # MEAN YEAR: visualize the annual climatology of a selected variable.
     task = "mean_year"
-    mean_year_source = "Variables"
-    mean_year_name = "sensible"
+    # mean_year_source = "Variables"
+    # mean_year_name = "Pressure"
     # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
-    # mean_year_source = "Derived"  # C/F/FS
+    mean_year_source = "Derived"  # C/F/FS
     # mean_year_source = "Coefficients_1d"
-    # mean_year_name = "A"  # A/B/B_with_reg (SP); A/B (NP)
-    mean_year_variable = "sensible"
+    mean_year_name = "C"
+    mean_year_variable = "Pressure"
     mean_year_bins_1d = 144
     # Coefficients_1d uses shared method; Coefficients/Derived use names, method, n_bins_2d below.
-    spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
+    # mean_year_source = "Eigenvalues"
+    spectral_pair = ("SST", "SST")  # only for mean_year_source="Eigenvalues"
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
@@ -204,6 +205,7 @@ def main():
         end_year = 2026
 
     names = ("sensible", "latent")
+    # names = ("Flux", "Pressure")
     # first_day = 0
     # last_day = 365
     first_day = (datetime.datetime(2025, 1, 1)-datetime.datetime(2019, 1, 1)).days

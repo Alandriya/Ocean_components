@@ -85,20 +85,28 @@ def _calendar_label(day_index: int) -> str:
     return f"{stamp.day} {RU_MONTHS_GENITIVE[stamp.month - 1]}"
 
 
-def _data_norm(data, name):
+def _data_norm(data, name, *, vmin=None, vmax=None):
+    """Build a normalization, optionally using explicit fixed color limits."""
+    if vmin is not None or vmax is not None:
+        if vmin is None or vmax is None or not vmin < vmax:
+            raise ValueError("Both vmin and vmax must be provided with vmin < vmax")
+        if vmin < 0.0 < vmax:
+            return mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
+        return mcolors.Normalize(vmin=vmin, vmax=vmax)
+
     finite = np.asarray(data, dtype=float)[np.isfinite(data)]
     if finite.size == 0:
         return mcolors.Normalize(vmin=0.0, vmax=1.0)
-    vmin = float(np.min(finite))
-    vmax = float(np.max(finite))
-    if vmin == vmax:
-        delta = 1.0 if vmin == 0.0 else 0.01 * abs(vmin)
-        vmin -= delta
-        vmax += delta
-    if name in DIVERGING_NAMES and vmin < 0.0 < vmax:
-        limit = max(abs(vmin), abs(vmax))
+    data_min = float(np.min(finite))
+    data_max = float(np.max(finite))
+    if data_min == data_max:
+        delta = 1.0 if data_min == 0.0 else 0.01 * abs(data_min)
+        data_min -= delta
+        data_max += delta
+    if name in DIVERGING_NAMES and data_min < 0.0 < data_max:
+        limit = max(abs(data_min), abs(data_max))
         return mcolors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
-    return mcolors.Normalize(vmin=vmin, vmax=vmax)
+    return mcolors.Normalize(vmin=data_min, vmax=data_max)
 
 
 def _map_cmap(name=""):
@@ -112,14 +120,14 @@ def _map_cmap(name=""):
     return "viridis"
 
 
-def _draw_map(ax, data, title, *, name="",
+def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
               show_x_labels=True, show_y_labels=True):
     """Draw one geographic grid with coordinate axes and matching colorbar."""
     masked = np.ma.masked_invalid(data)
     image = ax.imshow(
         masked,
-        cmap=_map_cmap(name),
-        norm=_data_norm(masked, name),
+        cmap=_map_cmap(name) if cmap is None else cmap,
+        norm=_data_norm(masked, name, vmin=vmin, vmax=vmax),
         origin="upper",
         extent=(*LON_BOUNDS, *LAT_BOUNDS),
         interpolation="none",
@@ -153,7 +161,8 @@ def _mean_year_context(category, name, *, pair=None, method=None,
     return NAMES_RU.get(name, name)
 
 
-def _plot_six_maps(data_cube, name, title, *, saved_to, dpi=300):
+def _plot_six_maps(data_cube, name, title, *, saved_to, dpi=300,
+                   cmap=None, vmin=None, vmax=None):
     """Render six climatological snapshots in the lambdas/eigenvalues style."""
     fig, axes = plt.subplots(2, 3, figsize=(16, 9), squeeze=False,
                              constrained_layout=False)
@@ -167,6 +176,9 @@ def _plot_six_maps(data_cube, name, title, *, saved_to, dpi=300):
             data_cube[index],
             _calendar_label(index),
             name=name,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
             show_x_labels=(row == 1),
             show_y_labels=(col == 0),
         )
@@ -263,6 +275,9 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                     channel_title,
                     saved_to=plot_path(root, "Mean Year", *parts,
                                        f"{name}_{start_year}-{end_year}{suffix}.png"),
+                    cmap="Reds" if name == "B" else None,
+                    vmin=-1.0 if name == "C" else None,
+                    vmax=1.0 if name == "C" else None,
                 ))
         else:
             outputs.append(_plot_six_maps(
@@ -271,6 +286,9 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                 title,
                 saved_to=plot_path(root, "Mean Year", *parts,
                                    f"{name}_{start_year}-{end_year}.png"),
+                cmap="Reds" if name == "B" else None,
+                vmin=-1.0 if name == "C" else None,
+                vmax=1.0 if name == "C" else None,
             ))
     return outputs
 
