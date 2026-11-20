@@ -74,12 +74,13 @@ def main():
 
     # --------------------------------------------------------------------------
     # MEAN YEAR: visualize the annual climatology of a selected variable.
-    # task = "mean_year"
-    # mean_year_source = "Variables"
+    task = "mean_year"
+    mean_year_source = "Variables"
+    mean_year_name = "sensible"
     # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
     # mean_year_source = "Derived"  # C/F/FS
-    mean_year_source = "Coefficients_1d"
-    mean_year_name = "A"  # A/B/B_with_reg (SP); A/B (NP)
+    # mean_year_source = "Coefficients_1d"
+    # mean_year_name = "A"  # A/B/B_with_reg (SP); A/B (NP)
     mean_year_variable = "sensible"
     mean_year_bins_1d = 144
     # Coefficients_1d uses shared method; Coefficients/Derived use names, method, n_bins_2d below.
@@ -103,11 +104,11 @@ def main():
 
     # --------------------------------------------------------------------------
     # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
-    task = "components"
+    # task = "components"
     components_variable = "sensible"
     components_bins = 10
-    components_window_days = 30  # number of daily increments, not observations
-    components_step_days = 7
+    components_window_days = 1  # for the baseline SP-style experiment use daily windows
+    components_step_days = 1
     components_first_date = "2019-01-01"  # first observation, inclusive
     components_last_date = "2019-03-31"  # last observation, inclusive
     components_spatial_stride = 1  # 2 or 3 for spatial-thinning sensitivity

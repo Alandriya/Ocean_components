@@ -228,8 +228,8 @@ def run_selected_task(task, **settings):
         from Coefficients.spatial_components import run_components
         return run_components(
             root, start_year, end_year, variable=settings.get("components_variable", "sensible"),
-            n_bins=settings.get("components_bins", 10), window_days=settings.get("components_window_days", 30),
-            step_days=settings.get("components_step_days", 7), first_date=settings.get("components_first_date", "2019-01-01"),
+            n_bins=settings.get("components_bins", 10), window_days=settings.get("components_window_days", 1),
+            step_days=settings.get("components_step_days", 1), first_date=settings.get("components_first_date", "2019-01-01"),
             last_date=settings.get("components_last_date", "2019-03-31"), spatial_stride=settings.get("components_spatial_stride", 1),
             dt=settings.get("dt", 1.0), n_init=settings.get("components_n_init", 10),
             reg_covar=settings.get("components_reg_covar", 1e-6), min_group_size=settings.get("components_min_group_size", 100),
@@ -613,11 +613,11 @@ def main():
 
     # --------------------------------------------------------------------------
     # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
-    task = "components"
+    # task = "components"
     components_variable = "sensible"
     components_bins = 10
-    components_window_days = 30  # number of daily increments, not observations
-    components_step_days = 7
+    components_window_days = 1  # for the baseline SP-style experiment use daily windows
+    components_step_days = 1
     components_first_date = "2019-01-01"  # first observation, inclusive
     components_last_date = "2019-03-31"  # last observation, inclusive
     components_spatial_stride = 1  # 2 or 3 for spatial-thinning sensitivity
@@ -689,21 +689,17 @@ def main():
     q_low, q_high = 0.03, 0.97
     epsilon = 0.1
     # --------------------------------------------------------------------------
-    # task = "mean_year"
+    task = "mean_year"
     # mean_year_source = "Variables"
-    # mean_year_name = "sensible"  # A/B/B_with_reg or C/F/FS for coefficient sources
-    # mean_year_source = "Coefficients_1d"
-    mean_year_source = "Coefficients"
-    mean_year_name = "B" #A, B, B_with_reg
-    # mean_year_source = "Derived"
-    # mean_year_name = "C" #C, F, CF
-    # Coefficients/Derived use shared names, method, n_bins_2d below.
-    # mean_year_source = "Eigenvalues"
-    spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
-
+    # mean_year_source = "Coefficients"  # 2D A/B/B_with_reg
+    # mean_year_source = "Derived"  # C/F/FS
+    mean_year_source = "Coefficients_1d"
+    mean_year_name = "A"  # A/B/B_with_reg (SP); A/B (NP)
     mean_year_variable = "sensible"  # only for Coefficients_1d
-    mean_year_bins_1d = 144
+    mean_year_bins_1d = 144  # must match the collected 1D coefficients
     mean_year_progress = True
+    # Coefficients_1d uses shared method; Coefficients/Derived use names, method, n_bins_2d below.
+    spectral_pair = ("Flux", "Flux")  # only for mean_year_source="Eigenvalues"
     # --------------------------------------------------------------------------
     # TRENDS: daily spatial extrema / linear regression over complete day blocks.
     # task = "trends"
@@ -782,8 +778,7 @@ def main():
     elif start_year == 19792026:
         start_year = 1979
         end_year = 2026
-    # names = ("sensible", "latent")
-    names = ("Flux", "SST")
+    names = ("sensible", "latent")
     periods = PERIODS
     coefficient_methods = "sp"
     method = "sp"
