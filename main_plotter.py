@@ -48,10 +48,10 @@ def main():
     # task = "stationary_spatial"   # all three plot types
     # task = "stationary_isolines"
     # task = "stationary_regions"
-    # task = "stationary_classes"
+    task = "stationary_classes"
     # Match the numerical settings in main.py (task="stationary_spatial").
     spatial_regions_period = (1979, 2026)
-    spatial_map_date = "1979-01-01"
+    spatial_map_date = "2026-01-01"
     spatial_density_source = "auto"
     spatial_hybrid_reference = (1979, 2026)
     spatial_chunk_days = 32
@@ -127,7 +127,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COMPONENT DIAGNOSTICS: empirical histograms and densities for saved K=2 fits.
-    task = "components_diagnostics"
+    # task = "components_diagnostics"
     components_diag_variable = "sensible"
     components_diag_bins = (10,)  # or (6, 10, 12, 15, 20) to compare all tested resolutions
     components_diag_first_date = "2019-01-01"

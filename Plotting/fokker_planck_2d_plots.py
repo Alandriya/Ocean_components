@@ -16,12 +16,42 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import os.path
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+
+
+def _marginal_figure_title(variable):
+    """Human-readable, capitalized title without relying on translation of capitalization."""
+    variable = str(variable)
+    try:
+        from Plotting.language import get_plot_language
+        language = get_plot_language()
+    except ImportError:
+        language = os.environ.get("OCEAN_PLOT_LANGUAGE", "en")
+    if language == "ru":
+        return {
+            "sensible": "Маргинальная плотность явного потока",
+            "latent": "Маргинальная плотность скрытого потока",
+        }.get(variable, f"Маргинальная плотность {variable}")
+    return f"{variable.capitalize()} marginal"
+
+
+def _marginal_legend_labels():
+    """Resolve display labels before legend layout, so its frame fits Russian text."""
+    try:
+        from Plotting.language import get_plot_language
+        language = get_plot_language()
+    except ImportError:
+        language = os.environ.get("OCEAN_PLOT_LANGUAGE", "en")
+    if language == "ru":
+        return "Эмпирическая", "Стационарное решение ФП"
+    return "Empirical", "Stationary FP"
+
 
 def _stationary_path(root, names, start_year, end_year, method, bins):
     """Return the conventional stationary 2D Fokker-Planck result path."""
@@ -318,40 +348,41 @@ def plot_fp2d_stationary_comparison(
         "axes.titlesize": 13,
     }):
         fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
+        empirical_label, stationary_label = _marginal_legend_labels()
 
         axes[0].plot(
             x_centers,
             empirical_px,
-            label="Empirical",
+            label=empirical_label,
             c='green',
         )
         axes[0].plot(
             x_centers,
             stationary_px,
-            label="Stationary FP",
+            label=stationary_label,
             c='red',
         )
-        axes[0].set_title(f"{names[0]} marginal")
+        axes[0].set_title(_marginal_figure_title(names[0]))
         axes[0].set_xlabel(names[0])
         axes[0].set_ylabel("Probability density")
-        axes[0].legend()
+        axes[0].legend(loc="upper left", framealpha=0.92)
 
         axes[1].plot(
             y_centers,
             empirical_py,
-            label="Empirical",
+            label=empirical_label,
             c='green',
         )
         axes[1].plot(
             y_centers,
             stationary_py,
-            label="Stationary FP",
+            label=stationary_label,
             c='red',
         )
-        axes[1].set_title(f"{names[1]} marginal")
+        axes[1].set_title(_marginal_figure_title(names[1]))
         axes[1].set_xlabel(names[1])
         axes[1].set_ylabel("Probability density")
-        axes[1].legend()
+        axes[1].legend(loc="upper left", framealpha=0.92)
 
         # fig.suptitle(
         #     f"Stationary marginal densities: "
@@ -368,6 +399,7 @@ def plot_fp2d_stationary_comparison(
         ),
         dpi,
     )
+    print(f"[FP2D] Маргинальные плотности сохранены: {marginals_path.resolve()}", flush=True)
 
     diagnostic_path = folder / (
         f"stationary_comparison_{names[0]}-{names[1]}_"
@@ -579,12 +611,12 @@ def plot_fp2d_grid_convergence(
                 "empirical": empirical_moments,
             }
 
-        axes[0, 0].set_title(f"{names[0]} stationary marginal")
+        axes[0, 0].set_title(f"{names[0].capitalize()} stationary marginal")
         axes[0, 0].set_xlabel(names[0])
         axes[0, 0].set_ylabel("Probability density")
         axes[0, 0].legend()
 
-        axes[0, 1].set_title(f"{names[1]} stationary marginal")
+        axes[0, 1].set_title(f"{names[1].capitalize()} stationary marginal")
         axes[0, 1].set_xlabel(names[1])
         axes[0, 1].set_ylabel("Probability density")
         axes[0, 1].legend()
@@ -617,7 +649,7 @@ def plot_fp2d_grid_convergence(
         axes[1, 0].set_title("Stationary means vs grid resolution")
         axes[1, 0].set_xlabel("Grid size per axis")
         axes[1, 0].set_ylabel("Mean")
-        axes[1, 0].legend()
+        axes[1, 0].legend(loc="center left", bbox_to_anchor=(0.03, 0.50), framealpha=0.92)
 
         axes[1, 1].plot(
             ordered,

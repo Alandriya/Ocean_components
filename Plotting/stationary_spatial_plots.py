@@ -88,7 +88,7 @@ def _map_style(ax, lon, lat):
     ax.set_xticklabels([f"{round(abs(x))}°W" if x < 0 else "0°"
                         for x in ticks_lon])
     ax.set_yticks(ticks_lat)
-    ax.set_yticklabels(["EQ", "30°N", "60°N", "80°N"])
+    ax.set_yticklabels(["0°", "30°N", "60°N", "80°N"])
     ax.grid(color="#d6d6d6", lw=0.5, zorder=1)
     ax.set_aspect("auto")
 
@@ -396,7 +396,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
             handles = [Patch(facecolor=gray, edgecolor="black", linewidth=0.6,
                              hatch=hatch, label=f"{t['area']} {k}")
                        for k, (gray, hatch) in enumerate(zip(AREA_GRAYS, AREA_HATCHES), 1)]
-            ax.legend(handles=handles, title=t["area"], loc="center left",
+            ax.legend(handles=handles, loc="center left",
                       bbox_to_anchor=(1.01, 0.5), fontsize=9, handlelength=3,
                       handleheight=1.8, labelspacing=0.8, borderpad=0.8,
                       framealpha=1, facecolor="white", edgecolor="black")
@@ -410,7 +410,6 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
             _map_style(ax, lon, lat)
             cb = fig.colorbar(artist, ax=ax, ticks=np.arange(1, 6), fraction=.04, pad=.018)
             cb.ax.set_yticklabels([f"{t['area']} {k}" for k in range(1, 6)])
-            cb.set_label(t["area"])
         # ax.set_title(f"{t['classes']}: {t.get(variable, variable)} — {map_date}")
         # RU: Карта областей по квантильным порогам стационарной плотности
         # Retain numerical thresholds in JSON/NPZ rather than obscuring map labels.
