@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from ..data import CHANNELS, PointDataset, dataset_dir, results_dir
-from ..experiment import DEFAULT_HORIZON, horizon_root, LEGACY_POINTS, select_points
+from ..experiment import DEFAULT_HORIZON, DEFAULT_TARGET_MODE, TARGET_MODES, target_root, LEGACY_POINTS, select_points
 from ..test import DEFAULT_POINTS, ALL_POINTS, point_key, evaluation_dir
 from ..registry import ALL_MODELS, LEVEL0
 
@@ -29,6 +29,7 @@ def build_parser():
     parser.add_argument("--all-horizons", action="store_true", help="Plot every lead")
     parser.add_argument("--dataset-dir", type=Path, default=None)
     parser.add_argument("--results-dir", type=Path, default=None)
+    parser.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--show-baselines", action="store_true")
     parser.add_argument("--compare", nargs="+", choices=ALL_MODELS, default=None,
@@ -60,7 +61,8 @@ def run(args):
     import matplotlib.dates as mdates
 
     data = PointDataset(dataset_dir(args.dataset_dir))
-    root = horizon_root(results_dir(args.results_dir), getattr(args, "out_len", 3))
+    root = target_root(results_dir(args.results_dir), getattr(args, "out_len", 3),
+                       getattr(args, "target_mode", "raw"))
     requested_points = getattr(args, "points", None)
     requested_points = select_points(data.point_ids, requested_points)
     key = point_key(requested_points)

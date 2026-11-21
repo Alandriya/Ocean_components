@@ -10,7 +10,8 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json
-from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, select_points
+from .experiment import (DEFAULT_HORIZON, DEFAULT_POINTS, DEFAULT_TARGET_MODE,
+                         TARGET_MODES, horizon_root, target_root, select_points)
 from .models.sarima import fast_ar1_supported, fit_ar1, fit_sarimax, parse_order
 
 ALL_POINTS = DEFAULT_POINTS
@@ -24,6 +25,10 @@ def build_parser():
                    help="Neural models default to all loaded locations; SARIMA fits all locations.")
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
+    p.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE,
+                   help="Neural target: train-only seasonal anomalies (default) or legacy raw values.")
+    p.add_argument("--climatology-radius", type=int, default=15,
+                   help="Calendar smoothing radius in days, fitted on train only.")
     p.add_argument("--order", default="1,0,0")
     p.add_argument("--seasonal-order", default="0,0,0,0")
     p.add_argument("--trend", default="c", choices=["n", "c", "t", "ct"])
@@ -37,11 +42,11 @@ def build_parser():
     p.add_argument("--maxiter", type=int, default=200)
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=128)
-    p.add_argument("--learning-rate", type=float, default=1e-3)
+    p.add_argument("--learning-rate", type=float, default=3e-4)
     p.add_argument("--weight-decay", type=float, default=1e-4)
-    p.add_argument("--patience", type=int, default=15)
+    p.add_argument("--patience", type=int, default=12)
     p.add_argument("--min-delta", type=float, default=1e-5)
-    p.add_argument("--scheduler", choices=["none", "plateau"], default="none")
+    p.add_argument("--scheduler", choices=["none", "plateau"], default="plateau")
     p.add_argument("--lr-patience", type=int, default=3)
     p.add_argument("--lr-factor", type=float, default=0.5)
     p.add_argument("--min-lr", type=float, default=1e-6)
@@ -157,7 +162,27 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         in_len - 1, split.train_end - args.out_len, dtype=np.int64
     )
     val_origins = split.origins("val")
-    train_raw = np.asarray(data.values[:split.train_end, point_index, :], dtype=np.float64)
+    target_mode = getattr(args, "target_mode", "raw")
+    radius = getattr(args, "climatology_radius", 15)
+    if target_mode not in TARGET_MODES:
+        raise ValueError(f"Unsupported target mode: {target_mode}")
+    climatology = None
+    if target_mode == "anomaly":
+        from .models.seasonal import calendar_index, fit_seasonal
+        if not 0 <= radius < 183:
+            raise ValueError("climatology-radius must be in 0..182")
+        # The fitted seasonal cycle sees only dates and observations in train.
+        fitted, _ = fit_seasonal(
+            data.values[:, point_index:point_index+1, :],
+            data.dates, split.train_end, radius=radius
+        )
+        climatology = fitted[:, 0, :].copy()  # [366,2]
+        seasonal_values = climatology[calendar_index(data.dates)]
+        point_values = np.asarray(data.values[:, point_index, :], dtype=np.float64) - seasonal_values
+        work_values, work_index = point_values[:, None, :], 0
+    else:
+        work_values, work_index = data.values, point_index
+    train_raw = np.asarray(work_values[:split.train_end, work_index, :], dtype=np.float64)
     train_raw = np.where(np.isfinite(train_raw), train_raw, np.nan)
     means = np.array([
         np.nanmean(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
@@ -171,10 +196,10 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         raise ValueError(f"Point {point_id} has a channel with no finite training values")
     scales = np.where(scales < 1e-8, 1.0, scales)
     x_train, y_train = _make_windows(
-        data.values, train_origins, point_index, in_len, args.out_len, means
+        work_values, train_origins, work_index, in_len, args.out_len, means
     )
     x_val, y_val = _make_windows(
-        data.values, val_origins, point_index, in_len, args.out_len, means
+        work_values, val_origins, work_index, in_len, args.out_len, means
     )
     x_train = ((x_train - means) / scales).astype(np.float32)
     y_train = ((y_train - means) / scales).astype(np.float32)
@@ -220,6 +245,11 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         # last observations must be finite in this optional monitor.
         if len(y_val) != len(val_origins) or not np.isfinite(sar).all():
             raise ValueError("SAR monitor requires complete validation windows and finite last observations; use normalized monitor otherwise")
+        if target_mode == "anomaly":
+            # Convert the raw SAR forecast onto the anomaly training scale.
+            from .models.seasonal import calendar_index
+            lead_dates = data.dates[val_origins[:, None] + np.arange(1, args.out_len+1)]
+            sar = sar - climatology[calendar_index(lead_dates)]
         normalized_sar = (sar - means[None, None, :]) / scales[None, None, :]
         sar_denominator = np.mean((normalized_sar - y_val.astype(np.float64)) ** 2, axis=0)
         if not np.isfinite(sar_denominator).all() or np.any(sar_denominator <= 1e-12):
@@ -233,7 +263,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     x_val_t = torch.from_numpy(x_val).to(device)
     y_val_t = torch.from_numpy(y_val).to(device)
 
-    out_dir = horizon_root(results_dir(args.results_dir), args.out_len) / args.model / point_id
+    out_dir = target_root(results_dir(args.results_dir), args.out_len, target_mode) / args.model / point_id
     out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = out_dir / "best.pt"
     metadata_path = out_dir / "train_metadata.json"
@@ -252,7 +282,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     history = []
     print(
         f"[fit] model={args.model} point={point_id} device={device} "
-        f"train_windows={len(train_ds)} val_windows={len(x_val)} "
+        f"target_mode={target_mode} train_windows={len(train_ds)} val_windows={len(x_val)} "
         f"input={in_len}x2 output={args.out_len}x2 config={config}", flush=True
     )
 
@@ -334,6 +364,10 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         "model": args.model,
         "model_level": model_level(args.model),
         "point_id": point_id,
+        "target_mode": target_mode,
+        "anomaly_climatology": ({"radius_days": radius, "fit_end_exclusive": split.train_end,
+                                "calendar": "366 month-day slots"}
+                               if target_mode == "anomaly" else None),
         "channels": ["sensible", "latent"],
         "input_channels": 2,
         "feature_names": ["sensible", "latent"],

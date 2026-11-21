@@ -9,7 +9,8 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .metrics import save_json, score_predictions
-from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, LEGACY_POINTS, select_points
+from .experiment import (DEFAULT_HORIZON, DEFAULT_POINTS, DEFAULT_TARGET_MODE,
+                         TARGET_MODES, horizon_root, target_root, LEGACY_POINTS, select_points)
 from .models.baselines import input_mean, persistence
 from .models.sarima import forecast_ar1, forecast_sarimax
 
@@ -40,6 +41,10 @@ def build_parser():
     p.add_argument("--split", choices=["val", "test"], default="test")
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
+    p.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE,
+                   help="Anomaly checkpoints/evaluations (opt-in) or legacy raw artifacts (default).")
+    p.add_argument("--climatology-radius", type=int, default=15,
+                   help="Must match the trained anomaly checkpoint (default: 15 days).")
     p.add_argument("--in-len", type=int, default=60)
     p.add_argument("--mean-days", type=int, default=30,
                    help="Input-mean baseline window; independent of neural input length.")
@@ -122,8 +127,15 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
         "horizon": args.out_len,
         "dataset_fingerprint_sha256": data.fingerprint(),
     }
+    target_mode = getattr(args, "target_mode", "raw")
+    expected["target_mode"] = target_mode
+    if target_mode == "anomaly":
+        climate_info = meta.get("anomaly_climatology") or {}
+        if (climate_info.get("fit_end_exclusive") != split.train_end or
+                climate_info.get("radius_days") != getattr(args, "climatology_radius", 15)):
+            raise ValueError(f"Anomaly climatology configuration mismatch for {model_name}/{point_id}")
     for key, value in expected.items():
-        if meta.get(key) != value:
+        if (meta.get(key, "raw" if key == "target_mode" else None) != value):
             raise ValueError(
                 f"Checkpoint mismatch for {model_name}/{point_id}: "
                 f"{key}={meta.get(key)!r}, expected {value!r}"
@@ -132,10 +144,21 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
     mean = np.asarray(normalization["mean"], dtype=np.float32)
     scale = np.asarray(normalization["scale"], dtype=np.float32)
     in_len = args.in_len
+    if target_mode == "anomaly":
+        from .models.seasonal import calendar_index, fit_seasonal
+        radius = meta["anomaly_climatology"]["radius_days"]
+        climatology, _ = fit_seasonal(
+            data.values[:, point_index:point_index+1, :],
+            data.dates, split.train_end, radius=radius
+        )
+        climatology = climatology[:, 0, :]
+        series = np.asarray(data.values[:, point_index, :], dtype=np.float64) - climatology[calendar_index(data.dates)]
+    else:
+        series = data.values[:, point_index, :]
     windows = []
     for origin in origins:
         x = np.asarray(
-            data.values[origin - in_len + 1:origin + 1, point_index, :],
+            series[origin - in_len + 1:origin + 1],
             dtype=np.float32
         )
         if x.shape != (in_len, 2):
@@ -162,7 +185,11 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
             xb = torch.from_numpy(x_array[start:start + args.batch_size]).to(device)
             batches.append(model(xb).cpu().numpy())
     normalized = np.concatenate(batches, axis=0)
-    prediction = normalized * scale[None, None, :] + mean[None, None, :]
+    prediction = normalized.astype(np.float64) * scale[None, None, :] + mean[None, None, :]
+    if target_mode == "anomaly":
+        # Known calendar dates are allowed; actual future flux values are not.
+        lead_dates = data.dates[origins[:, None] + np.arange(1, args.out_len+1)]
+        prediction += climatology[calendar_index(lead_dates)]
     return prediction.transpose(0, 2, 1).astype(np.float64)
 
 
@@ -182,7 +209,9 @@ def run(args):
     origins = origins[origins >= mean_days - 1]
     if origins.size == 0:
         raise ValueError("No valid forecast origins")
-    model_root = horizon_root(results_dir(args.results_dir), args.out_len)
+    base_model_root = horizon_root(results_dir(args.results_dir), args.out_len)
+    target_mode = getattr(args, "target_mode", "raw")
+    model_root = target_root(results_dir(args.results_dir), args.out_len, target_mode)
     names = _selected_models(args.model)
     key = point_key(point_ids)
     dest = evaluation_dir(model_root, args.split, point_ids)
@@ -201,7 +230,8 @@ def run(args):
     }
 
     if "sarima" in names:
-        meta, params = _load_trained_sarima(model_root, data, split)
+        # SARIMA parameters are fitted on raw data and shared across target modes.
+        meta, params = _load_trained_sarima(base_model_root, data, split)
         if meta["backend"] == "ar1_ols":
             full = forecast_ar1(data.values, origins, split.out_len, params)
         elif meta["backend"] == "statsmodels":
@@ -259,6 +289,9 @@ def run(args):
         "eval_origin_count": int(len(origins)),
         "in_len": in_len, "mean_days": mean_days, "out_len": split.out_len,
         "val_days": args.val_days, "test_days": args.test_days,
+        **({"target_mode": target_mode,
+            "climatology_radius_days": getattr(args, "climatology_radius", 15)}
+           if target_mode != "raw" else {}),
     }
     if summary_path.exists():
         previous = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -330,6 +363,9 @@ def run(args):
             "out_len": split.out_len,
             "val_days": args.val_days,
             "test_days": args.test_days,
+            **({"target_mode": target_mode,
+            "climatology_radius_days": getattr(args, "climatology_radius", 15)}
+           if target_mode != "raw" else {}),
             "target_domain": "selected offshore point centers, sensible and latent",
             "rolling_origin": "observations up to origin only, fixed fitted parameters",
             "models": {},

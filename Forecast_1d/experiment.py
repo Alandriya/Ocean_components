@@ -25,3 +25,15 @@ def horizon_root(base, horizon=DEFAULT_HORIZON):
         raise ValueError("Forecast horizon must be positive")
     base = Path(base)
     return base if horizon == LEGACY_HORIZON else base / f"h{horizon}"
+
+
+TARGET_MODES = ("raw", "anomaly")
+DEFAULT_TARGET_MODE = "raw"
+
+
+def target_root(base, horizon=DEFAULT_HORIZON, target_mode=DEFAULT_TARGET_MODE):
+    """Return an experiment root; raw paths are backward-compatible."""
+    if target_mode not in TARGET_MODES:
+        raise ValueError(f"Unsupported target mode: {target_mode}")
+    root = horizon_root(base, horizon)
+    return root if target_mode == "raw" else root / "anomaly"

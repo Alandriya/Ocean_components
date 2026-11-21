@@ -10,7 +10,8 @@ import json
 import math
 from pathlib import Path
 
-from .experiment import DEFAULT_HORIZON, horizon_root, DEFAULT_POINTS, LEGACY_POINTS, DEFAULT_RESULTS_SUBDIR
+from .experiment import (DEFAULT_HORIZON, DEFAULT_POINTS, DEFAULT_TARGET_MODE,
+                         TARGET_MODES, target_root, LEGACY_POINTS, DEFAULT_RESULTS_SUBDIR)
 from .registry import model_level, ALL_MODELS
 
 ALL_POINTS = DEFAULT_POINTS
@@ -29,6 +30,7 @@ def build_parser():
                         default=list(DEFAULT_POINTS))
     parser.add_argument("--out-len", type=int, default=DEFAULT_HORIZON)
     parser.add_argument("--results-dir", type=Path, default=None)
+    parser.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE)
     parser.add_argument("--output-dir", type=Path, default=None)
     return parser
 
@@ -65,7 +67,8 @@ def collect(args):
     if not points or len(set(points)) != len(points):
         raise ValueError("Select nonempty unique point IDs")
     point_key = "_".join(points)
-    root = horizon_root(_results_root(args.results_dir), args.out_len)
+    target_mode = getattr(args, "target_mode", "raw")
+    root = target_root(_results_root(args.results_dir), args.out_len, target_mode)
     evaluation_root = root / "evaluations" / args.split
     metrics_path = (
         evaluation_root / "metrics.json"
@@ -79,6 +82,8 @@ def collect(args):
     if tuple(payload.get("point_ids", ())) != points:
         raise ValueError("Requested point selection differs from metrics.json")
 
+    if payload.get("target_mode", "raw") != target_mode:
+        raise ValueError("Metrics target_mode differs from requested target mode")
     if payload.get("out_len") != args.out_len:
         raise ValueError("Metrics forecast length does not match --out-len")
     rows = []
@@ -139,6 +144,7 @@ def collect(args):
     result_payload = {
         "split": args.split,
         "out_len": args.out_len,
+        "target_mode": target_mode,
         "point_ids": list(points),
         "source_metrics": str(metrics_path),
         "models": sorted(payload.get("models", {}).keys()),
