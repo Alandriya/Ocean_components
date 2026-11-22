@@ -26,9 +26,11 @@ def build_parser():
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
     p.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE,
-                   help="Neural target: train-only seasonal anomalies (default) or legacy raw values.")
+                   help="Neural target: raw, train-only anomalies, or OOF Seasonal AR(1) corrections.")
     p.add_argument("--climatology-radius", type=int, default=15,
                    help="Calendar smoothing radius in days, fitted on train only.")
+    p.add_argument("--residual-oof-folds", type=int, default=4,
+                   help="Expanding time folds for SAR residual train targets (default: 4).")
     p.add_argument("--order", default="1,0,0")
     p.add_argument("--seasonal-order", default="0,0,0,0")
     p.add_argument("--trend", default="c", choices=["n", "c", "t", "ct"])
@@ -166,45 +168,58 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     radius = getattr(args, "climatology_radius", 15)
     if target_mode not in TARGET_MODES:
         raise ValueError(f"Unsupported target mode: {target_mode}")
-    climatology = None
-    if target_mode == "anomaly":
-        from .models.seasonal import calendar_index, fit_seasonal
-        if not 0 <= radius < 183:
-            raise ValueError("climatology-radius must be in 0..182")
-        # The fitted seasonal cycle sees only dates and observations in train.
-        fitted, _ = fit_seasonal(
-            data.values[:, point_index:point_index+1, :],
-            data.dates, split.train_end, radius=radius
+    if target_mode == "sar_residual":
+        if args.model not in ("mlp", "tcn", "gru"):
+            raise ValueError("SAR residual currently supports Level-1 MLP, TCN and GRU only")
+        from .sar_residual import prepare_residual_training
+        residual = prepare_residual_training(
+            data.values[:, point_index, :], data.dates, split.train_end,
+            val_origins, in_len, args.out_len, radius,
+            getattr(args, "residual_oof_folds", 4)
         )
-        climatology = fitted[:, 0, :].copy()  # [366,2]
-        seasonal_values = climatology[calendar_index(data.dates)]
-        point_values = np.asarray(data.values[:, point_index, :], dtype=np.float64) - seasonal_values
-        work_values, work_index = point_values[:, None, :], 0
+        x_train, y_train = residual.x_train, residual.y_train
+        x_val, y_val = residual.x_val, residual.y_val
+        means, scales = residual.input_mean, residual.input_scale
     else:
-        work_values, work_index = data.values, point_index
-    train_raw = np.asarray(work_values[:split.train_end, work_index, :], dtype=np.float64)
-    train_raw = np.where(np.isfinite(train_raw), train_raw, np.nan)
-    means = np.array([
-        np.nanmean(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
-        for c in range(2)
-    ], dtype=np.float64)
-    scales = np.array([
-        np.nanstd(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
-        for c in range(2)
-    ], dtype=np.float64)
-    if not np.isfinite(means).all() or not np.isfinite(scales).all():
-        raise ValueError(f"Point {point_id} has a channel with no finite training values")
-    scales = np.where(scales < 1e-8, 1.0, scales)
-    x_train, y_train = _make_windows(
-        work_values, train_origins, work_index, in_len, args.out_len, means
-    )
-    x_val, y_val = _make_windows(
-        work_values, val_origins, work_index, in_len, args.out_len, means
-    )
-    x_train = ((x_train - means) / scales).astype(np.float32)
-    y_train = ((y_train - means) / scales).astype(np.float32)
-    x_val = ((x_val - means) / scales).astype(np.float32)
-    y_val = ((y_val - means) / scales).astype(np.float32)
+        climatology = None
+        if target_mode == "anomaly":
+            from .models.seasonal import calendar_index, fit_seasonal
+            if not 0 <= radius < 183:
+                raise ValueError("climatology-radius must be in 0..182")
+            # The fitted seasonal cycle sees only dates and observations in train.
+            fitted, _ = fit_seasonal(
+                data.values[:, point_index:point_index+1, :],
+                data.dates, split.train_end, radius=radius
+            )
+            climatology = fitted[:, 0, :].copy()  # [366,2]
+            seasonal_values = climatology[calendar_index(data.dates)]
+            point_values = np.asarray(data.values[:, point_index, :], dtype=np.float64) - seasonal_values
+            work_values, work_index = point_values[:, None, :], 0
+        else:
+            work_values, work_index = data.values, point_index
+        train_raw = np.asarray(work_values[:split.train_end, work_index, :], dtype=np.float64)
+        train_raw = np.where(np.isfinite(train_raw), train_raw, np.nan)
+        means = np.array([
+            np.nanmean(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
+            for c in range(2)
+        ], dtype=np.float64)
+        scales = np.array([
+            np.nanstd(train_raw[:, c]) if np.isfinite(train_raw[:, c]).any() else np.nan
+            for c in range(2)
+        ], dtype=np.float64)
+        if not np.isfinite(means).all() or not np.isfinite(scales).all():
+            raise ValueError(f"Point {point_id} has a channel with no finite training values")
+        scales = np.where(scales < 1e-8, 1.0, scales)
+        x_train, y_train = _make_windows(
+            work_values, train_origins, work_index, in_len, args.out_len, means
+        )
+        x_val, y_val = _make_windows(
+            work_values, val_origins, work_index, in_len, args.out_len, means
+        )
+        x_train = ((x_train - means) / scales).astype(np.float32)
+        y_train = ((y_train - means) / scales).astype(np.float32)
+        x_val = ((x_val - means) / scales).astype(np.float32)
+        y_val = ((y_val - means) / scales).astype(np.float32)
 
     torch.manual_seed(args.seed + point_index)
     if torch.cuda.is_available():
@@ -216,6 +231,9 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     model = build_model(
         args.model, in_len, args.out_len, config, input_channels=2
     ).to(device)
+    if target_mode == "sar_residual":
+        from .sar_residual import zero_output_head
+        zero_output_head(model, args.model)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
@@ -235,25 +253,33 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         if scheduler_name == "plateau" else None)
     sar_denominator = None
     if monitor == "sar":
-        # The denominator is used ONLY for validation/checkpoint selection.
-        # It is not propagated into the training objective.
-        from .models.seasonal import fit_seasonal, forecast_seasonal
-        values = data.values[:, point_index:point_index+1, :]
-        clim, phi = fit_seasonal(values, data.dates, split.train_end, radius=15)
-        sar = forecast_seasonal(values, data.dates, val_origins, args.out_len, clim, phi)[:, 0].transpose(0, 2, 1)
-        # Fail rather than silently compare different supports. All targets and
-        # last observations must be finite in this optional monitor.
-        if len(y_val) != len(val_origins) or not np.isfinite(sar).all():
-            raise ValueError("SAR monitor requires complete validation windows and finite last observations; use normalized monitor otherwise")
-        if target_mode == "anomaly":
-            # Convert the raw SAR forecast onto the anomaly training scale.
-            from .models.seasonal import calendar_index
-            lead_dates = data.dates[val_origins[:, None] + np.arange(1, args.out_len+1)]
-            sar = sar - climatology[calendar_index(lead_dates)]
-        normalized_sar = (sar - means[None, None, :]) / scales[None, None, :]
-        sar_denominator = np.mean((normalized_sar - y_val.astype(np.float64)) ** 2, axis=0)
-        if not np.isfinite(sar_denominator).all() or np.any(sar_denominator <= 1e-12):
-            raise ValueError("Invalid/zero SAR validation MSE in a channel/lead")
+        if target_mode == "sar_residual":
+            # In correction space, the Seasonal AR(1) predictor is exactly zero.
+            sar_denominator = np.mean(y_val.astype(np.float64) ** 2, axis=0)
+            if not np.isfinite(sar_denominator).all() or np.any(sar_denominator <= 1e-12):
+                raise ValueError("Nonfinite/zero SAR residual baseline MSE in a channel/lead")
+        else:
+            sar_denominator = None
+        if target_mode != "sar_residual":
+            # The denominator is used ONLY for validation/checkpoint selection.
+            # It is not propagated into the training objective.
+            from .models.seasonal import fit_seasonal, forecast_seasonal
+            values = data.values[:, point_index:point_index+1, :]
+            clim, phi = fit_seasonal(values, data.dates, split.train_end, radius=15)
+            sar = forecast_seasonal(values, data.dates, val_origins, args.out_len, clim, phi)[:, 0].transpose(0, 2, 1)
+            # Fail rather than silently compare different supports. All targets and
+            # last observations must be finite in this optional monitor.
+            if len(y_val) != len(val_origins) or not np.isfinite(sar).all():
+                raise ValueError("SAR monitor requires complete validation windows and finite last observations; use normalized monitor otherwise")
+            if target_mode == "anomaly":
+                # Convert the raw SAR forecast onto the anomaly training scale.
+                from .models.seasonal import calendar_index
+                lead_dates = data.dates[val_origins[:, None] + np.arange(1, args.out_len+1)]
+                sar = sar - climatology[calendar_index(lead_dates)]
+            normalized_sar = (sar - means[None, None, :]) / scales[None, None, :]
+            sar_denominator = np.mean((normalized_sar - y_val.astype(np.float64)) ** 2, axis=0)
+            if not np.isfinite(sar_denominator).all() or np.any(sar_denominator <= 1e-12):
+                raise ValueError("Invalid/zero SAR validation MSE in a channel/lead")
     loss_fn = torch.nn.MSELoss()
     train_ds = TensorDataset(torch.from_numpy(x_train), torch.from_numpy(y_train))
     train_loader = DataLoader(
@@ -278,6 +304,17 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     patience_anchor = float("inf")
     stop_reason = "max_epochs"
     best_state = None
+    if target_mode == "sar_residual":
+        # Keep the exact zero-correction SAR baseline as epoch 0.
+        # This guarantees no worse *validation selection score* than SAR.
+        zero_cell_mse = np.mean(y_val.astype(np.float64) ** 2, axis=0)
+        best_normalized = float(zero_cell_mse.mean())
+        best_loss = (float((zero_cell_mse / sar_denominator).mean())
+                     if sar_denominator is not None else best_normalized)
+        best_sar_skill = 0.0 if monitor == "sar" else None
+        patience_anchor = best_loss
+        best_state = {key: value.detach().cpu().clone()
+                      for key, value in model.state_dict().items()}
     epochs_without_improvement = 0
     history = []
     print(
@@ -368,6 +405,17 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         "anomaly_climatology": ({"radius_days": radius, "fit_end_exclusive": split.train_end,
                                 "calendar": "366 month-day slots"}
                                if target_mode == "anomaly" else None),
+        "sar_residual": (
+            {"reference": "seasonal_ar1", "reference_fit_end_exclusive": split.train_end,
+             "climatology_radius_days": radius,
+             "oof_folds": len(residual.fold_edges) - 1,
+             "oof_fold_edges": list(residual.fold_edges),
+             "oof_train_origin_count": int(len(residual.train_origins)),
+             "input_feature": "seasonal_anomaly", "residual_scale": residual.residual_scale.tolist(),
+             "residual_center": [0.0, 0.0], "zero_output_initialization": True,
+             "baseline_epoch_zero_candidate": True,
+             "oof_burn_fraction": 0.33}
+            if target_mode == "sar_residual" else None),
         "channels": ["sensible", "latent"],
         "input_channels": 2,
         "feature_names": ["sensible", "latent"],
@@ -433,6 +481,8 @@ def _run_neural(args):
 
 def run(args):
     if args.model == "sarima":
+        if getattr(args, "target_mode", "raw") == "sar_residual":
+            raise ValueError("SAR-residual uses Seasonal AR(1) fitted internally; no sarima checkpoint is needed")
         return _run_sarima(args)
     if args.model in NEURAL_MODELS:
         return _run_neural(args)

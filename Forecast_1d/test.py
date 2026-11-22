@@ -42,9 +42,9 @@ def build_parser():
     p.add_argument("--dataset-dir", type=Path, default=None)
     p.add_argument("--results-dir", type=Path, default=None)
     p.add_argument("--target-mode", choices=TARGET_MODES, default=DEFAULT_TARGET_MODE,
-                   help="Anomaly checkpoints/evaluations (opt-in) or legacy raw artifacts (default).")
+                   help="Forecast mode: raw, anomaly or SAR-residual checkpoints (opt-in).")
     p.add_argument("--climatology-radius", type=int, default=15,
-                   help="Must match the trained anomaly checkpoint (default: 15 days).")
+                   help="Must match the trained anomaly or SAR-residual checkpoint (default: 15).")
     p.add_argument("--in-len", type=int, default=60)
     p.add_argument("--mean-days", type=int, default=30,
                    help="Input-mean baseline window; independent of neural input length.")
@@ -134,6 +134,17 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
         if (climate_info.get("fit_end_exclusive") != split.train_end or
                 climate_info.get("radius_days") != getattr(args, "climatology_radius", 15)):
             raise ValueError(f"Anomaly climatology configuration mismatch for {model_name}/{point_id}")
+    elif target_mode == "sar_residual":
+        residual_info = meta.get("sar_residual") or {}
+        if (residual_info.get("reference") != "seasonal_ar1" or
+                residual_info.get("reference_fit_end_exclusive") != split.train_end or
+                residual_info.get("climatology_radius_days") != getattr(args, "climatology_radius", 15) or
+                residual_info.get("residual_center") != [0.0, 0.0] or
+                residual_info.get("baseline_epoch_zero_candidate") is not True):
+            raise ValueError(f"SAR-residual checkpoint configuration mismatch for {model_name}/{point_id}")
+        residual_scale = np.asarray(residual_info.get("residual_scale"), dtype=np.float64)
+        if residual_scale.shape != (2,) or not np.isfinite(residual_scale).all() or np.any(residual_scale <= 0):
+            raise ValueError(f"Invalid correction scale in {model_name}/{point_id} checkpoint")
     for key, value in expected.items():
         if (meta.get(key, "raw" if key == "target_mode" else None) != value):
             raise ValueError(
@@ -153,6 +164,14 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
         )
         climatology = climatology[:, 0, :]
         series = np.asarray(data.values[:, point_index, :], dtype=np.float64) - climatology[calendar_index(data.dates)]
+    elif target_mode == "sar_residual":
+        from .models.seasonal import calendar_index, fit_seasonal
+        radius = meta["sar_residual"]["climatology_radius_days"]
+        climate, phi = fit_seasonal(
+            data.values[:, point_index:point_index+1, :],
+            data.dates, split.train_end, radius=radius
+        )
+        series = np.asarray(data.values[:, point_index, :], dtype=np.float64) - climate[:, 0, :][calendar_index(data.dates)]
     else:
         series = data.values[:, point_index, :]
     windows = []
@@ -190,6 +209,12 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
         # Known calendar dates are allowed; actual future flux values are not.
         lead_dates = data.dates[origins[:, None] + np.arange(1, args.out_len+1)]
         prediction += climatology[calendar_index(lead_dates)]
+    elif target_mode == "sar_residual":
+        from .sar_residual import sar_prediction
+        # The output layer has no residual offset: NN output 0 == exact SAR.
+        prediction = (sar_prediction(data.values[:, point_index, :], data.dates,
+                                     origins, args.out_len, climate, phi)
+                      + normalized.astype(np.float64) * residual_scale[None, None, :])
     return prediction.transpose(0, 2, 1).astype(np.float64)
 
 
@@ -213,6 +238,8 @@ def run(args):
     target_mode = getattr(args, "target_mode", "raw")
     model_root = target_root(results_dir(args.results_dir), args.out_len, target_mode)
     names = _selected_models(args.model)
+    if target_mode == "sar_residual" and any(name in LEVEL2 for name in names):
+        raise ValueError("SAR-residual currently supports only Level-1 MLP, TCN, GRU (plus Level-0 baselines)")
     key = point_key(point_ids)
     dest = evaluation_dir(model_root, args.split, point_ids)
     dest.mkdir(parents=True, exist_ok=True)
@@ -248,13 +275,14 @@ def run(args):
     baseline_config = {}
     selected_values = data.values[:, point_indices, :]
     if any(name in names for name in ("seasonal_climatology", "seasonal_ar1")):
-        clim, phi = fit_seasonal(selected_values, data.dates, split.train_end, radius=15)
+        baseline_radius = getattr(args, "climatology_radius", 15) if target_mode == "sar_residual" else 15
+        clim, phi = fit_seasonal(selected_values, data.dates, split.train_end, radius=baseline_radius)
         if "seasonal_climatology" in names:
             forecasts["seasonal_climatology"] = forecast_seasonal(selected_values, data.dates, origins, split.out_len, clim)
-            baseline_config["seasonal_climatology"] = {"radius_days": 15, "calendar": "366 month-day slots", "fit_end_exclusive": split.train_end}
+            baseline_config["seasonal_climatology"] = {"radius_days": baseline_radius, "calendar": "366 month-day slots", "fit_end_exclusive": split.train_end}
         if "seasonal_ar1" in names:
             forecasts["seasonal_ar1"] = forecast_seasonal(selected_values, data.dates, origins, split.out_len, clim, phi)
-            baseline_config["seasonal_ar1"] = {"radius_days": 15, "phi": phi.tolist(), "fit_end_exclusive": split.train_end, "intercept": 0, "phi_clip": 0.999}
+            baseline_config["seasonal_ar1"] = {"radius_days": baseline_radius, "phi": phi.tolist(), "fit_end_exclusive": split.train_end, "intercept": 0, "phi_clip": 0.999}
     if "ridge_var" in names:
         fitted = fit_ridge(selected_values, split.train_end, in_len, split.out_len, alpha=0.01)
         forecasts["ridge_var"] = forecast_ridge(selected_values, origins, in_len, split.out_len, fitted)

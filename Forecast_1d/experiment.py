@@ -27,7 +27,7 @@ def horizon_root(base, horizon=DEFAULT_HORIZON):
     return base if horizon == LEGACY_HORIZON else base / f"h{horizon}"
 
 
-TARGET_MODES = ("raw", "anomaly")
+TARGET_MODES = ("raw", "anomaly", "sar_residual")
 DEFAULT_TARGET_MODE = "raw"
 
 
@@ -36,4 +36,4 @@ def target_root(base, horizon=DEFAULT_HORIZON, target_mode=DEFAULT_TARGET_MODE):
     if target_mode not in TARGET_MODES:
         raise ValueError(f"Unsupported target mode: {target_mode}")
     root = horizon_root(base, horizon)
-    return root if target_mode == "raw" else root / "anomaly"
+    return root if target_mode == "raw" else root / target_mode
