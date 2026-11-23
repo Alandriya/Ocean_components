@@ -501,6 +501,14 @@ def run_selected_task(task, **settings):
             overwrite=bool(settings.get("extract_1d_overwrite", False)),
             dry_run=bool(settings.get("extract_1d_dry_run", False)),
         )
+    elif task == "extract_1d_features":
+        from Forecast_1d.build_history_features import build
+        return build(
+            data_root=Path(root),
+            allow_trim=True,
+            overwrite=False,
+            dry_run=False,
+        )
     elif task == "copula_quintiles":
         from Functional.copula_quintiles import estimate_joint_quantile_classes
         chosen_periods = ((*periods, (start_year, end_year))
@@ -613,7 +621,7 @@ def main():
 
     # --------------------------------------------------------------------------
     # COMPONENTS: experimental scalar spatial mixtures, two components per rank.
-    task = "components"
+    # task = "components"
     components_variable = "sensible"
     components_bins = 20
     components_window_days = 1  # for the baseline SP-style experiment use daily windows
@@ -744,15 +752,16 @@ def main():
 
     # --------------------------------------------------------------------------
     # task = "grib"
-    grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "data.grib",)
-    grib_variables = ("avg_ishf", "avg_slhtf")
+    grib_files = (Path(files_path_prefix) / "DATA" / "GRIB" / "4d_2019-2026.grib",)
+    # grib_variables = ("avg_ishf", "avg_slhtf")
+    grib_variables = ("u10", "v10", "t2m", "d2m",)
     grib_hours = (0, 6, 12, 18)
     grib_spatial_stride = "auto"
     grib_flux_units = "native"
     grib_output_dtype = "float32"
     grib_sum_dtype = "float64"
-    grib_derive_flux = True
-    grib_overwrite = False
+    grib_derive_flux = False
+    grib_overwrite = True
     # --------------------------------------------------------------------------
     # task = "grib-check"
     grib_check_old = "DATA/Fluxes/Sensible_1979-1989_grouped_old.npy"
@@ -770,6 +779,7 @@ def main():
     extract_1d_overwrite = False  # Never replace an existing dataset by default.
     extract_1d_dry_run = False  # Set True to validate inputs without writing.
 
+    task = "extract_1d_features"
     # ==========================================================================
     # SHARED SETTINGS: preserved from the current GitHub entrypoint.
     end_year = start_year + 10

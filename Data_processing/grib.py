@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Iterable
 
 import numpy as np
+import hashlib
 
 VARIABLES = {
     "avg_ishf": ("Fluxes", "sensible"),
@@ -73,14 +74,39 @@ def _timestamp(codes, message):
 
 
 def _check_level(codes, message, name):
+    """Accept explicit 2/10 m levels and legacy GRIB surface-level encoding.
+
+    GRIB1 often stores dedicated 10u/10v/2t/2d parameters at surface level 0.
+    Verify the ECMWF paramId before accepting this alternative representation.
+    """
     kind = str(_get(codes, message, "typeOfLevel", "surface"))
     if name in HEIGHT_LEVELS:
         value = _get(codes, message, "level")
-        if kind != "heightAboveGround" or value is None or int(value) != HEIGHT_LEVELS[name]:
-            raise ValueError(
-                f"Wrong GRIB level for {name}: type={kind!r}, level={value!r}; "
-                f"expected heightAboveGround at {HEIGHT_LEVELS[name]} metres"
-            )
+        try:
+            level = int(value)
+        except (ValueError, TypeError):
+            level = None
+
+        # GRIB2 style: height stored explicitly in the level metadata.
+        if kind == "heightAboveGround" and level == HEIGHT_LEVELS[name]:
+            return
+
+        # GRIB1 style: height encoded in the meteorological parameter itself.
+        parameter_ids = {"10u": 165, "10v": 166, "2t": 167, "2d": 168}
+        param_id = _get(codes, message, "paramId")
+        try:
+            param_id = int(param_id)
+        except (ValueError, TypeError):
+            param_id = None
+        if kind == "surface" and level == 0 and param_id == parameter_ids[name]:
+            return
+
+        raise ValueError(
+            f"Wrong GRIB level for {name}: type={kind!r}, level={value!r}, "
+            f"paramId={param_id!r}; expected heightAboveGround at "
+            f"{HEIGHT_LEVELS[name]} metres, or surface level 0 with "
+            f"paramId={parameter_ids[name]}"
+        )
     elif kind not in ("surface", "meanSea"):
         raise ValueError(f"Unexpected level type for {name}: {kind}")
 
@@ -138,7 +164,7 @@ def _grid_spec(codes, message):
     return grid
 
 
-def _inspect(sources, variables, hours, first_date, last_date, *, skip_incomplete_last_day=True):
+def _inspect(sources, variables, hours, first_date, last_date, *, skip_incomplete_last_day=True, duplicate_keys=None):
     codes = _eccodes()
     by_variable = {name: {} for name in variables}
     specifications = {}
@@ -166,8 +192,15 @@ def _inspect(sources, variables, hours, first_date, last_date, *, skip_incomplet
             raise ValueError(f"Inconsistent grid, unit, or step type for {name} in {source}")
         specifications[name] = spec
         registered = by_variable[name].setdefault(day, set())
+
+
+
+
         if ts.hour in registered:
-            raise ValueError(f"Duplicate {name} observation at {ts:%Y-%m-%d %H:%M} UTC")
+            if duplicate_keys is not None:
+                duplicate_keys.add((name, ts))
+            continue
+
         registered.add(ts.hour)
         n += 1
         if n % 4000 == 0:
@@ -341,10 +374,15 @@ def convert_era5_grib(
     right = date.fromisoformat(end_date) if end_date else None
     if left and right and right < left:
         raise ValueError("end_date precedes start_date")
+    duplicate_keys = set()
     days, specs, skipped_last = _inspect(
         sources, names, desired_hours, left, right,
         skip_incomplete_last_day=skip_incomplete_last_day,
+        duplicate_keys=duplicate_keys,
     )
+    if duplicate_keys:
+        print(f"ERA5 preflight: {len(duplicate_keys):,} duplicated variable/timestamp keys; "
+              "comparing field values during decoding...", flush=True)
     n_days = len(days)
     day_index = {day: i for i, day in enumerate(days)}
     paths = {
@@ -376,6 +414,8 @@ def convert_era5_grib(
         stride = None
         original_shape = None
         latitude = longitude = ocean_mask = None
+        duplicate_hashes = {}
+        skipped_duplicates = 0
         decoded = 0
         print("ERA5: decoding selected GRIB fields to disk-backed daily sums...", flush=True)
         for source, index, message in _iter_messages(codes, sources, headers_only=False):
@@ -407,6 +447,23 @@ def convert_era5_grib(
                 missing = _get(codes, message, "missingValue")
                 if missing is not None:
                     flat[flat == float(missing)] = np.nan
+            # SHA-256 of all unpacked grid values (before spatial stride).
+            # Only timestamps reported as duplicated by preflight are hashed.
+            duplicate_key = (name, ts)
+            if duplicate_key in duplicate_keys:
+                digest = hashlib.sha256(flat.tobytes()).digest()
+                original_digest = duplicate_hashes.get(duplicate_key)
+                if original_digest is None:
+                    duplicate_hashes[duplicate_key] = digest
+                elif digest == original_digest:
+                    skipped_duplicates += 1
+                    continue
+                else:
+                    raise ValueError(
+                        f"Conflicting duplicate {name} at {ts:%Y-%m-%d %H:%M} UTC: "
+                        f"different grid values in {source.name}, GRIB message {index}. "
+                        "Cannot safely discard this observation."
+                    )
             field = flat.reshape(original_shape)[::stride, ::stride].reshape(-1)
             i = day_index[day]
             if counts[name][i] == 0:
@@ -417,6 +474,9 @@ def convert_era5_grib(
             decoded += 1
             if decoded % 4000 == 0:
                 print(f"ERA5: decoded {decoded:,} fields", flush=True)
+        if skipped_duplicates:
+            print(f"ERA5: skipped {skipped_duplicates:,} byte-identical decoded "
+                  "duplicate field(s)", flush=True)
         if grid_shape is None:
             raise ValueError("No matching GRIB values decoded")
         for name in names:
