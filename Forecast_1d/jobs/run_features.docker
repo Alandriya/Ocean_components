@@ -1,0 +1,20 @@
+#!/bin/bash
+# Launched INSIDE the same NGC PyTorch Docker environment as legacy jobs.
+set -euo pipefail
+cd /home/aosipova/Ocean_Components
+MODE="${1:?Expected train or test}"
+shift
+python - <<'PY'
+from pathlib import Path
+import numpy, torch
+from project_paths import DATA_ROOT
+expected = Path('/home/aosipova/OceanFull')
+if Path(DATA_ROOT).resolve() != expected:
+    raise SystemExit(f'[error] project_paths.DATA_ROOT={DATA_ROOT}, expected {expected}')
+print(f'[preflight] numpy={numpy.__version__}, torch={torch.__version__}, DATA_ROOT={DATA_ROOT}', flush=True)
+PY
+case "$MODE" in
+  train) exec python -u -m Forecast_1d.train_features "$@" ;;
+  test) exec python -u -m Forecast_1d.test_features "$@" ;;
+  *) echo "Unknown multivariate Forecast_1d mode: $MODE" >&2; exit 2 ;;
+esac
