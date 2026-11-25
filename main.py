@@ -211,6 +211,21 @@ def run_selected_task(task, **settings):
             psd_atol=settings.get("fp2d_psd_atol", 1e-10),
             overwrite=overwrite,
         )
+    elif task == "fp_followup_validate":
+        from Functional.fp_followup_validation import run_followup
+        return run_followup(
+            mode=settings.get("fp_followup_mode", "wide_ou"),
+            root=root,
+            output_dir=(Path(root) / "Functional" / "FokkerPlanck2D" /
+                        "Validation" / "Followup"),
+            hybrid_periods=settings.get("fp_followup_hybrid_periods", (
+                (1979, 1989), (1989, 1999), (1999, 2009),
+                (2009, 2019), (2019, 2026), (1979, 2026))),
+            names=names,
+            wide_sizes=settings.get("fp_followup_wide_sizes", (40, 60, 80, 100)),
+            max_stencil_radius=settings.get("fp_followup_radius", 9),
+            require_all_hybrids=settings.get("fp_followup_require_all_hybrids", False),
+        )
     elif task == "fokker_planck_2d_solve":
         from Functional.fokker_planck_2d_solver import solve_stationary_fokker_planck_2d
         return solve_stationary_fokker_planck_2d(
@@ -223,6 +238,33 @@ def run_selected_task(task, **settings):
             rate_tolerance=settings.get("fp2d_solver_rate_tolerance", 1e-10),
             negative_tolerance=settings.get("fp2d_solver_negative_tolerance", 1e-12),
             overwrite=overwrite,
+        )
+    elif task == "fp2d_validate":
+        from Functional.fp2d_validation import run_validation
+        mode = settings.get("fp2d_validation_mode", "synthetic")
+        explicit_files = settings.get("fp2d_validation_npzs")
+        if explicit_files is None and mode in ("era5", "all"):
+            # The existing solver saves these NPZ files after its own task runs.
+            from Functional.fokker_planck_2d_solver import _phase_file
+            directory = Path(root) / "Functional" / "FokkerPlanck2D" / "Stationary"
+            explicit_files = [
+                directory / (
+                    _phase_file(root, names, start_year, end_year,
+                                settings.get("fp2d_method", "sp"), bins).stem
+                    + "_stationary_wide_stencil.npz"
+                )
+                for bins in settings.get("fp2d_validation_era5_bins",
+                                         ((60, 60), (80, 80), (100, 100)))
+            ]
+        return run_validation(
+            mode=mode,
+            output_dir=Path(root) / "Functional" / "FokkerPlanck2D" / "Validation",
+            synthetic_sizes=settings.get("fp2d_validation_sizes", (40, 48, 56)),
+            stationary_npzs=explicit_files or (),
+            max_stencil_radius=settings.get("fp2d_solver_max_stencil_radius", 9),
+            rate_tolerance=settings.get("fp2d_solver_rate_tolerance", 1e-10),
+            correlation=settings.get("fp2d_validation_correlation", 0.36),
+            compare_era5_rectangles=settings.get("fp2d_validation_compare_era5_rectangles", False),
         )
     elif task == "components":
         from Coefficients.spatial_components import run_components
@@ -675,6 +717,26 @@ def main():
     fp2d_psd_rtol = 1e-7
     fp2d_psd_atol = 1e-10
 
+    # task = "fp2d_validate"
+    # First run "synthetic"; after all FP2D solves, use "all".
+    fp2d_validation_mode = "all"  # "synthetic", "era5", "all"
+    fp2d_validation_sizes = (30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 100)
+    fp2d_validation_correlation = 0.36
+    fp2d_validation_era5_bins = ((60, 60), (80, 80), (100, 100))
+    fp2d_validation_compare_era5_rectangles = False  # Optional extra real-coefficient CTMC/FV comparison
+    fp2d_validation_npzs = None  # Optional explicit list of existing *_stationary_wide_stencil.npz paths
+
+    # NEW FOLLOW-UP VALIDATION (read-only for existing results).
+    task = "fp_followup_validate"
+    fp_followup_mode = "all"  # "wide_ou", "hybrid", "all"
+    fp_followup_wide_sizes = (40, 60, 80, 100)
+    fp_followup_radius = 9
+    fp_followup_hybrid_periods = (
+        (1979, 1989), (1989, 1999), (1999, 2009),
+        (2009, 2019), (2019, 2026), (1979, 2026),
+    )
+    fp_followup_require_all_hybrids = False
+
     # task = "fokker_planck_2d_solve"
     fp2d_solver_max_stencil_radius = 9
     fp2d_solver_max_hole_cells = 16
@@ -779,7 +841,7 @@ def main():
     extract_1d_overwrite = False  # Never replace an existing dataset by default.
     extract_1d_dry_run = False  # Set True to validate inputs without writing.
 
-    task = "extract_1d_features"
+    # task = "extract_1d_features"
     # ==========================================================================
     # SHARED SETTINGS: preserved from the current GitHub entrypoint.
     end_year = start_year + 10
