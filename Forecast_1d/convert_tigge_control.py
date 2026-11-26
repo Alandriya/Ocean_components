@@ -47,7 +47,9 @@ def _as_k(value, unit: str, field: str):
     raise ValueError(f"Unexpected temperature unit for {field}: {unit}")
 
 
-def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = False):
+def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = False, day_offset: int = 0):
+    if day_offset not in (0, 1):
+        raise ValueError("day_offset must be 0 (issue day) or 1 (following day)")
     try:
         import rasterio
     except ImportError as exc:
@@ -142,14 +144,19 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
                             raise ValueError(f"Masked values on 0.5° grid in {field}+{hour}h")
                         grid_6h[ih, :, :, iv] = _as_k(np.asarray(subset, dtype=np.float64), unit, field)
 
-    # day 1 is the UTC day AFTER initialization; sample hours 24,30,36,42.
-    daily_steps = np.array([[24*d, 24*d+6, 24*d+12, 24*d+18] for d in range(1, 15)], dtype=np.int32)
+    # Issue 00 UTC: day_offset=0 -> issue-day [00,06,12,18] UTC.
+    # day_offset=1 reproduces the previous converter's next-day convention.
+    daily_steps = np.array([[24*d, 24*d+6, 24*d+12, 24*d+18]
+                            for d in range(day_offset, day_offset + 14)], dtype=np.int32)
     daily_indices = daily_steps // 6
     point_daily = point_6h[daily_indices].mean(axis=1).astype(np.float32)
-    dates = np.array([(reference + timedelta(days=d)).date().isoformat() for d in range(1, 15)], dtype="datetime64[D]")
+    dates = np.array([(reference + timedelta(days=d)).date().isoformat()
+                      for d in range(day_offset, day_offset + 14)], dtype="datetime64[D]")
     valid_time = np.array([np.datetime64(reference.replace(tzinfo=None), "h") + np.timedelta64(h, "h") for h in EXPECTED_HOURS])
     stamp = reference.strftime("%Y%m%d_%H%M")
-    name = f"tigge_ecmwf_control_{stamp}"
+    # Keep legacy filename for day_offset=1; avoid silently overwriting old NPZ
+    # when creating the scientifically better aligned issue-day convention.
+    name = f"tigge_ecmwf_control_{stamp}" + ("_issue_day" if day_offset == 0 else "")
     points_path = out_dir / f"{name}_points.npz"
     np.savez_compressed(
         points_path,
@@ -161,13 +168,15 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
         point_lon_deg=np.array([p["lon_deg"] for p in sites], dtype=np.float32),
         fields=np.array(FIELDS), units=np.array(UNITS),
         initialization_utc=np.array(reference.isoformat().replace("+00:00", "Z")),
+        day_offset=np.array(day_offset),
     )
     meta = {
         "source_grib_filename": grib.name,
         "source_grib_sha256": _sha256(grib),
         "initialization_utc": reference.isoformat(),
         "forecast_type": "ECMWF TIGGE control forecast (NOT ERA5)",
-        "horizon": "14 full UTC days after initialization",
+        "horizon": "14 UTC days starting at issue day + day_offset",
+        "day_offset": day_offset,
         "point_forecast_6h_shape": list(point_6h.shape),
         "point_forecast_daily_shape": list(point_daily.shape),
         "point_6h_hours": list(EXPECTED_HOURS),
@@ -178,7 +187,7 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
         "point_ids": [p["id"] for p in sites],
         "points_file": points_json.name,
         "grid": {"latitudes": "80..0 by -0.25", "longitudes": "-90..0 by +0.25", "shape": [321,361]},
-        "daily_mean_definition": "mean of 00,06,12,18 UTC instantaneous samples for each following UTC date",
+        "daily_mean_definition": "mean of 00,06,12,18 UTC instantaneous samples for each UTC target date",
         "note": "forecast_6h retains 6h data; nonlinear bulk flux proxies should be computed per 6h step, then daily averaged. Do NOT use future ERA5 observations as forecast input.",
     }
     grid_path = None
@@ -195,7 +204,7 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
     meta_path = out_dir / f"{name}_metadata.json"
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Input GRIB validated:", grib)
-    print("Initialization:", reference.isoformat(), "| 5 fields x 61 steps | 15 points")
+    print("Initialization:", reference.isoformat(), "| 5 fields x 61 steps | 15 points | day_offset=", day_offset)
     print("Daily:", point_daily.shape, str(dates[0]), "..", str(dates[-1]))
     print("Output:", points_path, "\nMetadata:", meta_path)
     if grid_path:
@@ -209,8 +218,10 @@ def main():
     p.add_argument("--points-json", required=True, type=Path, help="Existing dataset points.json with 15 ordered sites")
     p.add_argument("--out-dir", required=True, type=Path, help="Directory for output forecasts")
     p.add_argument("--full-grid", action="store_true", help="Additionally save full Atlantic region daily data at original ERA5 0.5-degree grid")
+    p.add_argument("--day-offset", type=int, choices=(0, 1), default=0,
+                   help="0=issue UTC day (default); 1=following UTC day (legacy)")
     args = p.parse_args()
-    convert(args.grib, args.points_json, args.out_dir, args.full_grid)
+    convert(args.grib, args.points_json, args.out_dir, args.full_grid, args.day_offset)
 
 
 if __name__ == "__main__":
