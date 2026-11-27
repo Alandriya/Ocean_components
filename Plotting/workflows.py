@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from datetime import timedelta
 from pathlib import Path
@@ -15,7 +16,7 @@ from Plotting.paths import plot_path
 
 
 def save_figure(figure, filename, *args, **kwargs):
-    """Save English-language figures without Plotting.paths automatic RU translation.
+    """Save English-language figures without Plotting.paths automatic translation side effects.
 
     Plotting.paths.save_figure always calls translate_figure and would replace
     English text back with Russian. Russian captions remain commented below.
@@ -23,10 +24,9 @@ def save_figure(figure, filename, *args, **kwargs):
     """
     destination = Path(filename)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    # from Plotting.paths import translate_figure
-    # translate_figure(figure)  # Russian-language option (disabled).
     figure.savefig(str(destination), *args, **kwargs)
     return destination
+
 
 NAMES_EN = {"sensible": "Sensible heat flux", "latent": "Latent heat flux",
             "Flux": "Total heat flux", "SST": "Sea surface temperature",
@@ -34,7 +34,6 @@ NAMES_EN = {"sensible": "Sensible heat flux", "latent": "Latent heat flux",
             "B": "Coefficient B", "C": "Coefficient C",
             "F": "Coefficient F", "FS": "Coefficient FS"}
 
-# Russian names, retained for switching figure labels back to Russian.
 NAMES_RU = {"sensible": "Явный тепловой поток", "latent": "Скрытый тепловой поток",
             "Flux": "Суммарный тепловой поток", "SST": "Температура поверхности моря",
             "Pressure": "Атмосферное давление", "A": "Коэффициент A",
@@ -45,31 +44,13 @@ def _draw_map(ax, data, title):
     """Draw one geographic grid with English labels; Russian alternatives are kept."""
     im = ax.imshow(np.ma.masked_invalid(data), cmap="coolwarm", origin="upper")
     ax.set_title(title)
-    # ax.set_title("Spatial field")
     ax.set_xlabel("Longitude")
-    # ax.set_xlabel("Долгота")
     ax.set_ylabel("Latitude")
-    # ax.set_ylabel("Широта")
     return im
 
 
 def plot_variables(files_path_prefix, start_year, end_year, *, day=0):
-    """Create paired heat-flux and three-variable maps for one observation day.
-
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Root data directory.
-    start_year, end_year : int
-        Period label used by raw field filenames.
-    day : int
-        Zero-based local observation index.
-
-    Returns
-    -------
-    list of Path
-        Saved PNG paths.
-    """
+    """Create paired heat-flux and three-variable maps for one observation day."""
     root = Path(files_path_prefix)
     outputs = []
     for group, folder in (("sensible latent", "Sensible-Latent"),
@@ -81,11 +62,9 @@ def plot_variables(files_path_prefix, start_year, end_year, *, day=0):
         fig, axes = plt.subplots(1, len(names), figsize=(6 * len(names), 5), squeeze=False)
         for ax, name, array in zip(axes[0], names, fields):
             im = _draw_map(ax, array[day], NAMES_EN[name])
-            # im = _draw_map(ax, array[day], NAMES_RU[name])
             fig.colorbar(im, ax=ax, shrink=0.8)
         timestamp = BASE_DATE + timedelta(days=start_label(start_year) - 1 + day)
         fig.suptitle(f"Oceanographic variables — {timestamp:%d.%m.%Y}")
-        # fig.suptitle(f"Поля океанографических переменных — {timestamp:%d.%m.%Y}")
         fig.tight_layout()
         outputs.append(save_figure(fig, plot_path(root, "Variables", folder,
                                                  f"{start_year}-{end_year}_{day:05d}.png"), dpi=200))
@@ -109,7 +88,6 @@ def _spectral_quantile_edges(series, n_bins, scratch_dir, *, chunk_elements=1_00
     with tempfile.TemporaryDirectory(prefix="quantiles-", dir=scratch_dir) as tmp:
         path = Path(tmp) / "finite_values.bin"
         count = 0
-        # Slice along the slower axis to keep chunks as contiguous as possible.
         axis = int(abs(series.strides[1]) >= abs(series.strides[0]))
         width = series.shape[1 - axis]
         step = max(1, chunk_elements // max(1, width))
@@ -124,13 +102,10 @@ def _spectral_quantile_edges(series, n_bins, scratch_dir, *, chunk_elements=1_00
                 count += finite.size
         if count == 0:
             raise ValueError("No finite values to calculate quantiles")
-        # In-place partition of a writable, disposable 1D file mapping.
-        # Never partition the original read-only field. OS may cache pages.
         data = np.memmap(path, dtype=np.float64, mode="r+", shape=(count,))
         try:
             edges = np.array(np.quantile(data, probabilities, overwrite_input=True), copy=True)
         finally:
-            # Explicitly release the mapping before temporary-file deletion on Windows.
             data._mmap.close()
             del data
     return edges
@@ -168,11 +143,9 @@ def _cached_spectral_quantiles(root, name, start_year, end_year, n_bins, series)
     print(f"[eigenvalues] Exact quantiles for {name}, {start_year}-{end_year}; "
           f"temporary disk storage up to {series.size * 8 / 1024**3:.2f} GiB", flush=True)
     edges = _spectral_quantile_edges(series, n_bins, folder)
-    # A changed file must not receive a cache for the previous contents.
     current = source.stat()
     if (current.st_size, current.st_mtime_ns) != (stat.st_size, stat.st_mtime_ns):
         raise RuntimeError(f"Spectral input changed while reading quantiles: {source}")
-    # Atomic replacement prevents a partially written cache from being reused.
     with tempfile.NamedTemporaryFile(dir=folder, suffix=".npz", delete=False) as handle:
         temporary = Path(handle.name)
     try:
@@ -185,13 +158,7 @@ def _cached_spectral_quantiles(root, name, start_year, end_year, n_bins, series)
 
 def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux", "SST"),
                         first_day=0, last_day=5, n_bins=None, n_modes=3):
-    """Render daily cached spectra with read-only fields and cached exact edges.
-
-    start_year/end_year must describe the original spectral calculation period.
-    first_day/last_day select the half-open interval to draw within that period.
-    n_bins=None infers the bin count from the first complete daily spectrum.
-    It does not infer the period or prove that the original quantiles agree.
-    """
+    """Render daily cached spectra with read-only fields and cached exact edges."""
     from Plotting.plot_eigenvalues import plot_eigenvalues, infer_spectral_bins
 
     root = Path(files_path_prefix)
@@ -212,8 +179,6 @@ def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux
     print(f"[eigenvalues] {folder.name}: n_bins={n_bins}, n_modes={n_modes}; "
           f"quantile period {start_year}-{end_year}", flush=True)
 
-    # load_spectral_field delegates to load_field, which opens .npy in mmap_mode='r'.
-    # For a self-pair, reuse the same mapping and the same cached quantiles.
     fields = {name: load_spectral_field(root, name, start_year, end_year)
               for name in dict.fromkeys(names)}
     first, second = fields[names[0]], fields[names[1]]
@@ -230,26 +195,7 @@ def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux
 
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                    *, day_indices=(45, 105, 165, 225, 285, 345)):
-    """Display six representative calendar dates of an annual climatology.
-
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Data root.
-    category : str
-        Numerical Mean_year category.
-    name : str
-        Mean-year array name.
-    start_year, end_year : int
-        Inclusive/exclusive period labels.
-    day_indices : sequence of int
-        Zero-based climatological days to display.
-
-    Returns
-    -------
-    pathlib.Path
-        Output figure path.
-    """
+    """Display six representative calendar dates of an annual climatology."""
     root = Path(files_path_prefix)
     data = np.load(root / "Mean_year" / category /
                    f"{name}_{start_year}-{end_year}.npy", mmap_mode="r")
@@ -258,11 +204,8 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(np.arange(len(data)), data)
         ax.set_xlabel("Day of climatological year")
-        # ax.set_xlabel("День среднего года")
         ax.set_ylabel("Mean value")
-        # ax.set_ylabel("Среднее значение")
         fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}")
-        # fig.suptitle(f"Средний год: {NAMES_RU.get(name, name)}")
         fig.tight_layout()
         outputs.append(save_figure(fig, plot_path(root, "Mean Year", category,
                                                    f"{name}_{start_year}-{end_year}.png")))
@@ -273,12 +216,9 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
             fig, axes = plt.subplots(2, 3, figsize=(16, 9))
             for ax, index in zip(axes.flat, day_indices):
                 im = _draw_map(ax, channel[index], f"Day {index + 1}")
-                # im = _draw_map(ax, channel[index], f"День {index + 1}")
                 fig.colorbar(im, ax=ax, shrink=0.72)
             description = (f" — component {channel_number + 1}" if data.ndim == 4 else "")
-            # description = (f" — компонент {channel_number + 1}" if data.ndim == 4 else "")
             fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}{description}")
-            # fig.suptitle(f"Средний год: {NAMES_RU.get(name, name)}{description}")
             fig.tight_layout()
             suffix = f"_ch{channel_number+1}" if data.ndim == 4 else ""
             outputs.append(save_figure(fig, plot_path(root, "Mean Year", category,
@@ -289,30 +229,7 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
 
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                         *, start=None, stop=None, step=1):
-    """Generate an ordered PNG sequence from previously calculated coefficients.
-
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Data root.
-    names : tuple of str
-        Variable pair.
-    n_bins_2d : int
-        Quantile group count.
-    method : {'np', 'sp'}
-        Coefficient estimator.
-    coefficient : {'A', 'B', 'C', 'F', 'FS'}
-        Numeric array to display.
-    start, stop : int, optional
-        Zero-based half-open frame boundaries.
-    step : int
-        Sampling stride.
-
-    Returns
-    -------
-    list of Path
-        Saved frame paths in chronological order.
-    """
+    """Generate an ordered PNG sequence from previously calculated coefficients."""
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
     parent = root / "Coefficients" / "continuous" / f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" / folder
@@ -328,7 +245,6 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
         fig, axes = plt.subplots(1, len(channels), figsize=(5.5 * len(channels), 5), squeeze=False)
         for j, (ax, field) in enumerate(zip(axes[0], channels)):
             img = _draw_map(ax, field, f"{NAMES_EN.get(coefficient, coefficient)} — component {j+1}")
-            # img = _draw_map(ax, field, f"{NAMES_RU.get(coefficient, coefficient)} — компонент {j+1}")
             fig.colorbar(img, ax=ax, shrink=0.8)
         fig.tight_layout()
         saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
@@ -338,61 +254,113 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
     return frames
 
 
-def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5):
-    """Create an MP4 from a contiguous numbered series of coefficient frames.
+def _get_ffmpeg_executable() -> str:
+    """Find an FFmpeg binary without requiring users to edit the Windows PATH.
 
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Root directory.
-    names : tuple of str
-        Variable pair.
-    method : str
-        NP/SP estimator name.
-    coefficient : str
-        Coefficient identifier.
-    fps : int
-        Frame rate of the resulting video.
-
-    Returns
-    -------
-    pathlib.Path
-        Saved MP4 under Plots/Videos/Coefficients.
+    imageio-ffmpeg includes the binary in the pip-installed wheel on Windows.
+    Use a system installation as a fallback.
     """
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except (ImportError, RuntimeError, OSError):
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg:
+            return ffmpeg
+        raise RuntimeError(
+            "FFmpeg is not available. Install it into the same Python environment: "
+            "C:\\Python\\python.exe -m pip install -U imageio-ffmpeg. "
+            "Then run main_plotter.py again."
+        ) from None
+
+
+def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5,
+                      start=None, stop=None, step=None):
+    """Encode cached PNG frames into H.264 MP4 with no external PATH requirement.
+
+    The files may have non-contiguous frame numbers. If start/stop are provided,
+    only PNGs with start <= frame_index < stop are included. step can optionally
+    restrict frame_index to start + k * step.
+
+    Using raw RGB frames over stdin avoids FFmpeg's OS-dependent glob behavior.
+    The source PNGs are not modified and the original numerical data are untouched.
+    """
+    from PIL import Image
+
     root = Path(files_path_prefix)
     directory = root / "Plots" / "Coefficients" / coefficient / f"{names[0]}-{names[1]}" / method
-    frames = sorted(directory.glob("frame_*.png"))
+    frames = sorted(
+        ((int(path.stem.removeprefix("frame_")), path) for path in directory.glob("frame_*.png")
+         if path.stem.removeprefix("frame_").isdigit()),
+        key=lambda item: item[0],
+    )
+    if start is not None:
+        frames = [(number, path) for number, path in frames if number >= start]
+    if stop is not None:
+        frames = [(number, path) for number, path in frames if number < stop]
+    if step is not None:
+        if not isinstance(step, int) or step < 1:
+            raise ValueError("step must be a positive integer")
+        reference = 0 if start is None else start
+        frames = [(number, path) for number, path in frames if (number - reference) % step == 0]
     if not frames:
-        raise FileNotFoundError(f"No coefficient frames found in {directory}")
-    # FFmpeg's glob pattern supports sparse frame indices produced by step > 1.
+        raise FileNotFoundError(f"No coefficient PNG frames matching the selected range in {directory}")
+    if fps <= 0:
+        raise ValueError("fps must be positive")
+
     target = plot_path(root, "Videos", "Coefficients", f"{names[0]}-{names[1]}",
                        f"{coefficient}_{method}.mp4")
-    subprocess.run(["ffmpeg", "-y", "-pattern_type", "glob", "-framerate", str(fps),
-                    "-i", str(directory / "frame_*.png"), "-pix_fmt", "yuv420p",
-                    str(target)], check=True)
+    ffmpeg = _get_ffmpeg_executable()
+    with Image.open(frames[0][1]) as first:
+        width, height = first.size
+
+    cmd = [
+        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "rawvideo", "-pixel_format", "rgb24",
+        "-video_size", f"{width}x{height}",
+        "-framerate", str(fps), "-i", "pipe:0",
+        "-an", "-c:v", "libx264", "-crf", "18",
+        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(target),
+    ]
+    print(f"[video] {len(frames)} PNG frames; {fps} fps; {width}x{height} px")
+    print(f"[video] FFmpeg: {ffmpeg}")
+    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.PIPE)
+    try:
+        for number, path in frames:
+            with Image.open(path) as img:
+                if img.size != (width, height):
+                    raise ValueError(
+                        f"Frame {path.name} has size {img.size}, expected {(width, height)}. "
+                        "Clear old frames for different figure sizes and render the chosen interval again."
+                    )
+                rgb = img.convert("RGB")
+                process.stdin.write(rgb.tobytes())
+        process.stdin.close()
+        errors = process.stderr.read().decode("utf-8", "replace")
+        status = process.wait()
+        if status != 0:
+            raise RuntimeError(f"FFmpeg exited with code {status}: {errors.strip()}")
+    except BaseException:
+        if process.stdin and not process.stdin.closed:
+            process.stdin.close()
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        if target.exists():
+            target.unlink()
+        raise
+    finally:
+        if process.stderr:
+            process.stderr.close()
+    print(f"[video] Created: {target}")
     return target
 
 
 def plot_stationary_distributions(files_path_prefix, names, start_year, end_year,
                                   *, histogram_bins=100):
-    """Overlay saved stationary PDFs with normalized raw-data histograms.
-
-    Parameters
-    ----------
-    files_path_prefix : str or Path
-        Root directory.
-    names : tuple of str
-        Variables to compare.
-    start_year, end_year : int
-        Period labels.
-    histogram_bins : int
-        Number of bins in empirical histograms.
-
-    Returns
-    -------
-    pathlib.Path
-        One figure with a panel for each variable.
-    """
+    """Overlay saved stationary PDFs with normalized raw-data histograms."""
     root = Path(files_path_prefix)
     source = root / "Functional" / "Stationary" / f"{names[0]}-{names[1]}_{start_year}-{end_year}.npz"
     with np.load(source) as densities:
@@ -403,22 +371,15 @@ def plot_stationary_distributions(files_path_prefix, names, start_year, end_year
             clean = np.asarray(field)[np.isfinite(field)]
             ax.hist(clean, bins=histogram_bins, density=True, alpha=0.5,
                     label="Observed histogram")
-            # ax.hist(clean, bins=histogram_bins, density=True, alpha=0.5,
-            #         label="Гистограмма наблюдений")
             ax.plot(grid, densities[f"pdf_{name}"], linewidth=2,
                     label="Stationary density")
-            # ax.plot(grid, densities[f"pdf_{name}"], linewidth=2,
-            #         label="Стационарная плотность")
-            ax.set_title(NAMES_EN.get(name, name))
-            # ax.set_title(NAMES_RU.get(name, name))
             ax.set_xlabel("Variable value")
-            # ax.set_xlabel("Значение переменной")
             ax.set_ylabel("Probability density")
-            # ax.set_ylabel("Плотность вероятности")
+            ax.set_title(NAMES_EN.get(name, name))
             ax.legend()
     fig.tight_layout()
     output = save_figure(fig, plot_path(root, "Distributions", "Stationary",
-                                        f"{names[0]}-{names[1]}_{start_year}-{end_year}.png"))
+                                f"{names[0]}-{names[1]}_{start_year}-{end_year}.png"))
     plt.close(fig)
     return output
 

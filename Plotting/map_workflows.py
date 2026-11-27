@@ -1,4 +1,9 @@
-"""Map-based plotting workflows for cached oceanographic arrays."""
+"""Map-based plotting workflows for cached oceanographic arrays.
+
+Coefficient A frames default to a fixed, signed nonlinear colour scale,
+physical-value isolines and shared limits across the requested time interval.
+Other map workflows and other coefficient styles remain unchanged.
+"""
 
 from __future__ import annotations
 
@@ -141,7 +146,7 @@ def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
 
 def _add_colorbar(fig, ax, image):
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="4.0%", pad=0.08)
+    cax = divider.append_axes("right", size="3.2%", pad=0.05)
     colorbar = fig.colorbar(image, cax=cax)
     colorbar.ax.tick_params(labelsize=9, pad=2)
     return colorbar
@@ -200,11 +205,6 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
         Period label used by raw field filenames.
     start, stop : int
         Zero-based half-open local observation interval.
-
-    Returns
-    -------
-    list of Path
-        Saved PNG paths.
     """
     root = Path(files_path_prefix)
     outputs = []
@@ -293,31 +293,279 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
     return outputs
 
 
+# -----------------------------------------------------------------------------
+# Coefficient A: interval-wide limits and sign-separated nonlinear colors.
+# Functions are private helpers inside the existing plotting module.
+# -----------------------------------------------------------------------------
+
+
+def _coefficient_a_extrema(data, start: int, stop: int, water_mask=None,
+                           chunk_days: int = 12):
+    """Exact min/max for each channel over ALL selected days and ocean pixels.
+
+    The 'step' used for frame rendering is intentionally NOT used here.
+    Chunked access allows the collected .npy array to remain memory mapped.
+    """
+    nch = data.shape[1] if data.ndim == 4 else 1
+    lo = np.full(nch, np.inf, dtype=float)
+    hi = np.full(nch, -np.inf, dtype=float)
+    for left in range(start, stop, chunk_days):
+        arr = np.asarray(data[left:min(left + chunk_days, stop)], dtype=np.float64)
+        if data.ndim == 3:
+            arr = arr[:, None, :, :]
+        if water_mask is not None:
+            arr = np.where(water_mask[None, None, :, :], arr, np.nan)
+        for j in range(nch):
+            vals = arr[:, j]
+            finite = vals[np.isfinite(vals)]
+            if finite.size:
+                lo[j] = min(lo[j], float(finite.min()))
+                hi[j] = max(hi[j], float(finite.max()))
+    if not np.all(np.isfinite(lo)) or not np.all(np.isfinite(hi)):
+        raise ValueError("No finite coefficient A values in the selected interval")
+    return [(float(lo[j]), float(hi[j])) for j in range(nch)]
+
+
+def _coefficient_a_signed_scale(lo: float, hi: float,
+                                gamma_negative: float = 0.5,
+                                gamma_positive: float = 0.5):
+    """Map signed physical values nonlinearly to blue/white/red display colors.
+
+    Each side is scaled by its OWN global extreme. 0 is always white.
+    Gamma < 1 allocates more color distance to small absolute coefficients.
+    Both forward and inverse are supplied, so Matplotlib's colorbar is truthful.
+    """
+    for label, gamma in (("gamma_negative", gamma_negative),
+                         ("gamma_positive", gamma_positive)):
+        if not (np.isfinite(gamma) and gamma > 0):
+            raise ValueError(f"{label} must be a finite positive number")
+    if not np.isfinite(lo) or not np.isfinite(hi) or lo > hi:
+        raise ValueError(f"Bad coefficient A range {lo}..{hi}")
+
+    # Handle one-signed channels explicitly: zero is the white color anchor.
+    if lo < 0 < hi:
+        neg, pos = -lo, hi
+        palette = mcolors.LinearSegmentedColormap.from_list(
+            "A_signed", ["#224f93", "#ffffff", "#b52e38"], N=1025
+        )
+
+        def forward(x):
+            x = np.asarray(x, dtype=float)
+            y = np.empty_like(x)
+            mask = x < 0
+            y[mask] = 0.5 * (1.0 - (np.maximum(-x[mask], 0) / neg) ** gamma_negative)
+            y[~mask] = 0.5 * (1.0 + (np.maximum(x[~mask], 0) / pos) ** gamma_positive)
+            return y
+
+        def inverse(y):
+            y = np.asarray(y, dtype=float)
+            x = np.empty_like(y)
+            mask = y < 0.5
+            x[mask] = -neg * (np.maximum(1.0 - 2.0 * y[mask], 0)) ** (1.0 / gamma_negative)
+            x[~mask] = pos * (np.maximum(2.0 * y[~mask] - 1.0, 0)) ** (1.0 / gamma_positive)
+            return x
+
+        minimum, maximum = lo, hi
+    elif hi > 0:
+        pos = hi
+        palette = mcolors.LinearSegmentedColormap.from_list(
+            "A_positive", ["#ffffff", "#b52e38"], N=513
+        )
+
+        def forward(x):
+            return (np.maximum(np.asarray(x, dtype=float), 0.0) / pos) ** gamma_positive
+
+        def inverse(y):
+            return pos * np.maximum(np.asarray(y, dtype=float), 0.0) ** (1.0 / gamma_positive)
+
+        minimum, maximum = 0.0, hi
+    elif lo < 0:
+        neg = -lo
+        palette = mcolors.LinearSegmentedColormap.from_list(
+            "A_negative", ["#224f93", "#ffffff"], N=513
+        )
+
+        def forward(x):
+            return 1.0 - (np.maximum(-np.asarray(x, dtype=float), 0.0) / neg) ** gamma_negative
+
+        def inverse(y):
+            return -neg * np.maximum(1.0 - np.asarray(y, dtype=float), 0.0) ** (1.0 / gamma_negative)
+
+        minimum, maximum = lo, 0.0
+    else:
+        palette = mcolors.LinearSegmentedColormap.from_list(
+            "A_zero", ["#224f93", "#ffffff", "#b52e38"], N=1025
+        )
+        return mcolors.Normalize(vmin=-1.0, vmax=1.0), palette, (-1.0, 1.0)
+
+    palette.set_bad("#dbe8cf")  # land / masked pixels: soft light green
+    norm = mcolors.FuncNorm((forward, inverse), vmin=minimum, vmax=maximum, clip=True)
+    return norm, palette, (minimum, maximum)
+
+
+def _coefficient_a_contour_levels(lo: float, hi: float,
+                                  gamma_negative: float, gamma_positive: float,
+                                  levels_per_side: int):
+    """Contours denote actual A values, with more levels near zero."""
+    if levels_per_side < 0:
+        raise ValueError("levels_per_side must be >= 0")
+    if levels_per_side == 0:
+        return np.empty(0, dtype=float)
+    fractions = np.linspace(0.22, 0.92, levels_per_side)
+    vals = []
+    if lo < 0:
+        vals.extend((-abs(lo) * fractions ** (1.0 / gamma_negative)).tolist())
+    if hi > 0:
+        vals.extend((hi * fractions ** (1.0 / gamma_positive)).tolist())
+    return np.asarray(sorted(vals), dtype=float)
+
+
+def _coefficient_a_smooth(field: np.ndarray, sigma: float):
+    """Optional NaN-aware smoothing for presentation, not stored estimates."""
+    if sigma <= 0:
+        return field
+    from scipy.ndimage import gaussian_filter  # imported only when requested
+    good = np.isfinite(field)
+    numerator = gaussian_filter(np.where(good, field, 0), sigma, mode="nearest")
+    denominator = gaussian_filter(good.astype(float), sigma, mode="nearest")
+    return np.where(good, numerator / np.maximum(denominator, 1e-12), np.nan)
+
+
+def _coefficient_a_water_mask(root: Path, shape):
+    """Use the project mask if available; otherwise rely on NaNs in coefficients."""
+    mask_file = root / "DATA" / "mask"
+    if not mask_file.is_file():
+        mask_file = root / "mask"
+    if not mask_file.is_file():
+        return None
+    size = int(np.prod(shape))
+    raw = mask_file.read_bytes()
+    if len(raw) < size:
+        raise ValueError(f"Ocean mask too short: {mask_file}")
+    return np.frombuffer(raw[:size], dtype=np.bool_).reshape(shape).copy()
+
+
+def _coefficient_a_colorbar(fig, ax, image, norm):
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3.2%", pad=0.05)
+    # Uniform visual spacing; tick labels are the real coefficient values.
+    ticks = np.asarray(norm.inverse(np.linspace(0, 1, 7)), dtype=float)
+    cb = fig.colorbar(image, cax=cax, ticks=ticks)
+    cb.ax.tick_params(labelsize=8, pad=1)
+    cb.formatter = plt.matplotlib.ticker.FuncFormatter(lambda value, pos: f"{value:.3g}")
+    cb.update_ticks()
+    return cb
+
+
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
-                       *, start=None, stop=None, step=1):
-    """Generate an ordered PNG sequence from previously calculated coefficients."""
+                       *, start=None, stop=None, step=1,
+                       style="auto", gamma_negative=0.35, gamma_positive=0.35,
+                       show_contours=False, contours_per_side=3, smooth_sigma=0.65):
+    """Generate PNG maps for precomputed coefficient sequences.
+
+    For coefficient A, by default use:
+      - exact finite ocean min/max per channel from every day in [start, stop),
+      - the same limits for all frames (even with step > 1),
+      - nonlinear signed gamma colors, centered on white at zero,
+      - NO coefficient isolines by default (calmer video),
+      - optional real-value isolines and a highlighted zero line with
+        show_contours=True or style="nonlinear_contours",
+      - gamma=0.35 gives higher contrast for small absolute values.
+
+    The original style is preserved for B/C/F/FS and with style='original'.
+    """
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
     parent = root / "Coefficients" / "continuous" / f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" / folder
     files = sorted(parent.glob(f"{coefficient}_*-*.npy"))
     if len(files) != 1:
         raise FileNotFoundError(f"Expected one collected {coefficient} array under {parent}; found {files}")
-    data = np.load(files[0], mmap_mode="r")
-    stop = len(data) if stop is None else min(stop, len(data))
-    start = 0 if start is None else start
+    data = np.load(files[0], mmap_mode="r", allow_pickle=False)
+    stop = len(data) if stop is None else min(int(stop), len(data))
+    start = 0 if start is None else int(start)
+    if not (0 <= start < stop <= len(data)) or int(step) <= 0:
+        raise ValueError(f"Bad frame interval start={start}, stop={stop}, step={step}, length={len(data)}")
+    if style not in ("auto", "original", "nonlinear_contours"):
+        raise ValueError("style must be 'auto', 'original' or 'nonlinear_contours'")
+    alternative = coefficient == "A" and style != "original"
+    draw_contours = show_contours or style == "nonlinear_contours"
+    if style == "nonlinear_contours" and coefficient != "A":
+        raise ValueError("Nonlinear contour style currently supports coefficient A only")
+
+    if alternative:
+        if data.ndim not in (3, 4):
+            raise ValueError(f"Expected A array [T,H,W] or [T,C,H,W], got {data.shape}")
+        channels_num = data.shape[1] if data.ndim == 4 else 1
+        grid_shape = data.shape[-2:]
+        water_mask = _coefficient_a_water_mask(root, grid_shape)
+        bounds = _coefficient_a_extrema(data, start, stop, water_mask)
+        styles = [_coefficient_a_signed_scale(lo, hi, gamma_negative, gamma_positive)
+                  for lo, hi in bounds]
+        if draw_contours:
+            iso_levels = [_coefficient_a_contour_levels(lo, hi, gamma_negative,
+                                                       gamma_positive, contours_per_side)
+                          for lo, hi in bounds]
+            lon = np.linspace(*LON_BOUNDS, grid_shape[1])
+            lat = np.linspace(LAT_BOUNDS[1], LAT_BOUNDS[0], grid_shape[0])
+        print(f"Coefficient A fixed bounds for [{start}, {stop}), including skipped frames:")
+        for ch, (lo, hi) in enumerate(bounds):
+            print(f"  component {ch + 1}: {lo:.7g} .. {hi:.7g}; gamma-={gamma_negative:g}, gamma+={gamma_positive:g}")
+
     frames = []
     for i in range(start, stop, step):
         channels = data[i] if data.ndim == 4 else data[i][None, ...]
-        fig, axes = plt.subplots(1, len(channels), figsize=(5.8 * len(channels), 5.2), squeeze=False,
-                                 constrained_layout=True)
-        for j, (ax, field) in enumerate(zip(axes[0], channels)):
-            image = _draw_map(ax, field,
-                              f"{NAMES_EN.get(coefficient, coefficient)} — component {j + 1}",
-                              name=coefficient, show_y_labels=(j == 0))
-            _add_colorbar(fig, ax, image)
-        saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
-                                           f"{names[0]}-{names[1]}", method,
-                                           f"frame_{i:05d}.png"))
-        frames.append(saved)
-        plt.close(fig)
+        fig, axes = plt.subplots(1, len(channels), figsize=(6.55 * len(channels), 5.6), squeeze=False,
+                                 constrained_layout=False)
+        fig.subplots_adjust(left=0.055, right=0.972, bottom=0.075, top=0.965, wspace=0.14)
+        try:
+            for j, (ax, field) in enumerate(zip(axes[0], channels)):
+                if not alternative:
+                    image = _draw_map(ax, field,
+                                      f"{NAMES_EN.get(coefficient, coefficient)} — component {j + 1}",
+                                      name=coefficient, show_y_labels=(j == 0))
+                    _add_colorbar(fig, ax, image)
+                    continue
+
+                norm, cmap, _ = styles[j]
+                z = np.asarray(field, dtype=float)
+                if water_mask is not None:
+                    z = np.where(water_mask, z, np.nan)
+                z = _coefficient_a_smooth(z, smooth_sigma)
+                ax.set_facecolor("#dbe8cf")  # also covers fully masked patches
+                image = ax.imshow(np.ma.masked_invalid(z), cmap=cmap, norm=norm,
+                                  extent=(*LON_BOUNDS, *LAT_BOUNDS), origin="upper",
+                                  interpolation="bilinear", aspect="auto")
+                _format_geo_axis(ax, show_y_labels=(j == 0))
+                # For videos and figure montages, titles take too much space and are usually added externally.
+                # ax.set_title(f"Coefficient A — {names[j] if j < len(names) else 'component ' + str(j + 1)}",
+                #              fontsize=12)
+                valid = z[np.isfinite(z)]
+                if draw_contours and valid.size and contours_per_side > 0:
+                    current_levels = iso_levels[j]
+                    current_levels = current_levels[(current_levels > valid.min()) & (current_levels < valid.max())]
+                    if current_levels.size:
+                        ax.contour(lon, lat, z, levels=current_levels,
+                                   colors="#5f6770", linestyles="solid",
+                                   linewidths=0.38, alpha=0.52)
+                        # No contour labels in animation: their positions jump between frames.
+                    if valid.min() < 0 < valid.max():
+                        ax.contour(lon, lat, z, levels=[0],
+                                   colors="#2f343a", linewidths=0.8, alpha=0.75)
+                if water_mask is not None and water_mask.any() and not water_mask.all():
+                    # This is only the coastline, not an isoline of coefficient A.
+                    ax.contour(np.linspace(*LON_BOUNDS, grid_shape[1]),
+                               np.linspace(LAT_BOUNDS[1], LAT_BOUNDS[0], grid_shape[0]),
+                               water_mask.astype(float), levels=[0.5],
+                               colors="#718579", linewidths=0.30, alpha=0.48)
+                _coefficient_a_colorbar(fig, ax, image, norm)
+
+            if alternative:
+                # Optional overall title disabled by default: it reduces the useful map area in videos.
+                pass
+            saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
+                                               f"{names[0]}-{names[1]}", method,
+                                               f"frame_{i:05d}.png"))
+            frames.append(saved)
+        finally:
+            plt.close(fig)
     return frames

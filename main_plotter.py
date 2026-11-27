@@ -48,7 +48,7 @@ def main():
     # task = "stationary_spatial"   # all three plot types
     # task = "stationary_isolines"
     # task = "stationary_regions"
-    task = "stationary_classes"
+    # task = "stationary_classes"
     # Match the numerical settings in main.py (task="stationary_spatial").
     spatial_regions_period = (1979, 2026)
     spatial_map_date = "2026-01-01"
@@ -147,8 +147,8 @@ def main():
 
     # --------------------------------------------------------------------------
     # VIDEOS: combine previously generated coefficient frames into a video.
-    # task = "videos"
-    fps = 5
+    task = "videos"
+    fps = 1.2
 
     # --------------------------------------------------------------------------
     # STATIONARY: draw saved stationary densities and observed histograms.
@@ -222,10 +222,10 @@ def main():
 
     names = ("sensible", "latent")
     # names = ("Flux", "Pressure")
-    # first_day = 0
-    # last_day = 365
-    first_day = (datetime.datetime(2025, 1, 1)-datetime.datetime(2019, 1, 1)).days
-    last_day = (datetime.datetime(2026, 1, 1)-datetime.datetime(2019, 1, 1)).days
+    first_day = 0
+    last_day = 30
+    # first_day = (datetime.datetime(2025, 1, 1)-datetime.datetime(2019, 1, 1)).days
+    # last_day = (datetime.datetime(2026, 1, 1)-datetime.datetime(2019, 1, 1)).days
     method = "sp"
     coefficient = "A"
 
