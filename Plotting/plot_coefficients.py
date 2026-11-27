@@ -33,7 +33,7 @@ def plot_ab_coefficients(files_path_prefix: str,
                          start_pic_num: int = 0,
                          names: tuple = ('Sensible', 'Latent'),
                          path_local: str = '',
-                         start_date: datetime = datetime.datetime(1979, 1, 1, 0, 0)):
+                         start_date: datetime = datetime.datetime(1979, 1, 1, 0, 0), *, video_frames=False):
     """
     Plots A, B dynamics as frames and saves them into files_path_prefix + videos/tmp-coeff
     directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -79,11 +79,13 @@ def plot_ab_coefficients(files_path_prefix: str,
     cmap_a2 = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, - a2_min / (a2_max - a2_min), 1])
     cmap_a2.set_bad('lightgreen', 1.0)
 
-    axsa[0].set_title(f'A - {names[0]}', fontsize=20)
+    if video_frames:
+        axsa[0].set_title(f'A - {names[0]}', fontsize=20)
     divider = make_axes_locatable(axsa[0])
     cax_a_sens = divider.append_axes('right', size='5%', pad=0.3)
 
-    axsa[1].set_title(f'A - {names[1]}', fontsize=20)
+    if video_frames:
+        axsa[1].set_title(f'A - {names[1]}', fontsize=20)
     divider = make_axes_locatable(axsa[1])
     cax_a_lat = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -92,13 +94,17 @@ def plot_ab_coefficients(files_path_prefix: str,
         divider = make_axes_locatable(axsb[i // 2][i % 2])
         cax_b.append(divider.append_axes('right', size='5%', pad=0.3))
         if i == 0:
-            axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[0]}', fontsize=20)
+            if video_frames:
+                axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[0]}', fontsize=20)
         elif i == 3:
-            axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[1]}', fontsize=20)
+            if video_frames:
+                axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[1]}', fontsize=20)
         elif i == 1:
-            axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[1]}', fontsize=20)
+            if video_frames:
+                axsb[i // 2][i % 2].set_title(f'{names[0]} - {names[1]}', fontsize=20)
         elif i == 2:
-            axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[0]}', fontsize=20)
+            if video_frames:
+                axsb[i // 2][i % 2].set_title(f'{names[1]} - {names[0]}', fontsize=20)
 
     # zero_percent = abs(0 - b_min) / (b_max - b_min)
     # cmap_b = get_continuous_cmap(['#00bfff', '#ffffff', '#b22222'], [0, zero_percent, 1])
@@ -116,7 +122,8 @@ def plot_ab_coefficients(files_path_prefix: str,
         a_lat = a_timelist[t][1]
         b_matrix = b_timelist[t]
 
-        figa.suptitle(f'A coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            figa.suptitle(date.strftime("%d.%m.%Y"), fontsize=20)
         if img_a_sens is None:
             img_a_sens = axsa[0].imshow(a_sens,
                                         interpolation='none',
@@ -151,7 +158,8 @@ def plot_ab_coefficients(files_path_prefix: str,
         # figa.tight_layout()
         figa.savefig(files_path_prefix + f'videos/{path_local}A/A_{pic_num:05d}.png')
 
-        figb.suptitle(f'B coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            figb.suptitle(date.strftime("%d.%m.%Y"), fontsize=20)
         for i in range(4):
             if img_b[i] is None:
                 img_b[i] = axsb[i // 2][i % 2].imshow(b_matrix[i],
@@ -186,7 +194,7 @@ def plot_c_coeff(files_path_prefix: str,
                  step: int = 1,
                  start_pic_num: int = 0,
                  pair_name: str = '',
-                 path_local: str = ''):
+                 path_local: str = '', *, video_frames=False):
     """
     Plots C - correltion between A and B coefficients dynamics as frames and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -210,11 +218,13 @@ def plot_c_coeff(files_path_prefix: str,
     # prepare images
     figc, axsc = plt.subplots(1, 2, figsize=(20, 10))
     # axsc[0].set_title(f'A_sens - A_lat correlation', fontsize=20)
-    axsc[0].set_title(f'A1-A2 correlation', fontsize=20)
+    if video_frames:
+        axsc[0].set_title(f'A1-A2 correlation', fontsize=20)
     divider = make_axes_locatable(axsc[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
 
-    axsc[1].set_title(f'B11 - B22 correlation', fontsize=20)
+    if video_frames:
+        axsc[1].set_title(f'B11 - B22 correlation', fontsize=20)
     divider = make_axes_locatable(axsc[1])
     cax_2 = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -226,7 +236,8 @@ def plot_c_coeff(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         date_end = date + datetime.timedelta(days=14)
-        figc.suptitle(f'{pair_name} correlations\n {date.strftime("%Y-%m-%d")} - {date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            figc.suptitle(f"{date:%d.%m.%Y} – {date_end:%d.%m.%Y}", fontsize=20)
         if img_1 is None:
             img_1 = axsc[0].imshow(c_timelist[t][0],
                                    interpolation='none',
@@ -268,7 +279,7 @@ def plot_f_coeff(files_path_prefix: str,
                  time_end: int,
                  step: int = 1,
                  start_pic_num: int = 0,
-                 mean_width: int = 7):
+                 mean_width: int = 7, *, video_frames=False):
     """
     Plots F - fraction of coefficients' norms and saves them into
     files_path_prefix + videos/tmp-coeff directory starting from start_pic_num, with step 1 (in numbers of pictures).
@@ -300,8 +311,9 @@ def plot_f_coeff(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         date_end = date + datetime.timedelta(days=mean_width)
-        fig.suptitle(f'Fraction of coefficients\n {date.strftime("%Y-%m-%d")} - '
-                     f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            axs.set_title("Coefficient F")
+            fig.suptitle(f"{date:%d.%m.%Y} – {date_end:%d.%m.%Y}", fontsize=20)
         f = f_timelist[t]
         if img_f is None:
             img_f = axs.imshow(f,
@@ -329,7 +341,7 @@ def plot_fs_coeff(files_path_prefix: str,
                   start_pic_num: int = 0,
                   mean_width: int = 7,
                   names: tuple = (),
-                  path_local: str = ''):
+                  path_local: str = '', *, video_frames=False):
     """
     Plots FS - fractions mean(abs(a_sens)) / mean(abs(B[0]))  and mean(abs(a_lat) / mean(abs(B[1]))
     coefficients' where mean is taken in [t, t + mean_width] days window and saves them into
@@ -354,11 +366,13 @@ def plot_fs_coeff(files_path_prefix: str,
 
     # prepare images
     figf, axsf = plt.subplots(1, 2, figsize=(20, 10))
-    axsf[0].set_title(names[0], fontsize=20)
+    if video_frames:
+        axsf[0].set_title(names[0], fontsize=20)
     divider = make_axes_locatable(axsf[0])
     cax_1 = divider.append_axes('right', size='5%', pad=0.3)
 
-    axsf[1].set_title(names[1], fontsize=20)
+    if video_frames:
+        axsf[1].set_title(names[1], fontsize=20)
     divider = make_axes_locatable(axsf[1])
     cax_2 = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -374,8 +388,8 @@ def plot_fs_coeff(files_path_prefix: str,
         date_end = date + datetime.timedelta(days=mean_width)
         # figf.suptitle(f'Fraction a/b for each flux type\n {date.strftime("%Y-%m-%d")} - '
         #               f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
-        figf.suptitle(f'Fraction a/b for pair {names[0]}-{names[1]}\n {date.strftime("%Y-%m-%d")} - '
-                      f'{date_end.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            figf.suptitle(f"{date:%d.%m.%Y} – {date_end:%d.%m.%Y}", fontsize=20)
         if img_1 is None:
             img_1 = axsf[0].imshow(f_timelist[t][0],
                                    interpolation='none',

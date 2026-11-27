@@ -156,8 +156,9 @@ class _FrameFigure:
 
     def __init__(self, stack, rows, cols, shape, figsize, *, signed=True,
                  fixed_limit=None, xlabels_mode="all", ylabels_mode="all",
-                 aspect="auto", cmap=None):
+                 aspect="auto", cmap=None, video_frames=False):
         """Initialize Frame Figure with ``stack``, ``rows``, ``cols``, ``shape``, ``figsize``, ``signed``, ``fixed_limit`` and the remaining options."""
+        self.video_frames = video_frames
         self.rows = rows
         self.cols = cols
         self.xlabels_mode = xlabels_mode
@@ -165,12 +166,12 @@ class _FrameFigure:
         self.cmap = cmap
         self.fig, axes = plt.subplots(rows, cols, figsize=figsize, squeeze=False,
                                       constrained_layout=False)
-        self.fig.subplots_adjust(left=0.04, right=0.968, bottom=0.065, top=0.88,
+        self.fig.subplots_adjust(left=0.04, right=0.968, bottom=0.065, top=0.84 if video_frames else 0.95,
                                  wspace=0.17, hspace=0.10)
         stack.callback(plt.close, self.fig)
         self.signed = signed
         self.fixed_limit = fixed_limit
-        self.title = self.fig.suptitle("", fontsize=16, y=0.965)
+        self.title = self.fig.suptitle("", fontsize=16, y=0.965) if video_frames else None
         self.images = np.empty((rows, cols), dtype=object)
         self.colorbars = np.empty((rows, cols), dtype=object)
         empty = np.zeros(shape, dtype=float)
@@ -204,13 +205,14 @@ class _FrameFigure:
         """Update the internal state using the supplied observations or values."""
         image = self.images[row, col]
         limit = self.fixed_limit if fixed_limit is None else fixed_limit
-        _update_matrix(image, matrix, title, self.signed, limit)
+        _update_matrix(image, matrix, title if self.video_frames else "", self.signed, limit)
         self.colorbars[row, col].update_normal(image)
 
     def save(self, path, title):
         """Compute save for Frame Figure from ``path``, ``title``."""
-        self.title.set_text(title)
-        self.fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.08)
+        if self.title is not None:
+            self.title.set_text(title)
+        self.fig.savefig(path, dpi=300, **({} if self.video_frames else {"bbox_inches": "tight", "pad_inches": 0.08}))
 
 
 def _spectrum_paths(folder, step, mixed):
@@ -296,6 +298,7 @@ def plot_eigenvalues(
     plot_contributions: bool = True,
     plot_reconstruction: bool = True,
     vector_limit: float = 1.0,
+    video_frames: bool = False,
 ):
     """Visualize saved eigenmodes or paired singular modes one day at a time.
 
@@ -319,6 +322,8 @@ def plot_eigenvalues(
     pair = f"{names[0]}-{names[1]}"
     folder = root / "Eigenvalues" / pair
     out_dir = root / "Plots" / "Eigenvalues" / pair
+    if video_frames:
+        out_dir = out_dir / "video_frames"
     out_dir.mkdir(parents=True, exist_ok=True)
     mixed = names[0] != names[1]
     n_points = int(np.prod(shape))
@@ -413,15 +418,15 @@ def plot_eigenvalues(
                 vectors = _FrameFigure(stack, rows, N, shape, (5.6 * N, 5.0 * rows),
                                        signed=True, fixed_limit=vector_limit,
                                        xlabels_mode="bottom" if rows > 1 else "all",
-                                       ylabels_mode="left")
+                                       ylabels_mode="left", video_frames=video_frames)
                 if plot_contributions:
                     contributions = _FrameFigure(stack, 1, N, shape, (5.6 * N, 5.0),
                                                  signed=mixed, ylabels_mode="left",
-                                                 cmap="plasma")
+                                                 cmap="plasma", video_frames=video_frames)
                 if plot_reconstruction:
                     reconstruction = _FrameFigure(stack, 1, N, shape, (5.6 * N, 5.0),
                                                   signed=mixed, ylabels_mode="left",
-                                                  aspect="equal")
+                                                  aspect="equal", video_frames=video_frames)
 
             rank_maps = []
             for k in range(N):
@@ -456,14 +461,14 @@ def plot_eigenvalues(
                 diagnostics[category] += 1
                 examples.setdefault(category, f"{date}: {detail}")
 
-            # date_label = f"{date:%d.%m.%Y}"
+            date_label = f"{date:%d.%m.%Y}"
             # Use singular modes for mixed pairs and eigenvectors for self-pairs.
             # vectors.save(out_dir / f"Lambdas_{step}.png", vector_title + "\n" + date_label)
-            vectors.save(out_dir / f"Lambdas_{step}.png", "")
+            vectors.save(out_dir / f"Lambdas_{step}.png", date_label)
             if contributions is not None:
                 # contributions.save(out_dir / f"Mode_contributions_{step}.png",
                 # Show the spectral-mode contributions for the pair and date.
-                contributions.save(out_dir / f"Mode_contributions_{step}.png", "")
+                contributions.save(out_dir / f"Mode_contributions_{step}.png", date_label)
             if reconstruction is not None:
                 # Compare cumulative rank approximations using one daily scale.
                 # Arrange from highest rank down to rank one (B_N, ..., B_1).
@@ -475,7 +480,7 @@ def plot_eigenvalues(
                                           rf"${symbol}_{{{rank}}}$",
                                           fixed_limit=common_limit)
                 reconstruction.save(out_dir / f"Rank1-{N}_{step}.png" if N > 1
-                                    else out_dir / f"Rank1_{step}.png", "")
+                                    else out_dir / f"Rank1_{step}.png", date_label)
             processed += 1
             if diagnostic is not None:
                 progress.set_postfix(diagnostics=sum(diagnostics.values()), refresh=False)
@@ -496,6 +501,7 @@ def plot_mean_year(
     end_year: int = 2024,
     mode: int = 1,
     shape: tuple = (161, 181),
+    *, video_frames=False,
 ):
     """Plot a seasonal mean of sign-invariant modal contributions.
 
@@ -540,16 +546,19 @@ def plot_mean_year(
         raise ValueError("All seasonal means are non-finite")
     limit = max(float(np.max(np.abs(finite))), 1e-12)
     fig, axes = plt.subplots(2, 3, figsize=(18, 10), constrained_layout=True)
-    fig.suptitle(f"Среднегодовой вклад моды {mode}: {pair}\n{start_year}–{end_year - 1}", fontsize=18)
+    if video_frames:
+        fig.suptitle(f"{start_year}–{end_year - 1}", fontsize=18)
     for i, (month, day) in enumerate(selected_dates):
         ax = axes.flat[i]
-        image = _draw_matrix(ax, averages[i], f"{day} {month_names[month]}\nЧисло лет: {sample_counts[i]}",
+        image = _draw_matrix(ax, averages[i], f"Вклад моды {mode}: {pair} — {day} {month_names[month]}" if video_frames else "",
                              signed=mixed, fixed_limit=limit, cmap="plasma")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="4.5%", pad=0.08)
         fig.colorbar(image, cax=cax)
     filename = f"modal_contribution_{pair}_{start_year}-{end_year}_mode{mode}_mean_year"
-    fig.savefig(output_dir / f"{filename}.png", dpi=300, bbox_inches="tight", pad_inches=0.08)
+    figure_dir = output_dir / "video_frames" if video_frames else output_dir
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(figure_dir / f"{filename}.png", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     np.save(output_dir / f"{filename}.npy", values)
     return values

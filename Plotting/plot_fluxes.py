@@ -19,7 +19,7 @@ def plot_flux_correlations(files_path_prefix: str,
                            time_start: int,
                            time_end: int,
                            step: int = 1,
-                           start_pic_num: int = 0):
+                           start_pic_num: int = 0, *, video_frames=False):
     """
     Plots fluxes correlation and saves them into files_path_prefix + videos/Flux-corr directory
 
@@ -35,7 +35,10 @@ def plot_flux_correlations(files_path_prefix: str,
     for t in tqdm.tqdm(range(time_start, time_end, step)):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
         corr = np.load(files_path_prefix + f'Flux_correlations/FL_Corr_{t}.npy')
-        fig.suptitle(f'Flux correlation\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            axs.set_title("Flux correlation")
+        if video_frames:
+            fig.suptitle(date.strftime("%d.%m.%Y"), fontsize=20)
 
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         cmap.set_bad('darkgreen', 1.0)
@@ -54,7 +57,7 @@ def plot_flux_correlations(files_path_prefix: str,
     return
 
 
-def plot_typical_points(files_path_prefix: str, mask: np.ndarray):
+def plot_typical_points(files_path_prefix: str, mask: np.ndarray, *, video_frames=False):
     """
     Creates and plots in points.png points where the fluxes distribution is observed
 
@@ -78,12 +81,14 @@ def plot_typical_points(files_path_prefix: str, mask: np.ndarray):
         mask_map[point] = 2
 
     axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
+    if video_frames:
+        axs.set_title("Observation points")
     # fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/points.png')
     fig.savefig(files_path_prefix + f'Components/points.png')
     return points
 
 
-def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple, radius: int):
+def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple, radius: int, *, video_frames=False):
     """
     Plots the "big point" which is a square area with the center in point and length of side 2*radius
     :param files_path_prefix: path to the working directory
@@ -105,6 +110,8 @@ def plot_current_bigpoint(files_path_prefix: str, mask: np.ndarray, point: tuple
         mask_map[p] = 2
 
     axs.imshow(mask_map, interpolation='none', cmap=cmap, norm=norm)
+    if video_frames:
+        axs.set_title(f"Observation region — {point}")
     fig.savefig(files_path_prefix + f'Func_repr/fluxes_distribution/POINT_({point[0]},{point[1]})/point_({point[0]},{point[1]}).png')
     return
 
@@ -116,7 +123,7 @@ def plot_fluxes(files_path_prefix: str,
                 end: int,
                 group: int = 4,
                 start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
-                start_pic_num: int = 1):
+                start_pic_num: int = 1, *, video_frames=False):
     """Plot fluxes for the plot fluxes workflow."""
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
@@ -130,11 +137,13 @@ def plot_fluxes(files_path_prefix: str,
     # cmap = get_continuous_cmap(['#000080', '#ffffff', '#ff0000'], [0, (1.0 - flux_min) / (flux_max - flux_min), 1])
     # cmap.set_bad('darkgreen', 1.0)
 
-    # axs[0].set_title(f'Sensible', fontsize=20)
+    if video_frames:
+        axs[0].set_title('Sensible heat flux', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_sens = divider.append_axes('right', size='5%', pad=0.3)
 
-    # axs[1].set_title(f'Latent', fontsize=20)
+    if video_frames:
+        axs[1].set_title('Latent heat flux', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_lat = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -146,6 +155,8 @@ def plot_fluxes(files_path_prefix: str,
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(start, end)):
         date = start_date + datetime.timedelta(hours=6 * group * (t - start))
+        if video_frames:
+            fig.suptitle(date.strftime("%d.%m.%Y %H:%M" if group != 4 else "%d.%m.%Y"), fontsize=20)
 
         # if group == 1:
         #     fig.suptitle(f'Fluxes\n {date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
@@ -195,7 +206,7 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
                         start_pic_num: int = 1,
                         frequency: int = 1,
-                        ):
+                         *, video_frames=False):
     """Plot flux SST press for the plot fluxes workflow."""
     sns.set_style("whitegrid")
 
@@ -221,15 +232,18 @@ def plot_flux_sst_press(files_path_prefix: str,
     cmap_press = plt.get_cmap('Purples').copy()
     cmap_press.set_bad('lightgreen', 1.0)
 
-    # axs[0].set_title(f'Sum flux', fontsize=20)
+    if video_frames:
+        axs[0].set_title('Total heat flux', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_flux = divider.append_axes('right', size='5%', pad=0.3)
 
-    # axs[1].set_title(f'SST', fontsize=20)
+    if video_frames:
+        axs[1].set_title('Sea surface temperature', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_sst = divider.append_axes('right', size='5%', pad=0.3)
 
-    # axs[2].set_title(f'Pressure', fontsize=20)
+    if video_frames:
+        axs[2].set_title('Atmospheric pressure', fontsize=20)
     divider = make_axes_locatable(axs[2])
     cax_press = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -242,11 +256,13 @@ def plot_flux_sst_press(files_path_prefix: str,
     for t in tqdm.tqdm(range(start, end)):
         if frequency == 1:
             date = start_date + datetime.timedelta(days=(t - start))
-            fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
+            if video_frames:
+                fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
 
         elif frequency == 24:
             date = start_date + datetime.timedelta(hours=(t - start))
-            fig.suptitle(f'{date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
+            if video_frames:
+                fig.suptitle(f'{date.strftime("%Y-%m-%d %H:00")}', fontsize=30)
         # fig.suptitle(f'{date.strftime("%Y-%m-%d")}', fontsize=30)
 
         if img_flux is None:

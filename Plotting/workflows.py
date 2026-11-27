@@ -13,6 +13,7 @@ import numpy as np
 
 from Data_processing.io import BASE_DATE, load_field, load_spectral_field, read_ocean_mask, start_label
 from Plotting.paths import plot_path
+from Plotting.video import frame_directory, frame_date
 
 
 def save_figure(figure, filename, *args, **kwargs):
@@ -40,16 +41,17 @@ NAMES_RU = {"sensible": "Явный тепловой поток", "latent": "С�
             "B": "Коэффициент B", "C": "Коэффициент C", "F": "Коэффициент F"}
 
 
-def _draw_map(ax, data, title):
+def _draw_map(ax, data, title, *, video_frames=False):
     """Draw one geographic grid with English labels; Russian alternatives are kept."""
     im = ax.imshow(np.ma.masked_invalid(data), cmap="coolwarm", origin="upper")
-    ax.set_title(title)
+    if video_frames:
+        ax.set_title(title)
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     return im
 
 
-def plot_variables(files_path_prefix, start_year, end_year, *, day=0):
+def plot_variables(files_path_prefix, start_year, end_year, *, day=0, video_frames=False):
     """Create paired heat-flux and three-variable maps for one observation day."""
     root = Path(files_path_prefix)
     outputs = []
@@ -61,12 +63,13 @@ def plot_variables(files_path_prefix, start_year, end_year, *, day=0):
             raise IndexError("Requested day is outside the available input files")
         fig, axes = plt.subplots(1, len(names), figsize=(6 * len(names), 5), squeeze=False)
         for ax, name, array in zip(axes[0], names, fields):
-            im = _draw_map(ax, array[day], NAMES_EN[name])
+            im = _draw_map(ax, array[day], NAMES_EN[name], video_frames=video_frames)
             fig.colorbar(im, ax=ax, shrink=0.8)
         timestamp = BASE_DATE + timedelta(days=start_label(start_year) - 1 + day)
-        fig.suptitle(f"Oceanographic variables — {timestamp:%d.%m.%Y}")
+        if video_frames:
+            fig.suptitle(frame_date(timestamp))
         fig.tight_layout()
-        outputs.append(save_figure(fig, plot_path(root, "Variables", folder,
+        outputs.append(save_figure(fig, plot_path(root, "Variables", folder, *frame_directory(video_frames),
                                                  f"{start_year}-{end_year}_{day:05d}.png"), dpi=200))
         plt.close(fig)
     return outputs
@@ -157,7 +160,7 @@ def _cached_spectral_quantiles(root, name, start_year, end_year, n_bins, series)
 
 
 def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux", "SST"),
-                        first_day=0, last_day=5, n_bins=None, n_modes=3):
+                        first_day=0, last_day=5, n_bins=None, n_modes=3, video_frames=False):
     """Render daily cached spectra with read-only fields and cached exact edges."""
     from Plotting.plot_eigenvalues import plot_eigenvalues, infer_spectral_bins
 
@@ -190,11 +193,11 @@ def plot_spectral_modes(files_path_prefix, start_year, end_year, *, names=("Flux
     return plot_eigenvalues(str(root), n_modes, read_ocean_mask(root), first_day, last_day,
                             offset, second, quantiles[names[1]], names=names,
                             shape=(161, 181), array1=first, array1_quantiles=quantiles[names[0]],
-                            save_mode_maps=False)
+                            save_mode_maps=False, video_frames=video_frames)
 
 
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
-                   *, day_indices=(45, 105, 165, 225, 285, 345)):
+                   *, day_indices=(45, 105, 165, 225, 285, 345), video_frames=False):
     """Display six representative calendar dates of an annual climatology."""
     root = Path(files_path_prefix)
     data = np.load(root / "Mean_year" / category /
@@ -215,20 +218,21 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
         for channel_number, channel in enumerate(channels):
             fig, axes = plt.subplots(2, 3, figsize=(16, 9))
             for ax, index in zip(axes.flat, day_indices):
-                im = _draw_map(ax, channel[index], f"Day {index + 1}")
+                im = _draw_map(ax, channel[index], f"{NAMES_EN.get(name, name)} — day {index + 1}", video_frames=video_frames)
                 fig.colorbar(im, ax=ax, shrink=0.72)
             description = (f" — component {channel_number + 1}" if data.ndim == 4 else "")
-            fig.suptitle(f"Annual climatology: {NAMES_EN.get(name, name)}{description}")
+            if video_frames:
+                fig.suptitle(f"{start_year}–{end_year - 1}")
             fig.tight_layout()
             suffix = f"_ch{channel_number+1}" if data.ndim == 4 else ""
-            outputs.append(save_figure(fig, plot_path(root, "Mean Year", category,
+            outputs.append(save_figure(fig, plot_path(root, "Mean Year", category, *frame_directory(video_frames),
                                                        f"{name}_{start_year}-{end_year}{suffix}.png")))
             plt.close(fig)
     return outputs
 
 
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
-                        *, start=None, stop=None, step=1):
+                        *, start=None, stop=None, step=1, video_frames=False):
     """Generate an ordered PNG sequence from previously calculated coefficients."""
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
@@ -237,6 +241,7 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
     if len(files) != 1:
         raise FileNotFoundError(f"Expected one collected {coefficient} array under {parent}; found {files}")
     data = np.load(files[0], mmap_mode="r")
+    first_label = int(files[0].stem.rsplit("_", 1)[-1].split("-")[0]) if video_frames else None
     stop = len(data) if stop is None else min(stop, len(data))
     start = 0 if start is None else start
     frames = []
@@ -244,11 +249,13 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
         channels = data[i] if data.ndim == 4 else data[i][None, ...]
         fig, axes = plt.subplots(1, len(channels), figsize=(5.5 * len(channels), 5), squeeze=False)
         for j, (ax, field) in enumerate(zip(axes[0], channels)):
-            img = _draw_map(ax, field, f"{NAMES_EN.get(coefficient, coefficient)} — component {j+1}")
+            img = _draw_map(ax, field, f"{NAMES_EN.get(coefficient, coefficient)} — component {j+1}", video_frames=video_frames)
             fig.colorbar(img, ax=ax, shrink=0.8)
+        if video_frames:
+            fig.suptitle(frame_date(BASE_DATE + timedelta(days=first_label + i - 1)))
         fig.tight_layout()
         saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
-                                           f"{names[0]}-{names[1]}", method, f"frame_{i:05d}.png"))
+                                           f"{names[0]}-{names[1]}", method, *frame_directory(video_frames), f"frame_{i:05d}.png"))
         frames.append(saved)
         plt.close(fig)
     return frames
@@ -275,7 +282,7 @@ def _get_ffmpeg_executable() -> str:
 
 
 def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5,
-                      start=None, stop=None, step=None):
+                      start=None, stop=None, step=None, video_frames=False):
     """Encode cached PNG frames into H.264 MP4 with no external PATH requirement.
 
     The files may have non-contiguous frame numbers. If start/stop are provided,
@@ -284,11 +291,13 @@ def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5,
 
     Using raw RGB frames over stdin avoids FFmpeg's OS-dependent glob behavior.
     The source PNGs are not modified and the original numerical data are untouched.
+    Set video_frames=True to encode the separately stored labeled frames.
     """
     from PIL import Image
 
     root = Path(files_path_prefix)
     directory = root / "Plots" / "Coefficients" / coefficient / f"{names[0]}-{names[1]}" / method
+    directory = directory.joinpath(*frame_directory(video_frames))
     frames = sorted(
         ((int(path.stem.removeprefix("frame_")), path) for path in directory.glob("frame_*.png")
          if path.stem.removeprefix("frame_").isdigit()),
@@ -309,7 +318,7 @@ def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5,
         raise ValueError("fps must be positive")
 
     target = plot_path(root, "Videos", "Coefficients", f"{names[0]}-{names[1]}",
-                       f"{coefficient}_{method}.mp4")
+                       f"{coefficient}_{method}{'_video_frames' if video_frames else ''}.mp4")
     ffmpeg = _get_ffmpeg_executable()
     with Image.open(frames[0][1]) as first:
         width, height = first.size

@@ -81,19 +81,20 @@ def _masked_components(data, key, supported_only):
 
 
 def _panel_figure(path, water, top, bottom, top_name, bottom_name, top_norm, *,
-                  top_cmap, caption, ru, dpi):
+                  top_cmap, caption, ru, dpi, video_frames=False):
     """Compute panel figure for component plots from ``path``, ``water``, ``top``, ``bottom``, ``top_name``."""
     fig, axes = plt.subplots(2, 2, figsize=(12.4,10.8), constrained_layout=True)
     try:
         for row, values, norm, cmap, prefix in ((0,top,top_norm,top_cmap,top_name),
                                                (1,bottom,Normalize(0,1),'plasma',bottom_name)):
             for k, ax in enumerate(axes[row]):
-                im = _map(ax, water, values[k], f'{prefix} {k+1}', cmap, norm, ru=ru, show_y=(k==0))
+                im = _map(ax, water, values[k], f'{prefix} {k+1}' if video_frames else '', cmap, norm, ru=ru, show_y=(k==0))
                 cax = make_axes_locatable(ax).append_axes('right', size='4.2%', pad=.10)
                 cb = fig.colorbar(im, cax=cax)
                 cb.ax.tick_params(labelsize=9, pad=2)
-        fig.suptitle(caption, fontsize=14)
-        fig.savefig(path, dpi=dpi, bbox_inches='tight', pad_inches=.12)
+        if video_frames:
+            fig.suptitle(caption, fontsize=14)
+        fig.savefig(path, dpi=dpi, **({} if video_frames else {"bbox_inches": "tight", "pad_inches": .12}))
     finally:
         plt.close(fig)
     return path
@@ -143,7 +144,7 @@ def plot_components(files_path_prefix, start_year, end_year, *, variable='sensib
                     last_date='2019-03-31', spatial_stride=1, plot_first_date=None,
                     plot_last_date=None, plot_diffusion=True, corrected_diffusion=False,
                     supported_only=False, drift_limit=None, diffusion_limit=None,
-                    track_group=5, language='ru', dpi=200, progress=True):
+                    track_group=5, language='ru', dpi=200, progress=True, video_frames=False):
     """Render paired drift/posterior maps, optional diffusion/weight maps and tracks.
 
     One shared scale per physical quantity across panels AND windows.
@@ -172,6 +173,8 @@ def plot_components(files_path_prefix, start_year, end_year, *, variable='sensib
         raise ValueError('language must be ru or en')
     anorm,bnorm = _norm_limits(paths,drift_limit,diffusion_limit,corrected_diffusion)
     dest = root/'Plots'/'Components'/Path(*parts)/('ru' if ru else 'en')
+    if video_frames:
+        dest = dest/'video_frames'
     if supported_only:
         dest = dest/'supported_only'
     dest.mkdir(parents=True,exist_ok=True)
@@ -179,23 +182,18 @@ def plot_components(files_path_prefix, start_year, end_year, *, variable='sensib
     for path in tqdm(selected,desc='Component maps',unit='window',disable=not progress):
         with np.load(path,allow_pickle=False) as data:
             day = str(data['endpoint_date'].item())
-            since = str(data['window_first_date'].item())
             water = data['water_mask'].astype(bool)
-            n_supported = int(data['supported'].sum())
-            name = NAMES[variable][int(ru)]
-            caption = (f'{name} — {since} → {day}\nГруппы с поддержкой двух компонент: {n_supported}/{n_bins}' if ru else
-                       f'{name} — {since} → {day}\nGroups supporting two components: {n_supported}/{n_bins}')
             results.append(_panel_figure(dest/f'Drift_{day}.png', water,
                 _masked_components(data,'A',supported_only), _masked_components(data,'Posterior',supported_only),
                 'Дрейф A' if ru else 'Drift A', 'Вероятность r' if ru else 'Posterior r', anorm,
-                top_cmap=DRIFT_CMAP, caption=caption, ru=ru,dpi=dpi))
+                top_cmap=DRIFT_CMAP, caption=date.fromisoformat(day).strftime("%d.%m.%Y"), ru=ru,dpi=dpi, video_frames=video_frames))
             if plot_diffusion:
                 key = 'B_corrected' if corrected_diffusion else 'B'
                 suffix = '_corrected' if corrected_diffusion else ''
                 results.append(_panel_figure(dest/f'Diffusion{suffix}_{day}.png', water,
                     _masked_components(data,key,supported_only), _masked_components(data,'P',supported_only),
                     'Диффузия B' if ru else 'Diffusion B', 'Вес p' if ru else 'Mixture weight p', bnorm,
-                    top_cmap='plasma',caption=caption,ru=ru,dpi=dpi))
+                    top_cmap='plasma',caption=date.fromisoformat(day).strftime("%d.%m.%Y"),ru=ru,dpi=dpi, video_frames=video_frames))
     if track_group is not None:
         suffix = '_corrected' if corrected_diffusion else ''
         results.append(_plot_tracks(selected,dest/f'Tracks_group{track_group}{suffix}_{lo}_{hi}.png',track_group-1,

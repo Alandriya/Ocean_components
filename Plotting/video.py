@@ -102,3 +102,13 @@ def create_video(files_path_prefix: str, tmp_dir: str, pic_prefix: str, name: st
     # ])
 
     return
+
+
+def frame_date(timestamp, *, hourly=False):
+    """Format the actual observation date, optionally including the hour."""
+    return timestamp.strftime("%d.%m.%Y %H:%M" if hourly else "%d.%m.%Y")
+
+
+def frame_directory(video_frames):
+    """Keep labeled video frames separate from publication images."""
+    return ("video_frames",) if video_frames else ()

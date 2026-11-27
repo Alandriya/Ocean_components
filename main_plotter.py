@@ -35,6 +35,9 @@ def main():
     plot_language = "ru"
     set_plot_language(plot_language)
 
+    # Add panel captions and an observation date to geographic video frames.
+    video_frames = False
+
     # Monochrome for stationary maps/regions and individual copula contours.
     monochrome = False
     # monochrome = True  # Black-and-white versions for printing.
@@ -244,18 +247,18 @@ def main():
             compute_frequencies=spatial_compute_frequencies,
             isoline_levels=spatial_isoline_levels,
             second_anomaly_files=spatial_second_anomaly_files,
-            figures=chosen, monochrome=monochrome,
+            figures=chosen, monochrome=monochrome, video_frames=video_frames,
         )
     if task == "variables":
         return plot_variables(
             files_path_prefix, start_year, end_year,
-            start=first_day, stop=last_day,
+            start=first_day, stop=last_day, video_frames=video_frames,
         )
     if task == "eigenvalues":
         return plot_spectral_modes(
             files_path_prefix, start_year, end_year,
             names=spectral_names, first_day=first_day,
-            last_day=last_day, n_bins=n_bins, n_modes=n_modes,
+            last_day=last_day, n_bins=n_bins, n_modes=n_modes, video_frames=video_frames,
         )
     if task == "trends":
         from Plotting.trend_plots import plot_trends
@@ -276,7 +279,7 @@ def main():
             identity = dict(pair=spectral_pair)
         return plot_mean_year(
             files_path_prefix, mean_year_source, mean_year_name,
-            start_year, end_year, **identity,
+            start_year, end_year, video_frames=video_frames, **identity,
         )
     if task == "components":
         from Plotting.component_plots import plot_components
@@ -288,7 +291,7 @@ def main():
             plot_diffusion=components_plot_diffusion, corrected_diffusion=components_corrected_diffusion,
             supported_only=components_supported_only, drift_limit=components_drift_limit,
             diffusion_limit=components_diffusion_limit, track_group=components_track_group,
-            language=plot_language, dpi=components_dpi, progress=components_progress,
+            language=plot_language, dpi=components_dpi, progress=components_progress, video_frames=video_frames,
         )
     if task == "components_diagnostics":
         from Plotting.component_plots import plot_component_diagnostics
@@ -309,11 +312,11 @@ def main():
     if task == "coefficient_frames":
         return coefficient_frames(
             files_path_prefix, names, n_bins_2d, method,
-            coefficient, start=first_day, stop=last_day,
+            coefficient, start=first_day, stop=last_day, video_frames=video_frames,
         )
     if task == "videos":
         return coefficient_video(
-            files_path_prefix, names, method, coefficient, fps=fps,
+            files_path_prefix, names, method, coefficient, fps=fps, video_frames=video_frames,
         )
     if task == "stationary":
         return plot_stationary_distributions(

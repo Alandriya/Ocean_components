@@ -14,7 +14,7 @@ width = 181
 height = 161
 
 
-def plot_mean_year_2d(files_path_prefix: str, coeff_name: str):
+def plot_mean_year_2d(files_path_prefix: str, coeff_name: str, *, video_frames=False):
     """
     Plots 2x3 graphics of "mean year" of coefficient coeff_name
     :param files_path_prefix: path to the working directory
@@ -24,12 +24,18 @@ def plot_mean_year_2d(files_path_prefix: str, coeff_name: str):
     mean_year = np.load(files_path_prefix + f'Mean_year/{coeff_name}.npy')
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
     # fig.suptitle(f'{coeff_name} mean year', fontsize=30)
-    axs[0][0].title.set_text('February, 15')
-    axs[0][1].title.set_text('April, 15')
-    axs[0][2].title.set_text('June, 15')
-    axs[1][0].title.set_text('August, 15')
-    axs[1][1].title.set_text('October, 15')
-    axs[1][2].title.set_text('December, 15')
+    if video_frames:
+        axs[0][0].title.set_text('February, 15')
+    if video_frames:
+        axs[0][1].title.set_text('April, 15')
+    if video_frames:
+        axs[0][2].title.set_text('June, 15')
+    if video_frames:
+        axs[1][0].title.set_text('August, 15')
+    if video_frames:
+        axs[1][1].title.set_text('October, 15')
+    if video_frames:
+        axs[1][2].title.set_text('December, 15')
     img = [None for _ in range(6)]
     cax = [None for _ in range(6)]
     days = [(datetime.datetime(1979, i*2, 15) - datetime.datetime(1979, 1, 2)).days for i in range(1, 7)]
@@ -98,9 +104,11 @@ def plot_mean_year_2d(files_path_prefix: str, coeff_name: str):
             fig.colorbar(img[i], cax=cax[i], orientation='vertical')
     elif coeff_name == 'C_0' or coeff_name == 'C_1':
         if coeff_name == 'C_0':
-            fig.suptitle(f'A_sens - A_lat correlation mean year', fontsize=30)
+            if video_frames:
+                fig.suptitle("15.02 – 15.12", fontsize=20)
         else:
-            fig.suptitle(f'B11 - B22 correlation mean year', fontsize=30)
+            if video_frames:
+                fig.suptitle("15.02 – 15.12", fontsize=20)
         cmap = get_continuous_cmap(['#4073ff', '#ffffff', '#ffffff', '#db4035'], [0, 0.4, 0.6, 1])
         cmap.set_bad('darkgreen', 1.0)
         for i in range(6):
@@ -130,7 +138,7 @@ def plot_mean_year_1d(files_path_prefix: str,
                       flux_type: str = 'sensible',
                       method: str = 'Kor',
                       language: str = 'eng',
-                      ):
+                       *, video_frames=False):
     """
     Draws 2x3 plots with maps for 15.02, 15.04, 15.06, 15.10 and 15.12 from mean_year array (it is assumed that year is
     365 days long, the dates are shifts from the 1st day of the year, not accurate dates)
@@ -147,20 +155,33 @@ def plot_mean_year_1d(files_path_prefix: str,
 
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
     if language == 'rus':
-        axs[0][0].title.set_text('15 февраля')
-        axs[0][1].title.set_text('15 апреля')
-        axs[0][2].title.set_text('15 июня')
-        axs[1][0].title.set_text('15 августа')
-        axs[1][1].title.set_text('15 октября')
-        axs[1][2].title.set_text('15 декабря')
+        if video_frames:
+            axs[0][0].title.set_text('15 февраля')
+        if video_frames:
+            axs[0][1].title.set_text('15 апреля')
+        if video_frames:
+            axs[0][2].title.set_text('15 июня')
+        if video_frames:
+            axs[1][0].title.set_text('15 августа')
+        if video_frames:
+            axs[1][1].title.set_text('15 октября')
+        if video_frames:
+            axs[1][2].title.set_text('15 декабря')
     else:
-        fig.suptitle(f'{coeff_type} {flux_type} mean year', fontsize=30)
-        axs[0][0].title.set_text('February, 15')
-        axs[0][1].title.set_text('April, 15')
-        axs[0][2].title.set_text('June, 15')
-        axs[1][0].title.set_text('August, 15')
-        axs[1][1].title.set_text('October, 15')
-        axs[1][2].title.set_text('December, 15')
+        if video_frames:
+            fig.suptitle(f"{start_year}–{end_year - 1}", fontsize=20)
+        if video_frames:
+            axs[0][0].title.set_text('February, 15')
+        if video_frames:
+            axs[0][1].title.set_text('April, 15')
+        if video_frames:
+            axs[0][2].title.set_text('June, 15')
+        if video_frames:
+            axs[1][0].title.set_text('August, 15')
+        if video_frames:
+            axs[1][1].title.set_text('October, 15')
+        if video_frames:
+            axs[1][2].title.set_text('December, 15')
 
     img = [None for _ in range(6)]
     cax = [None for _ in range(6)]
@@ -223,7 +244,7 @@ def plot_mean_year_1d_difference(files_path_prefix: str,
                                  end_year: int = 2019,
                                  coeff_type: str = 'A',
                                  flux_type: str = 'sensible',
-                                 ):
+                                  *, video_frames=False):
     """
     Draws 2x3 plots with maps for 15.02, 15.04, 15.06, 15.10 and 15.12 from mean_year array, which is assumed to be an
     absolute difference between two other mean years arrays
@@ -240,13 +261,20 @@ def plot_mean_year_1d_difference(files_path_prefix: str,
     coeff_max = np.nanmax(mean_year)
 
     fig, axs = plt.subplots(2, 3, figsize=(20, 10))
-    fig.suptitle(f'{coeff_type} absolute differences {flux_type} mean year', fontsize=30)
-    axs[0][0].title.set_text('February, 15')
-    axs[0][1].title.set_text('April, 15')
-    axs[0][2].title.set_text('June, 15')
-    axs[1][0].title.set_text('August, 15')
-    axs[1][1].title.set_text('October, 15')
-    axs[1][2].title.set_text('December, 15')
+    if video_frames:
+        fig.suptitle(f"{start_year}–{end_year - 1}", fontsize=20)
+    if video_frames:
+        axs[0][0].title.set_text('February, 15')
+    if video_frames:
+        axs[0][1].title.set_text('April, 15')
+    if video_frames:
+        axs[0][2].title.set_text('June, 15')
+    if video_frames:
+        axs[1][0].title.set_text('August, 15')
+    if video_frames:
+        axs[1][1].title.set_text('October, 15')
+    if video_frames:
+        axs[1][2].title.set_text('December, 15')
     img = [None for _ in range(6)]
     cax = [None for _ in range(6)]
     days = [(datetime.datetime(start_year, i * 2, 15) - datetime.datetime(start_year, 1, 2)).days for i in range(1, 7)]

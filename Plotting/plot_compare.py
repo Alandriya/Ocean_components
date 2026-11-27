@@ -45,7 +45,7 @@ def plot_typical_points_difference(files_path_prefix: str,
                                    flux_type: str,
                                    coeff_type: str,
                                    height: int = 100,
-                                   width: int = 100, ):
+                                   width: int = 100,  *, video_frames=False):
     """Plot typical points difference for the plot compare workflow."""
     mask_map = np.array(mask, dtype=float).reshape((height, width))
     mask_map[mask_map == 0] = np.nan
@@ -66,9 +66,9 @@ def plot_typical_points_difference(files_path_prefix: str,
 
     date_start = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
     date_end = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
-    fig.suptitle(
-        f"{coeff_type} coeff - {flux_type} difference\n {date_start.strftime('%d.%m.%Y')}-{date_end.strftime('%d.%m.%Y')}",
-        fontsize=26, fontweight='bold')
+    if video_frames:
+        axs.set_title(f"{coeff_type} — {flux_type}: absolute difference")
+        fig.suptitle(f"{date_start:%d.%m.%Y} – {date_end:%d.%m.%Y}", fontsize=20)
 
     cmap = get_continuous_cmap(['#ffffff', '#ff0000'], [0, 1])
     cmap.set_bad('darkgreen', 1.0)
@@ -190,7 +190,7 @@ def plot_synthetic_flux(files_path_prefix: str,
                         time_start: int,
                         time_end: int,
                         a_array: np.ndarray = None,
-                        b_array: np.ndarray = None):
+                        b_array: np.ndarray = None, *, video_frames=False):
     """
     Plots 3 maps for synthetic flux X, A and B coefficients for erery time step in (time_start, time_end)
     :param files_path_prefix: path to the working directory
@@ -219,7 +219,9 @@ def plot_synthetic_flux(files_path_prefix: str,
         cax = divider.append_axes('right', size='5%', pad=0.3)
 
         for t in tqdm.tqdm(range(time_start, time_end)):
-            fig.suptitle(f'X \n t = {t}', fontsize=30)
+            if video_frames:
+                axs.set_title("Synthetic field X")
+                fig.suptitle(f"t = {t}", fontsize=20)
             if img is None:
                 img = axs.imshow(flux[t],
                                  interpolation='none',
@@ -234,9 +236,12 @@ def plot_synthetic_flux(files_path_prefix: str,
     else:
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
         img_flux, img_a, img_b = None, None, None
-        axs[0].set_title(f'X', fontsize=20)
-        axs[1].set_title(f'a', fontsize=20)
-        axs[2].set_title(f'b', fontsize=20)
+        if video_frames:
+            axs[0].set_title(f'X', fontsize=20)
+        if video_frames:
+            axs[1].set_title(f'a', fontsize=20)
+        if video_frames:
+            axs[2].set_title(f'b', fontsize=20)
 
         flux_max = np.nanmax(flux)
         flux_min = np.nanmin(flux)
@@ -262,7 +267,8 @@ def plot_synthetic_flux(files_path_prefix: str,
 
         for t in tqdm.tqdm(range(time_start, time_end)):
             # fig.suptitle(f'Synthetic data, t = {t}', fontsize=30)
-            fig.suptitle(f't = {t}', fontsize=30)
+            if video_frames:
+                fig.suptitle(f"t = {t}", fontsize=20)
             if img_flux is None:
                 img_flux = axs[0].imshow(flux[t],
                                          interpolation='none',
@@ -382,7 +388,7 @@ def plot_methods_compare(files_path_prefix: str,
                          coeff_Kor: np.ndarray,
                          flux_type: str,
                          coeff_type: str,
-                         start_index: int = 0):
+                         start_index: int = 0, *, video_frames=False):
     """
     Plots maps for real data coefficients estimates with offset start_index
     for both Korolev and Belyaev methods for coeff_type
@@ -431,8 +437,10 @@ def plot_methods_compare(files_path_prefix: str,
                            vmin=coeff_min,
                            vmax=coeff_max)
 
-    axs[0].set_title(f'Непараметрический метод', fontsize=16)
-    axs[1].set_title(f'Полупараметрический метод', fontsize=16)
+    if video_frames:
+        axs[0].set_title(f'Непараметрический метод', fontsize=16)
+    if video_frames:
+        axs[1].set_title(f'Полупараметрический метод', fontsize=16)
     for i in range(2):
         fig.colorbar(img[i], cax=cax[i], orientation='vertical')
     fig.tight_layout()
@@ -444,7 +452,7 @@ def plot_synthetic_difference_compare(files_path_prefix: str,
                                       time_start: int,
                                       time_end: int,
                                       coeff_array: np.array,
-                                      coeff_type: str):
+                                      coeff_type: str, *, video_frames=False):
     """
     Plots 3 maps: 2 for absolute difference with real synthetic data for coefficients estimates for time steps in
     (time_start, time_end) for both Korolev and Belyaev methods for coeff_type and 1 for the absolute difference between
@@ -486,7 +494,8 @@ def plot_synthetic_difference_compare(files_path_prefix: str,
         else:
             coeff_Bel = np.load(files_path_prefix + f'Synthetic/coeff_Bel/{coeff_string}')
 
-        fig.suptitle(f'{coeff_type} day {t}', fontsize=30)
+        if video_frames:
+            fig.suptitle(f"t = {t}", fontsize=20)
 
         diff_Bel = coeff_Bel - coeff_array[t]
         rmse_Bel = math.sqrt(sum(diff_Bel.flatten() ** 2))
@@ -502,9 +511,12 @@ def plot_synthetic_difference_compare(files_path_prefix: str,
         coeff_min = np.nanmin((coeff_min, np.nanmin(coeff_Bel)))
 
         cmap = plt.get_cmap('Reds')
-        axs[0].set_title(f'|Real - Pointwise|, rmse_pointwise = {rmse_Bel:.1f}', fontsize=15)
-        axs[1].set_title(f'|Real - EM|, rmse_EM = {rmse_Kor:.1f}', fontsize=15)
-        axs[2].set_title(f'|Pointwise - EM|, rmse_difference= {rmse_diff:.1f}', fontsize=15)
+        if video_frames:
+            axs[0].set_title(f'|Real - Pointwise|, rmse_pointwise = {rmse_Bel:.1f}', fontsize=15)
+        if video_frames:
+            axs[1].set_title(f'|Real - EM|, rmse_EM = {rmse_Kor:.1f}', fontsize=15)
+        if video_frames:
+            axs[2].set_title(f'|Pointwise - EM|, rmse_difference= {rmse_diff:.1f}', fontsize=15)
 
         if img[0] is None:
             img[0] = axs[0].imshow(np.abs(coeff_array[t] - coeff_Bel),
@@ -576,7 +588,7 @@ def plot_map_compare(files_path_prefix: str,
                      flux_type: str,
                      coeff_type: str,
                      radius: int,
-                     start_pic_num: int = 0):
+                     start_pic_num: int = 0, *, video_frames=False):
     """Plot map compare for the plot compare workflow."""
     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
     img_values, img_difference = None, None
@@ -585,11 +597,13 @@ def plot_map_compare(files_path_prefix: str,
     # diff_array = np.load(files_path_prefix + f'Components/{flux_type}/{coeff_type}_{time_start}-{time_end}_difference.npy')
     # data_array *= 2
 
-    axs[0].set_title(f'{coeff_type} coeff Kor - {flux_type}', fontsize=20)
+    if video_frames:
+        axs[0].set_title(f'{coeff_type} coeff Kor - {flux_type}', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_values = divider.append_axes('right', size='5%', pad=0.3)
 
-    axs[1].set_title(f'Bel-Kor difference', fontsize=20)
+    if video_frames:
+        axs[1].set_title(f'Bel-Kor difference', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_difference = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -616,7 +630,8 @@ def plot_map_compare(files_path_prefix: str,
     pic_num = start_pic_num
     for t in tqdm.tqdm(range(time_start, time_end - 1)):
         date = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=start_pic_num + (t - time_start))
-        fig.suptitle(f'{coeff_type} coeff\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            fig.suptitle(date.strftime("%d.%m.%Y"), fontsize=20)
 
         if flux_type == 'sensible':
             a_arr = np.load(files_path_prefix + f'Coeff_data/{t}_A_sens.npy')

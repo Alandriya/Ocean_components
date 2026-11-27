@@ -70,7 +70,7 @@ def plot_predictions(files_path_prefix: str,
                      start_day: datetime.datetime,
                      mask: np.ndarray,
                      cfg: None,
-                     postfix_simple=True):
+                     postfix_simple=True, *, video_frames=False):
     # print('Plotting')
     # (5, 3, 81, 91)
     # sns.set_style("whitegrid")
@@ -175,9 +175,12 @@ def plot_predictions(files_path_prefix: str,
             ytest = Y_test[t, k, :, :]
             difference = np.array(np.abs(ypredict - ytest))
             day_str = (start_day + datetime.timedelta(days=t)).strftime('%d.%m.%Y')
-            axs[0][t].set_title(f'{day_str}, real values', fontsize=16)
-            axs[1][t].set_title(f'{day_str}, predictions', fontsize=16)
-            axs[2][t].set_title(f'{day_str}, absolute difference', fontsize=16)
+            if video_frames:
+                axs[0][t].set_title(f'{day_str}, real values', fontsize=16)
+            if video_frames:
+                axs[1][t].set_title(f'{day_str}, predictions', fontsize=16)
+            if video_frames:
+                axs[2][t].set_title(f'{day_str}, absolute difference', fontsize=16)
             for i in range(3):
                 divider = make_axes_locatable(axs[i][t])
                 cax[i][t] = divider.append_axes('right', size='5%', pad=0.3)
@@ -208,11 +211,14 @@ def plot_predictions(files_path_prefix: str,
                 fig.colorbar(img[i][t], cax=cax[i][t], orientation='vertical')
 
         if k == 0:
-            fig.suptitle(f'{model_name}, Flux', fontsize=30)
+            if video_frames:
+                fig.suptitle(f"{start_day:%d.%m.%Y} – {start_day + datetime.timedelta(days=days_prediction-1):%d.%m.%Y}", fontsize=20)
         elif k == 1:
-            fig.suptitle(f'{model_name}, SST', fontsize=30)
+            if video_frames:
+                fig.suptitle(f"{start_day:%d.%m.%Y} – {start_day + datetime.timedelta(days=days_prediction-1):%d.%m.%Y}", fontsize=20)
         else:
-            fig.suptitle(f'{model_name}, Pressure', fontsize=30)
+            if video_frames:
+                fig.suptitle(f"{start_day:%d.%m.%Y} – {start_day + datetime.timedelta(days=days_prediction-1):%d.%m.%Y}", fontsize=20)
         plt.tight_layout()
         if postfix_simple:
             if k == 0:
@@ -323,7 +329,7 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
                         start_pic_num: int = 1,
                         frequency: int = 1,
-                        ):
+                         *, video_frames=False):
     """Plot flux SST press for the neural network plotter workflow."""
     sns.set_style("whitegrid")
 
@@ -358,17 +364,20 @@ def plot_flux_sst_press(files_path_prefix: str,
     cmap_press.set_bad('lightgreen', 1.0)
 
     # axs[0].set_title(f'Sum flux', fontsize=20)
-    axs[0].set_title(f'Flux-SST', fontsize=20)
+    if video_frames:
+        axs[0].set_title(f'Flux-SST', fontsize=20)
     divider = make_axes_locatable(axs[0])
     cax_flux = divider.append_axes('right', size='5%', pad=0.3)
 
     # axs[1].set_title(f'SST', fontsize=20)
-    axs[1].set_title(f'SST-Pressure', fontsize=20)
+    if video_frames:
+        axs[1].set_title(f'SST-Pressure', fontsize=20)
     divider = make_axes_locatable(axs[1])
     cax_sst = divider.append_axes('right', size='5%', pad=0.3)
 
     # axs[2].set_title(f'Pressure', fontsize=20)
-    axs[2].set_title(f'Flux-Pressure', fontsize=20)
+    if video_frames:
+        axs[2].set_title(f'Flux-Pressure', fontsize=20)
     divider = make_axes_locatable(axs[2])
     cax_press = divider.append_axes('right', size='5%', pad=0.3)
 
@@ -384,6 +393,8 @@ def plot_flux_sst_press(files_path_prefix: str,
         # if frequency == 1:
         date = start_date + datetime.timedelta(days=(t - start))
         date2 = date + datetime.timedelta(days=7)
+        if video_frames:
+            fig.suptitle(f"{date:%d.%m.%Y} – {date2:%d.%m.%Y}", fontsize=20)
         # fig.suptitle(f'Correlations {date.strftime("%Y-%m-%d")} - {date2.strftime("%Y-%m-%d")}', fontsize=30)
 
         # elif frequency == 24:

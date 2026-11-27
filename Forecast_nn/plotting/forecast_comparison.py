@@ -49,7 +49,7 @@ def _date_labels(data, sample_pos, out_len):
     return [base + timedelta(days=start + k * stride) for k in range(out_len)]
 
 
-def draw(truth, forecast, mask, title, output, vmin, vmax, error_max, dates=None, dpi=180):
+def draw(truth, forecast, mask, title, output, vmin, vmax, error_max, dates=None, dpi=180, *, video_frames=False):
     """Draw the requested forecast comparison data using the supplied inputs."""
     out_len = truth.shape[0]
     cmap_values = plt.get_cmap('seismic').copy(); cmap_values.set_bad('#90EE90')
@@ -60,19 +60,21 @@ def draw(truth, forecast, mask, title, output, vmin, vmax, error_max, dates=None
 
     fig, axes = plt.subplots(3, out_len, figsize=(4.2 * out_len, 10.5), squeeze=False)
     fig.subplots_adjust(left=0.04, right=0.985, bottom=0.055, top=0.89, wspace=0.25, hspace=0.27)
-    fig.suptitle(title, fontsize=19, fontweight='bold', y=0.975)
+    if video_frames and dates:
+        fig.suptitle(f'{dates[0]:%d.%m.%Y} – {dates[-1]:%d.%m.%Y}', fontsize=19, y=0.975)
     row_names = ('Реальные значения', 'Прогноз', 'Абсолютная разность')
     rows = (truth, forecast, error)
 
     for r, values in enumerate(rows):
-        axes[r, out_len // 2].set_title(row_names[r], fontsize=13, fontweight='bold', pad=10)
         for t in range(out_len):
             field = np.ma.array(values[t], mask=~mask)
             cmap, norm = (cmap_values, value_norm) if r < 2 else (cmap_error, error_norm)
             im = axes[r, t].imshow(field, cmap=cmap, norm=norm, origin='upper', aspect='auto', interpolation='nearest')
-            if r == 0 and dates:
-                axes[r, t].text(0.5, 1.02, dates[t].strftime('%d.%m.%Y'), transform=axes[r, t].transAxes,
-                                ha='center', va='bottom', fontsize=9)
+            if video_frames:
+                label = row_names[r]
+                if dates:
+                    label += f"\n{dates[t]:%d.%m.%Y}"
+                axes[r, t].set_title(label, fontsize=10)
             axes[r, t].tick_params(labelsize=8)
             cb = fig.colorbar(im, ax=axes[r, t], fraction=0.046, pad=0.055)
             cb.ax.tick_params(labelsize=8)
@@ -95,6 +97,7 @@ def main():
     p.add_argument('--vmax', type=float, default=None)
     p.add_argument('--error-max', type=float, default=None)
     p.add_argument('--dpi', type=int, default=180)
+    p.add_argument('--video-frames', action='store_true')
     args = p.parse_args()
 
     data = np.load(args.input, allow_pickle=True)
@@ -125,10 +128,12 @@ def main():
     sample_id = int(data['sample_id'][i]) if 'sample_id' in data.files else i
     output_dir = Path(args.output_dir) if args.output_dir else Path(args.input).parent
 
+    if args.video_frames:
+        output_dir = output_dir / "video_frames"
     for method in selected:
         title = f'{variable}: {method}\n{dates[0].strftime("%d.%m.%Y")} - {dates[-1].strftime("%d.%m.%Y")}'
         output = output_dir / f'forecast_comparison_{method}_{variable}_sample{sample_id}.png'
-        draw(truth, forecasts[method], mask, title, output, vmin, vmax, error_max, dates, args.dpi)
+        draw(truth, forecasts[method], mask, title, output, vmin, vmax, error_max, dates, args.dpi, video_frames=args.video_frames)
         print(f'Saved: {output}')
 
 

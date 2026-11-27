@@ -21,7 +21,7 @@ def plot_probabilistic_forecast_compare(files_path_prefix: str,
                                 time_end: int,
                                 flux_type: str,
                                 offset: int = 0,
-                                ):
+                                 *, video_frames=False):
     """Plot probabilistic forecast compare for the plot forecasts workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/Probabilistic'):
         os.mkdir(files_path_prefix + f'videos/Forecast/Probabilistic')
@@ -38,14 +38,17 @@ def plot_probabilistic_forecast_compare(files_path_prefix: str,
         flux_type_rus = 'явного'
     else:
         flux_type_rus = 'скрытого'
-    fig.suptitle(f'Прогноз {flux_type_rus} потока\n в интервале {day_start.strftime("%d.%m.%Y")} - {day_end.strftime("%d.%m.%Y")}\n',
-                 fontsize=28, fontweight='bold')
+    if video_frames:
+        fig.suptitle(f"{day_start:%d.%m.%Y} – {day_end - datetime.timedelta(days=1):%d.%m.%Y}", fontsize=20)
 
     # create 3x1 subfigs
     subfigs = fig.subfigures(nrows=3, ncols=1)
-    subfigs[0].suptitle(f'Реальные значения', fontsize=18, fontweight='bold')
-    subfigs[1].suptitle(f'Прогноз', fontsize=18, fontweight='bold')
-    subfigs[2].suptitle(f'Абсолютная разность', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[0].suptitle(f'Реальные значения', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[1].suptitle(f'Прогноз', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[2].suptitle(f'Абсолютная разность', fontsize=18, fontweight='bold')
 
     coeff_max = np.max([np.nanmax(actual_array), np.nanmax(prediction)])
     coeff_min = np.min([np.nanmin(actual_array), np.nanmin(prediction)])
@@ -100,7 +103,7 @@ def plot_probabilistic_forecast(files_path_prefix: str,
                                 time_end: int,
                                 flux_type: str,
                                 offset: int = 0,
-                                ):
+                                 *, video_frames=False):
     """Plot probabilistic forecast for the plot forecasts workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/Probabilistic'):
         os.mkdir(files_path_prefix + f'videos/Forecast/Probabilistic')
@@ -116,14 +119,17 @@ def plot_probabilistic_forecast(files_path_prefix: str,
         flux_type_rus = 'явного'
     else:
         flux_type_rus = 'скрытого'
-    fig.suptitle(f'Прогноз {flux_type_rus} потока\n в интервале {day_start.strftime("%d.%m.%Y")} - {day_end.strftime("%d.%m.%Y")}\n',
-                 fontsize=28, fontweight='bold')
+    if video_frames:
+        fig.suptitle(f"{day_start:%d.%m.%Y} – {day_end - datetime.timedelta(days=1):%d.%m.%Y}", fontsize=20)
 
     # create 3x1 subfigs
     subfigs = fig.subfigures(nrows=3, ncols=1)
-    subfigs[0].suptitle(f'Граница дов. интервала уровня 0.05', fontsize=18, fontweight='bold')
-    subfigs[1].suptitle(f'Прогноз', fontsize=18, fontweight='bold')
-    subfigs[2].suptitle(f'Граница дов. интервала уровня 0.95', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[0].suptitle(f'Граница дов. интервала уровня 0.05', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[1].suptitle(f'Прогноз', fontsize=18, fontweight='bold')
+    if video_frames:
+        subfigs[2].suptitle(f'Граница дов. интервала уровня 0.95', fontsize=18, fontweight='bold')
 
     coeff_max = np.max([np.nanmax(pred_q95), np.nanmax(prediction)])
     coeff_min = np.min([np.nanmin(pred_q05), np.nanmin(prediction)])

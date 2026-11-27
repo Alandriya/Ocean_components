@@ -492,7 +492,7 @@ def plot_area_density(cache, variable, period, output_dir, *, language="en", dpi
 @with_plot_language
 def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
                           dpi=300, levels=None, second_map=None, second_label=None,
-                          monochrome=False):
+                          monochrome=False, video_frames=False):
     """Delta X = ERA5 time mean minus a *model* reference mean.
 
     Optional second_map is an explicitly supplied 2D anomaly (H,W) NPY. It is
@@ -605,7 +605,9 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
                 legend.append(Line2D([0], [0], color="#5453b0", ls="--", lw=2,
                                      label=second_label or t["method2"]))
         _map_style(ax, lon, lat)
-        # ax.set_title(f"{t['isolines']}: {t.get(variable, variable)} ({period[0]}–{period[1]})")
+        if video_frames:
+            ax.set_title(f"{t['isolines']}: {t.get(variable, variable)}")
+            fig.suptitle(f"{period[0]}–{period[1] - 1}")
         # Isolines: ERA5 mean minus stationary model mean.
         ax.text(0.015, 0.975, fr"$\Delta X=\overline{{X}}-\mu_{{ref}}$, $\mu_{{ref}}={mu:.2f}$ W m$^{{-2}}$",
                 fontsize=9, transform=ax.transAxes,
@@ -619,7 +621,7 @@ def plot_anomaly_isolines(cache, variable, period, output_dir, *, language="en",
 
 @with_plot_language
 def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=300,
-                   monochrome=False):
+                   monochrome=False, video_frames=False):
     """ERA5 map at map_date, classified by stationary quantile thresholds."""
     t = LABELS[language]
     with np.load(cache, allow_pickle=False) as data:
@@ -659,7 +661,9 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
             _map_style(ax, lon, lat)
             cb = fig.colorbar(artist, ax=ax, ticks=np.arange(1, 6), fraction=.04, pad=.018)
             cb.ax.set_yticklabels([f"{t['area']} {k}" for k in range(1, 6)])
-        # ax.set_title(f"{t['classes']}: {t.get(variable, variable)} — {map_date}")
+        if video_frames:
+            ax.set_title(f"{t['classes']}: {t.get(variable, variable)}")
+            fig.suptitle(str(map_date))
         # Spatial classes defined by stationary density quantile thresholds.
         # Retain numerical thresholds in JSON/NPZ rather than obscuring map labels.
         path = Path(output_dir) / f"{variable}_classes_{map_date}_{language}{'_bw' if monochrome else ''}.png"
@@ -669,7 +673,7 @@ def plot_class_map(cache, variable, map_date, output_dir, *, language="en", dpi=
 
 
 @with_plot_language
-def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en", dpi=300):
+def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en", dpi=300, video_frames=False):
     """Optional supplementary map: local frequency of regions 1/5 over the period."""
     with np.load(cache, allow_pickle=False) as data:
         if "frequencies" not in data.files:
@@ -683,8 +687,12 @@ def plot_tail_frequencies(cache, variable, period, output_dir, *, language="en",
                             vmin=0, vmax=max(0.05, min(1, float(np.nanpercentile(freq[k], 99)))),
                             origin="upper", extent=MAP_EXTENT, aspect="auto")
             _map_style(ax, *_lon_lat(ocean.shape))
-            # ax.set_title(f"{variable}: region {k+1} frequency, {period[0]}–{period[1]}")
+            if video_frames:
+                t = LABELS[language]
+                ax.set_title(f"{t.get(variable, variable)} — {t['area']} {k+1}")
             fig.colorbar(img, ax=ax, shrink=.78, label="Fraction of valid days")
+        if video_frames:
+            fig.suptitle(f"{period[0]}–{period[1] - 1}")
         output = Path(output_dir) / f"{variable}_tail_frequency_{language}.png"
         return _save(fig, output, dpi)
     finally:
@@ -699,13 +707,16 @@ def plot_stationary_spatial(files_path_prefix, names=("sensible", "latent"),
                          chunk_days=32, language="en", dpi=300,
                          compute_frequencies=False,
                          isoline_levels=None, second_anomaly_files=None,
-                         figures=("isolines", "regions", "classes"), monochrome=False):
+                         figures=("isolines", "regions", "classes"), monochrome=False, video_frames=False):
     """Render spatial diagnostics from valid precomputed caches only."""
     if language not in LABELS:
         raise ValueError("language must be 'en' or 'ru'")
     root = Path(files_path_prefix)
     period = (int(start_year), int(end_year))
     output_dir = _figure_directory(root, period)
+    if video_frames:
+        output_dir = output_dir / "video_frames"
+        output_dir.mkdir(parents=True, exist_ok=True)
     caches = prepare_stationary_diagnostics(root, tuple(names), *period,
                                          regions_period=regions_period, map_date=map_date,
                                          density_source=density_source,
@@ -727,7 +738,7 @@ def plot_stationary_spatial(files_path_prefix, names=("sensible", "latent"),
             outputs.append(plot_anomaly_isolines(cache, name, period, output_dir,
                                                  language=language, dpi=dpi,
                                                  levels=levels, second_map=other,
-                                                 monochrome=monochrome))
+                                                 monochrome=monochrome, video_frames=video_frames))
         if "regions" in figures:
             outputs.append(plot_area_density(cache, name, regions_period, output_dir,
                                              language=language, dpi=dpi,
@@ -735,17 +746,17 @@ def plot_stationary_spatial(files_path_prefix, names=("sensible", "latent"),
         if "classes" in figures:
             outputs.append(plot_class_map(cache, name, map_date, output_dir,
                                           language=language, dpi=dpi,
-                                          monochrome=monochrome))
+                                          monochrome=monochrome, video_frames=video_frames))
         if compute_frequencies:
             outputs.append(plot_tail_frequencies(cache, name, period, output_dir,
-                                                  language=language, dpi=dpi))
+                                                  language=language, dpi=dpi, video_frames=video_frames))
     manifest = {
         "name": "Stationary spatial diagnostics", "period": list(period), "figure_language": language,
         "regions_period": list(regions_period), "map_date": map_date,
         "density_source_setting": density_source,
         "figures": [str(p) for p in outputs],
         "data_cache": {k: str(v) for k, v in caches.items()},
-        "monochrome": bool(monochrome),
+        "monochrome": bool(monochrome), "video_frames": bool(video_frames),
         "important_note": "Reference-relative anomalies; hybrid PDF is not the original FP solution.",
     }
     selector = "-".join(figures) + ("-frequencies" if compute_frequencies else "")

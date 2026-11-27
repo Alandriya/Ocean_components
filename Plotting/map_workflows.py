@@ -2,7 +2,8 @@
 
 Coefficient A frames default to a fixed, signed nonlinear colour scale,
 physical-value isolines and shared limits across the requested time interval.
-Other map workflows and other coefficient styles remain unchanged.
+The video_frames option adds localized panel captions and actual observation dates.
+The numerical color scales and source arrays are unchanged.
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ import numpy as np
 from Data_processing.io import BASE_DATE, load_field, start_label
 from Data_processing.mean_year import mean_year_parts, mean_year_paths
 from Plotting.paths import plot_path
+from Plotting.language import get_plot_language
+from Plotting.video import frame_date, frame_directory
 
 
 NAMES_EN = {
@@ -32,6 +35,7 @@ NAMES_EN = {
     "C": "Coefficient C",
     "F": "Coefficient F",
     "FS": "Coefficient FS",
+    "B_with_reg": "Coefficient B (regularized)",
 }
 
 NAMES_RU = {
@@ -45,6 +49,7 @@ NAMES_RU = {
     "C": "Коэффициент C",
     "F": "Коэффициент F",
     "FS": "Коэффициент FS",
+    "B_with_reg": "Коэффициент B (с регуляризацией)",
 }
 
 LON_BOUNDS = (-90.0, 0.0)
@@ -127,7 +132,7 @@ def _map_cmap(name=""):
 
 
 def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
-              show_x_labels=True, show_y_labels=True):
+              show_x_labels=True, show_y_labels=True, video_frames=False):
     """Draw one geographic grid with coordinate axes and matching colorbar."""
     masked = np.ma.masked_invalid(data)
     image = ax.imshow(
@@ -140,7 +145,8 @@ def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
         aspect="auto",
     )
     image.cmap.set_bad("lightgreen")
-    ax.set_title(title, fontsize=13, pad=7)
+    if video_frames:
+        ax.set_title(title, fontsize=13, pad=7)
     _format_geo_axis(ax, show_x_labels=show_x_labels, show_y_labels=show_y_labels)
     return image
 
@@ -170,20 +176,20 @@ def _mean_year_context(category, name, *, pair=None, method=None,
 
 
 def _plot_six_maps(data_cube, name, title, *, saved_to, dpi=300,
-                   cmap=None, vmin=None, vmax=None):
+                   cmap=None, vmin=None, vmax=None, video_frames=False,
+                   day_indices=(45, 104, 165, 226, 287, 348)):
     """Render six climatological snapshots in the lambdas/eigenvalues style."""
     fig, axes = plt.subplots(2, 3, figsize=(16, 9), squeeze=False,
                              constrained_layout=False)
     fig.subplots_adjust(left=0.04, right=0.968, bottom=0.065, top=0.90,
                         wspace=0.17, hspace=0.14)
-    day_indices = (45, 104, 165, 226, 287, 348)
     for i, (ax, index) in enumerate(zip(axes.flat, day_indices)):
         row, col = divmod(i, 3)
         image = _draw_map(
             ax,
             data_cube[index],
             _calendar_label(index),
-            name=name,
+            name=name, video_frames=video_frames,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
@@ -191,13 +197,16 @@ def _plot_six_maps(data_cube, name, title, *, saved_to, dpi=300,
             show_y_labels=(col == 0),
         )
         _add_colorbar(fig, ax, image)
-    fig.suptitle(title, fontsize=17, y=0.965)
+    if video_frames:
+        fig.suptitle(f"{_calendar_label(day_indices[0])} – {_calendar_label(day_indices[-1])}", fontsize=17, y=0.965)
+        for ax in axes.flat:
+            ax.set_title(f"{NAMES_RU.get(name, name) if get_plot_language() == 'ru' else NAMES_EN.get(name, name)} — {ax.get_title()}", fontsize=12)
     output = save_figure(fig, saved_to, dpi=dpi, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
     return output
 
 
-def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
+def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1, video_frames=False):
     """Create paired heat-flux and three-variable maps for requested days.
 
     Parameters
@@ -208,6 +217,8 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
         Period label used by raw field filenames.
     start, stop : int
         Zero-based half-open local observation interval.
+    video_frames : bool
+        Add variable captions and observation date; save to a separate directory.
     """
     root = Path(files_path_prefix)
     outputs = []
@@ -223,14 +234,15 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
             fig, axes = plt.subplots(1, len(names), figsize=(6.8 * len(names), 5.6), squeeze=False,
                                      constrained_layout=True)
             for ax, name, array in zip(axes[0], names, fields):
-                image = _draw_map(ax, array[day], NAMES_RU.get(name, name), name=name,
+                image = _draw_map(ax, array[day], (NAMES_RU if get_plot_language() == "ru" else NAMES_EN).get(name, name), name=name, video_frames=video_frames,
                                   show_y_labels=(ax is axes[0][0]))
                 _add_colorbar(fig, ax, image)
             timestamp = BASE_DATE + timedelta(days=start_label(start_year) - 1 + day)
-            fig.suptitle(f"Поля переменных — {timestamp:%d.%m.%Y}")
+            if video_frames:
+                fig.suptitle(frame_date(timestamp))
             outputs.append(save_figure(
                 fig,
-                plot_path(root, "Variables", folder, f"{start_year}-{end_year}_{day:05d}.png"),
+                plot_path(root, "Variables", folder, *frame_directory(video_frames), f"{start_year}-{end_year}_{day:05d}.png"),
                 dpi=200,
             ))
             plt.close(fig)
@@ -240,8 +252,11 @@ def plot_variables(files_path_prefix, start_year, end_year, *, start=0, stop=1):
 def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                    *, day_indices=(45, 104, 165, 226, 287, 348),
                    pair=None, method=None, n_bins_2d=None,
-                   variable=None, n_bins_1d=None):
-    """Display six representative calendar dates of an annual climatology."""
+                   variable=None, n_bins_1d=None, video_frames=False):
+    """Display six representative climatological dates; optionally label maps.
+
+    The video title is a calendar-day range, not a fabricated observation date.
+    """
     root = Path(files_path_prefix)
     identity = dict(pair=pair, method=method, n_bins_2d=n_bins_2d,
                     variable=variable, n_bins_1d=n_bins_1d)
@@ -276,22 +291,24 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
                     channel,
                     name,
                     channel_title,
-                    saved_to=plot_path(root, "Mean Year", *parts,
+                    saved_to=plot_path(root, "Mean Year", *parts, *frame_directory(video_frames),
                                        f"{name}_{start_year}-{end_year}{suffix}.png"),
                     cmap="Reds" if name == "B" else None,
                     vmin=-1.0 if name == "C" else None,
                     vmax=1.0 if name == "C" else None,
+                    video_frames=video_frames, day_indices=day_indices,
                 ))
         else:
             outputs.append(_plot_six_maps(
                 data,
                 name,
                 title,
-                saved_to=plot_path(root, "Mean Year", *parts,
+                saved_to=plot_path(root, "Mean Year", *parts, *frame_directory(video_frames),
                                    f"{name}_{start_year}-{end_year}.png"),
                 cmap="Reds" if name == "B" else None,
                 vmin=-1.0 if name == "C" else None,
                 vmax=1.0 if name == "C" else None,
+                video_frames=video_frames, day_indices=day_indices,
             ))
     return outputs
 
@@ -470,7 +487,8 @@ def _coefficient_a_colorbar(fig, ax, image, norm):
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                        *, start=None, stop=None, step=1,
                        style="auto", gamma_negative=0.35, gamma_positive=0.35,
-                       show_contours=False, contours_per_side=3, smooth_sigma=0.65):
+                       show_contours=False, contours_per_side=3, smooth_sigma=0.65,
+                       video_frames=False):
     """Generate PNG maps for precomputed coefficient sequences.
 
     For coefficient A, by default use:
@@ -483,6 +501,9 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
       - gamma=0.35 gives higher contrast for small absolute values.
 
     The original style is preserved for B/C/F/FS and with style='original'.
+    video_frames : bool
+        Add localized map titles and the endpoint observation date. Save labeled
+        PNGs in a separate video_frames directory; default False omits titles.
     """
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
@@ -491,6 +512,8 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
     if len(files) != 1:
         raise FileNotFoundError(f"Expected one collected {coefficient} array under {parent}; found {files}")
     data = np.load(files[0], mmap_mode="r", allow_pickle=False)
+    first_label = int(files[0].stem.rsplit("_", 1)[-1].split("-")[0]) if video_frames else None
+    labels = NAMES_RU if get_plot_language() == "ru" else NAMES_EN
     stop = len(data) if stop is None else min(int(stop), len(data))
     start = 0 if start is None else int(start)
     if not (0 <= start < stop <= len(data)) or int(step) <= 0:
@@ -526,12 +549,24 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
         channels = data[i] if data.ndim == 4 else data[i][None, ...]
         fig, axes = plt.subplots(1, len(channels), figsize=(6.55 * len(channels), 5.6), squeeze=False,
                                  constrained_layout=False)
-        fig.subplots_adjust(left=0.055, right=0.972, bottom=0.075, top=0.965, wspace=0.14)
+        fig.subplots_adjust(left=0.055, right=0.972, bottom=0.075, top=0.86 if video_frames else 0.965, wspace=0.14)
         try:
             for j, (ax, field) in enumerate(zip(axes[0], channels)):
+                if coefficient in ("B", "B_with_reg") and len(channels) == 4 and len(names) == 2:
+                    row, col = ((0, 0), (1, 1), (0, 1), (1, 0))[j]
+                    detail = f"{labels.get(names[row], names[row])} / {labels.get(names[col], names[col])}"
+                elif coefficient in ("A", "FS") and j < len(names):
+                    detail = labels.get(names[j], names[j])
+                elif coefficient == "C" and len(channels) == 2:
+                    detail = ("A1–A2", "B11–B22")[j]
+                else:
+                    detail = ("компонента" if get_plot_language() == "ru" else "component") + f" {j+1}"
+                if get_plot_language() == "ru":
+                    detail = detail[:1].lower() + detail[1:]
+                title = f"{labels.get(coefficient, coefficient)} — {detail}"
                 if not alternative:
                     image = _draw_map(ax, field,
-                                      f"{NAMES_EN.get(coefficient, coefficient)} — component {j + 1}",
+                                      title, video_frames=video_frames,
                                       name=coefficient, show_y_labels=(j == 0))
                     _add_colorbar(fig, ax, image)
                     continue
@@ -546,9 +581,8 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                                   extent=(*LON_BOUNDS, *LAT_BOUNDS), origin="upper",
                                   interpolation="bilinear", aspect="auto")
                 _format_geo_axis(ax, show_y_labels=(j == 0))
-                # For videos and figure montages, titles take too much space and are usually added externally.
-                # ax.set_title(f"Coefficient A — {names[j] if j < len(names) else 'component ' + str(j + 1)}",
-                #              fontsize=12)
+                if video_frames:
+                    ax.set_title(title, fontsize=13, pad=7)
                 valid = z[np.isfinite(z)]
                 if draw_contours and valid.size and contours_per_side > 0:
                     current_levels = iso_levels[j]
@@ -569,12 +603,12 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                                colors="#718579", linewidths=0.30, alpha=0.48)
                 _coefficient_a_colorbar(fig, ax, image, norm)
 
-            if alternative:
-                # Optional overall title disabled by default: it reduces the useful map area in videos.
-                pass
+            if video_frames:
+                fig.suptitle(frame_date(BASE_DATE + timedelta(days=first_label + i - 1)),
+                             fontsize=17, y=0.98)
             saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
                                                f"{names[0]}-{names[1]}", method,
-                                               f"frame_{i:05d}.png"))
+                                               *frame_directory(video_frames), f"frame_{i:05d}.png"))
             frames.append(saved)
         finally:
             plt.close(fig)

@@ -152,7 +152,7 @@ def draw_2D(files_path_prefix,
             sigmas_timelist,
             weights_timelist,
             timesteps,
-            borders):
+            borders, *, video_frames=False):
     """
     Draws timesteps amount of .png pictures, showing 3 * components amount graphics with 2D plot of each parameter of
     each component
@@ -171,7 +171,8 @@ def draw_2D(files_path_prefix,
     for t in range(timesteps):
         date = datetime.datetime(1979, 1, 1, 0, 0) + datetime.timedelta(hours=6 * (62396 - 7320) + t * 24 * 7)
         fig, axs = plt.subplots(3, components_amount, figsize=(components_amount * 5, 15))
-        fig.suptitle(f'{flux_type}\n {date.strftime("%Y-%m-%d")}', fontsize=30)
+        if video_frames:
+            fig.suptitle(date.strftime("%d.%m.%Y"), fontsize=20)
 
         means_grid = means_timelist[t]
         sigmas_grid = sigmas_timelist[t]
@@ -188,7 +189,8 @@ def draw_2D(files_path_prefix,
                                      interpolation='none',
                                      cmap=cmap,
                                      norm=norm)
-            axs[0, comp].set_title(f'Mean {comp + 1}', fontsize=20)
+            if video_frames:
+                axs[0, comp].set_title(f'Mean {comp + 1}', fontsize=20)
             # if comp == components_amount - 1:
             divider = make_axes_locatable(axs[0, comp])
             cax = divider.append_axes('right', size='5%', pad=0.3)
@@ -204,7 +206,8 @@ def draw_2D(files_path_prefix,
                                      interpolation='nearest',
                                      cmap=cmap,
                                      norm=norm)
-            axs[1, comp].set_title(f'Sigma {comp + 1}', fontsize=20)
+            if video_frames:
+                axs[1, comp].set_title(f'Sigma {comp + 1}', fontsize=20)
             # if comp == components_amount - 1:
             divider = make_axes_locatable(axs[1, comp])
             cax = divider.append_axes('right', size='5%', pad=0.3)
@@ -221,7 +224,8 @@ def draw_2D(files_path_prefix,
                                      cmap=cmap,
                                      vmin=0,
                                      vmax=1)
-            axs[2, comp].set_title(f'Weight {comp + 1}', fontsize=20)
+            if video_frames:
+                axs[2, comp].set_title(f'Weight {comp + 1}', fontsize=20)
             # if comp == components_amount - 1:
             divider = make_axes_locatable(axs[2, comp])
             cax = divider.append_axes('right', size='5%', pad=0.3)
@@ -233,7 +237,7 @@ def draw_2D(files_path_prefix,
         plt.close(fig)
 
 
-def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=1):
+def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps=1, *, video_frames=False):
     """
 
     :param files_path_prefix: path to the working directory
@@ -312,7 +316,7 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
             sigmas_timelist,
             weights_timelist,
             timesteps,
-            borders)
+            borders, video_frames=video_frames)
     return
 
 
