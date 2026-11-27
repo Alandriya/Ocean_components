@@ -39,7 +39,10 @@ def _sha256(path: Path) -> str:
 
 
 def _as_k(value, unit: str, field: str):
-    """Compute as k for convert TIGGE control from ``value``, ``unit``, ``field``."""
+    """Convert GDAL-decoded 2 m temperature/dew-point fields to kelvin.
+
+    Other parameters are returned unchanged; unexpected temperature units raise
+    ``ValueError`` rather than silently corrupting meteorological inputs."""
     if field not in ("t2m", "d2m"):
         return value
     if unit == "[C]":
@@ -50,7 +53,12 @@ def _as_k(value, unit: str, field: str):
 
 
 def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = False, day_offset: int = 0):
-    """Convert the requested convert TIGGE control data using the supplied inputs."""
+    """Convert TIGGE control meteorology to daily and six-hourly arrays.
+
+    Accept either an original meteorology-only GRIB or a combined seven-variable
+    forecast GRIB. Extract the five atmospheric parameters without interpreting
+    accumulated heat-flux messages as instantaneous meteorological fields.
+    The ``day_offset`` determines how target dates align with the 00 UTC issue."""
     if day_offset not in (0, 1):
         raise ValueError("day_offset must be 0 (issue day) or 1 (following day)")
     try:
@@ -75,8 +83,10 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
                 raise ValueError(f"Unexpected TIGGE grid {ds.height}x{ds.width}, resolution {ds.res}; expected 321x361 at 0.25°")
             if not np.allclose(ds.xy(0, 0), (-90., 80.), atol=1e-5) or not np.allclose(ds.xy(ds.height-1, ds.width-1), (0., 0.), atol=1e-5):
                 raise ValueError("GRIB grid corners do not match original Atlantic domain")
-            if ds.count != len(EXPECTED_HOURS) * len(FIELDS):
-                raise ValueError(f"Expected 305 fields, got {ds.count}")
+            # Unified GRIB files additionally contain accumulated sshf/slhf.
+            # The five mandatory meteorological series are validated below.
+            if ds.count < len(EXPECTED_HOURS) * len(FIELDS):
+                raise ValueError(f"Expected at least 305 fields, got {ds.count}")
 
             locations = []
             for p in sites:
@@ -99,6 +109,9 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
                 info = ds.tags(bandno)
                 key = (info.get("GRIB_ELEMENT"), info.get("GRIB_SHORT_NAME"))
                 if key not in GRIB_CODES:
+                    # Skip accumulated flux bands present in the combined GRIB.
+                    if key in (("SHTFL", "0-SFC"), ("LHTFL", "0-SFC")):
+                        continue
                     raise ValueError(f"Unexpected field {key} in band {bandno}")
                 if "CENTER=98(ECMWF)" not in info.get("GRIB_IDS", "") or "TYPE=3(Control_forecast)" not in info.get("GRIB_IDS", ""):
                     raise ValueError(f"Band {bandno} is not ECMWF TIGGE control forecast")
@@ -207,7 +220,7 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
     meta_path = out_dir / f"{name}_metadata.json"
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Input GRIB validated:", grib)
-    print("Initialization:", reference.isoformat(), "| 5 fields x 61 steps | 15 points | day_offset=", day_offset)
+    print("Initialization:", reference.isoformat(), "| 5 met fields x 61 steps | 15 points | day_offset=", day_offset)
     print("Daily:", point_daily.shape, str(dates[0]), "..", str(dates[-1]))
     print("Output:", points_path, "\nMetadata:", meta_path)
     if grid_path:

@@ -75,7 +75,7 @@ def _sha256(path: Path) -> str:
 
 
 def _codes_get(codes: Any, message: Any, key: str, default=None):
-    """Retrieve an ecCodes metadata value."""
+    """Retrieve an ecCodes metadata value, or return ``default`` if missing."""
     try:
         return codes.codes_get(message, key)
     except Exception:
@@ -89,7 +89,7 @@ def _unit_ok(unit: str) -> bool:
 
 
 def _parse_reference_time(codes, msg) -> datetime:
-    """Parse the forecast reference time from GRIB metadata."""
+    """Parse the 00 UTC forecast reference timestamp from GRIB metadata."""
     date_val = _codes_get(codes, msg, "dataDate")
     clock_val = _codes_get(codes, msg, "dataTime")
     if date_val is None or clock_val is None:
@@ -99,7 +99,7 @@ def _parse_reference_time(codes, msg) -> datetime:
 
 
 def _check_valid_time(codes, msg, ref: datetime, lead_h: int):
-    """Validate the consistency of forecast reference time, lead and valid time."""
+    """Validate that GRIB validity time matches initialization plus lead."""
     date_val = _codes_get(codes, msg, "validityDate")
     clock_val = _codes_get(codes, msg, "validityTime")
     if date_val is None or clock_val is None:
@@ -111,7 +111,7 @@ def _check_valid_time(codes, msg, ref: datetime, lead_h: int):
 
 
 def _grid_setup(codes, message, points: list[dict]):
-    """Prepare grid metadata and spatial indexing for the conversion."""
+    """Validate the 0.25-degree study grid and map 15 sites to native cells."""
     if str(_codes_get(codes, message, "gridType", "")) != "regular_ll":
         raise ValueError("TIGGE flux processing requires regular_ll grid")
     ni = int(_codes_get(codes, message, "Ni", 0))
@@ -150,7 +150,11 @@ def convert_flux_grib(
     grib: Path, points_json: Path, out_dir: Path, *,
     day_offset: int = 0, full_grid: bool = False, overwrite: bool = False,
 ):
-    """Decode and convert a TIGGE 2-variable, 15-lead accumulated GRIB file."""
+    """Decode TIGGE fluxes from a combined GRIB or original flux-only GRIB.
+
+    Meteorological GRIB records and extra 6h accumulation endpoints are skipped;
+    all accumulated flux values at +24..+360h are required.
+    """
     if day_offset not in (0, 1):
         raise ValueError("day_offset must be 0 or 1")
     try:
@@ -176,6 +180,7 @@ def convert_flux_grib(
     grid_spec = None
     present = set()
     count = 0
+    selected_count = 0
     with grib.open("rb") as inp:
         while True:
             msg = eccodes.codes_grib_new_from_file(inp)
@@ -193,6 +198,9 @@ def convert_flux_grib(
                     raise ValueError(f"Record {count}: wrong forecast centre {centre!r}")
                 pid = int(_codes_get(eccodes, msg, "paramId", -1))
                 if pid not in PARAM_IDS:
+                    # One combined ECDS request also includes met fields.
+                    if pid in (134, 165, 166, 167, 168):
+                        continue
                     raise ValueError(f"Unexpected paramId {pid} in {grib.name} record {count}")
                 field = PARAM_IDS[pid]
                 short = str(_codes_get(eccodes, msg, "shortName", ""))
@@ -209,7 +217,13 @@ def convert_flux_grib(
                     raise ValueError(f"{field}: unexpected cumulative units {unit!r}; expected J/m2")
                 hour = int(_codes_get(eccodes, msg, "endStep", -1))
                 if hour not in CUMULATIVE_HOURS:
-                    raise ValueError(f"{field}: unrequested accumulation endpoint +{hour}h")
+                    # A unified request selects the common 6h steps for all
+                    # variables; 6, 12, ... may be present as additional flux
+                    # accumulations. They are irrelevant to UTC daily means.
+                    if 0 <= hour <= 360 and hour % 6 == 0:
+                        continue
+                    raise ValueError(f"{field}: unexpected accumulation endpoint +{hour}h")
+                selected_count += 1
                 key = (field, hour)
                 if key in present:
                     raise ValueError(f"Duplicate GRIB field {key}")
@@ -253,8 +267,9 @@ def convert_flux_grib(
                 eccodes.codes_release(msg)
 
     expected = {(field, hour) for field in FIELDS for hour in CUMULATIVE_HOURS}
-    if present != expected or count != 30 or ref_time is None:
-        raise ValueError(f"Incomplete TIGGE flux forecast: {count} records; missing={sorted(expected - present)}")
+    if present != expected or selected_count != 30 or ref_time is None:
+        raise ValueError(f"Incomplete TIGGE flux forecast: {selected_count}/30 daily-boundary "
+                         f"records selected from {count}; missing={sorted(expected - present)}")
     means_points = cumulative_to_daily_mean(cum_points, day_offset)
     if np.abs(means_points).max() > 5000:
         raise ValueError("Implausible mean heat flux > 5000 W/m2; check GRIB accumulation and units")
@@ -301,7 +316,8 @@ def convert_flux_grib(
         "source_units": "J m^-2 (W m^-2 s)", "target_units": "W m^-2",
         "formula": "daily mean = (cumulative_energy_at_end - cumulative_energy_at_start) / 86400",
         "sign_convention": "ECMWF positive downwards; unchanged",
-        "n_messages": count, "point_shape": list(means_points.shape),
+        "n_messages": count, "selected_flux_messages": selected_count,
+        "point_shape": list(means_points.shape),
         "points_file": points_json.name,
         "grid_shape": list(GRID_SHAPE),
         "era5_grid_shape": list(ERA5_GRID_SHAPE) if full_grid else None,
@@ -316,8 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     """Run the TIGGE fluxes workflow using its configured options."""
     p = argparse.ArgumentParser(description="TIGGE accumulated sshf/slhf -> daily mean W/m2 for Atlantic 15 points")
     group = p.add_mutually_exclusive_group(required=True)
-    group.add_argument("--grib", type=Path, help="A single *_fluxes.grib file")
-    group.add_argument("--raw-root", type=Path, help="Process all *_fluxes.grib files under root recursively")
+    group.add_argument("--grib", type=Path, help="A single *_all.grib or *_fluxes.grib")
+    group.add_argument("--raw-root", type=Path, help="Process combined and legacy flux GRIBs recursively")
     p.add_argument("--points-json", required=True, type=Path)
     p.add_argument("--out-dir", required=True, type=Path)
     p.add_argument("--day-offset", type=int, choices=(0, 1), default=0,
@@ -326,13 +342,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--continue-on-error", action="store_true")
     args = p.parse_args(argv)
-    sources = ([args.grib] if args.grib else sorted(args.raw_root.rglob("*_fluxes.grib")))
+    sources = ([args.grib] if args.grib else sorted(set(
+        args.raw_root.rglob("*_all.grib")
+    ) | set(args.raw_root.rglob("*_fluxes.grib"))))
     if not sources:
         p.error("No *_fluxes.grib files found")
     done = skipped = failed = 0
     for i, source in enumerate(sources, 1):
         stem = source.name.removesuffix(".grib")
-        stamp = stem.removeprefix("tigge_ecmwf_control_").removesuffix("_fluxes")
+        stamp = (stem.removeprefix("tigge_ecmwf_control_")
+                 .removesuffix("_fluxes").removesuffix("_all"))
         label = "issue_day" if args.day_offset == 0 else "next_day"
         output_name = f"tigge_ecmwf_control_{stamp}_fluxes_mean_{label}_points.npz"
         output_base = output_name.removesuffix("_points.npz")
