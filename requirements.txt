@@ -1,28 +1,33 @@
 # Common numerical and plotting dependencies.
-# NumPy 2 is required by the numerical workflows that use numpy.trapezoid.
+# NumPy 2 is required by workflows that use numpy.trapezoid.
 numpy>=2.0
 scipy
 pandas
 matplotlib
 seaborn
 scikit-learn
-scikit-image
+# Python 3.15 needs a newer scikit-image release with compatible wheels.
+scikit-image; python_version < "3.15"
+scikit-image>=0.27.0rc1; python_version >= "3.15"
 statsmodels
 threadpoolctl
 tqdm
 xarray
 Pillow
 
-# GRIB input, TIGGE downloads and conversion.
+# GRIB/NetCDF input, TIGGE downloads and conversion.
 eccodes
+netCDF4
 rasterio
 cdsapi>=0.7.7
+# Optional xarray GRIB backend; native GRIB workflows use ecCodes directly.
+# cfgrib
 
 # Legacy fitting, interactive plots and video encoding.
 symfit
 plotly
 imageio-ffmpeg
 
-# PyTorch is installed separately for the local CPU/CUDA environment.
+# Install PyTorch separately for the local CPU/CUDA environment.
 # See https://pytorch.org/get-started/locally/ (both forecasting packages).
 # Tests: python -m pip install pytest
