@@ -7,8 +7,12 @@ import shutil
 import subprocess
 from datetime import timedelta
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
+from matplotlib.colors import LinearSegmentedColormap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
 from Data_processing.io import BASE_DATE, load_field, load_spectral_field, read_ocean_mask, start_label
@@ -40,10 +44,65 @@ NAMES_RU = {"sensible": "Явный тепловой поток", "latent": "С�
             "Pressure": "Атмосферное давление", "A": "Коэффициент A",
             "B": "Коэффициент B", "C": "Коэффициент C", "F": "Коэффициент F"}
 
+POSITIVE_RED_NAMES = {"B", "B_with_reg"}
+DIVERGING_NAMES = {"sensible", "latent", "Flux", "A", "C", "F", "FS"}
+BLUE_WHITE_RED = LinearSegmentedColormap.from_list(
+    "blue_white_red", ["#1f3a93", "#ffffff", "#c1121f"], N=256
+)
+WHITE_RED = LinearSegmentedColormap.from_list(
+    "white_red", ["#fff5f0", "#c1121f"], N=256
+)
 
-def _draw_map(ax, data, title, *, video_frames=False):
+
+def _map_cmap(name=""):
+    """Choose a variable-specific palette for map plots."""
+    if name in DIVERGING_NAMES:
+        return BLUE_WHITE_RED
+    if name in POSITIVE_RED_NAMES:
+        return WHITE_RED
+    return "viridis"
+
+
+def _map_norm(data, name=""):
+    """Choose an appropriate normalization for map plots."""
+    finite = np.asarray(data, dtype=float)[np.isfinite(data)]
+    if finite.size == 0:
+        return mcolors.Normalize(vmin=0.0, vmax=1.0)
+    data_min = float(np.min(finite))
+    data_max = float(np.max(finite))
+    if data_min == data_max:
+        delta = 1.0 if data_min == 0.0 else 0.01 * abs(data_min)
+        data_min -= delta
+        data_max += delta
+    if name in POSITIVE_RED_NAMES:
+        vmax = data_max if data_max > 0.0 else 1.0
+        return mcolors.Normalize(vmin=0.0, vmax=vmax)
+    if name in DIVERGING_NAMES and data_min < 0.0 < data_max:
+        limit = max(abs(data_min), abs(data_max))
+        return mcolors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
+    return mcolors.Normalize(vmin=data_min, vmax=data_max)
+
+
+def _add_colorbar(fig, ax, image):
+    """Attach a compact colorbar to one map axis."""
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3.2%", pad=0.05)
+    colorbar = fig.colorbar(image, cax=cax)
+    colorbar.ax.tick_params(labelsize=9, pad=2)
+    return colorbar
+
+
+def _coefficient_layout(coefficient: str, channels_num: int):
+    """Return the axis layout for coefficient frame plots."""
+    if coefficient in ("B", "B_with_reg") and channels_num == 4:
+        return dict(nrows=2, ncols=2, figsize=(11.8, 9.4), axis_order=((0, 0), (1, 1), (0, 1), (1, 0)))
+    return dict(nrows=1, ncols=channels_num, figsize=(5.5 * channels_num, 5.0),
+                axis_order=tuple((0, idx) for idx in range(channels_num)))
+
+
+def _draw_map(ax, data, title, *, video_frames=False, name="", norm=None):
     """Draw one geographic grid with English labels; Russian alternatives are kept."""
-    im = ax.imshow(np.ma.masked_invalid(data), cmap="coolwarm", origin="upper")
+    im = ax.imshow(np.ma.masked_invalid(data), cmap=_map_cmap(name), norm=_map_norm(data, name) if norm is None else norm, origin="upper")
     if video_frames:
         ax.set_title(title)
     ax.set_xlabel("Longitude")
@@ -232,30 +291,42 @@ def plot_mean_year(files_path_prefix, category, name, start_year, end_year,
 
 
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
-                        *, start=None, stop=None, step=1, video_frames=False):
-    """Generate an ordered PNG sequence from previously calculated coefficients."""
+                       *, start=None, stop=None, step=1, video_frames=False):
+    """Generate PNG frames with fixed per-channel color limits over [start, stop)."""
+    from Plotting.map_workflows import _coefficient_frame_norms
+    from Plotting.language import get_plot_language
+    from Plotting.video import frame_date, frame_directory
+
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
     parent = root / "Coefficients" / "continuous" / f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" / folder
-    files = sorted(parent.glob(f"{coefficient}_*-*.npy"))
+    files = sorted(path for path in parent.glob("*.npy")
+                   if path.is_file()
+                   and path.stem.rpartition("_")[0] == coefficient
+                   and re.fullmatch(r"[0-9]+-[0-9]+", path.stem.rpartition("_")[2]))
     if len(files) != 1:
         raise FileNotFoundError(f"Expected one collected {coefficient} array under {parent}; found {files}")
     data = np.load(files[0], mmap_mode="r")
     first_label = int(files[0].stem.rsplit("_", 1)[-1].split("-")[0]) if video_frames else None
+    labels = NAMES_RU if get_plot_language() == "ru" else NAMES_EN
     stop = len(data) if stop is None else min(stop, len(data))
     start = 0 if start is None else start
+    norms = _coefficient_frame_norms(data, start, stop, coefficient, _map_norm)
     frames = []
     for i in range(start, stop, step):
         channels = data[i] if data.ndim == 4 else data[i][None, ...]
-        fig, axes = plt.subplots(1, len(channels), figsize=(5.5 * len(channels), 5), squeeze=False)
-        for j, (ax, field) in enumerate(zip(axes[0], channels)):
-            img = _draw_map(ax, field, f"{NAMES_EN.get(coefficient, coefficient)} — component {j+1}", video_frames=video_frames)
-            fig.colorbar(img, ax=ax, shrink=0.8)
+        layout = _coefficient_layout(coefficient, len(channels))
+        fig, axes = plt.subplots(layout["nrows"], layout["ncols"], figsize=layout["figsize"], squeeze=False)
+        for j, (position, field) in enumerate(zip(layout["axis_order"], channels)):
+            ax = axes[position]
+            img = _draw_map(ax, field, f"{labels.get(coefficient, coefficient)} — component {j+1}", video_frames=video_frames, name=coefficient, norm=norms[j])
+            _add_colorbar(fig, ax, img)
         if video_frames:
             fig.suptitle(frame_date(BASE_DATE + timedelta(days=first_label + i - 1)))
         fig.tight_layout()
         saved = save_figure(fig, plot_path(root, "Coefficients", coefficient,
-                                           f"{names[0]}-{names[1]}", method, *frame_directory(video_frames), f"frame_{i:05d}.png"))
+                                           f"{names[0]}-{names[1]}", method,
+                                           *frame_directory(video_frames), f"frame_{i:05d}.png"))
         frames.append(saved)
         plt.close(fig)
     return frames
@@ -328,7 +399,8 @@ def coefficient_video(files_path_prefix, names, method, coefficient, *, fps=5,
         "-f", "rawvideo", "-pixel_format", "rgb24",
         "-video_size", f"{width}x{height}",
         "-framerate", str(fps), "-i", "pipe:0",
-        "-an", "-c:v", "libx264", "-crf", "18",
+        # Disable B-frame reordering to avoid negative initial DTS at low frame rates.
+        "-an", "-c:v", "libx264", "-crf", "18", "-bf", "0",
         "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(target),
     ]

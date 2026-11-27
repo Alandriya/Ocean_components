@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
@@ -58,9 +59,13 @@ LON_TICKS = [-90, -60, -30, 0]
 LAT_TICKS = [0, 30, 60, 80]
 LON_LABELS_RU = ["90° з. д.", "60° з. д.", "30° з. д.", "0"]
 LAT_LABELS_RU = ["0", "30° с. ш.", "60° с. ш.", "80° с. ш."]
-DIVERGING_NAMES = {"sensible", "latent", "Flux", "A", "B", "C", "F", "FS"}
+DIVERGING_NAMES = {"sensible", "latent", "Flux", "A", "C", "F", "FS"}
+POSITIVE_RED_NAMES = {"B", "B_with_reg"}
 BLUE_WHITE_RED = LinearSegmentedColormap.from_list(
     "blue_white_red", ["#1f3a93", "#ffffff", "#c1121f"], N=256
+)
+WHITE_RED = LinearSegmentedColormap.from_list(
+    "white_red", ["#fff5f0", "#c1121f"], N=256
 )
 RU_MONTHS_GENITIVE = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -114,6 +119,9 @@ def _data_norm(data, name, *, vmin=None, vmax=None):
         delta = 1.0 if data_min == 0.0 else 0.01 * abs(data_min)
         data_min -= delta
         data_max += delta
+    if name in POSITIVE_RED_NAMES:
+        vmax = data_max if data_max > 0.0 else 1.0
+        return mcolors.Normalize(vmin=0.0, vmax=vmax)
     if name in DIVERGING_NAMES and data_min < 0.0 < data_max:
         limit = max(abs(data_min), abs(data_max))
         return mcolors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
@@ -124,6 +132,8 @@ def _map_cmap(name=""):
     """Choose a variable-specific palette for map plots."""
     if name in DIVERGING_NAMES:
         return BLUE_WHITE_RED
+    if name in POSITIVE_RED_NAMES:
+        return WHITE_RED
     if name == "SST":
         return "YlOrBr"
     if name == "Pressure":
@@ -132,13 +142,13 @@ def _map_cmap(name=""):
 
 
 def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
-              show_x_labels=True, show_y_labels=True, video_frames=False):
+              show_x_labels=True, show_y_labels=True, video_frames=False, norm=None):
     """Draw one geographic grid with coordinate axes and matching colorbar."""
     masked = np.ma.masked_invalid(data)
     image = ax.imshow(
         masked,
         cmap=_map_cmap(name) if cmap is None else cmap,
-        norm=_data_norm(masked, name, vmin=vmin, vmax=vmax),
+        norm=_data_norm(masked, name, vmin=vmin, vmax=vmax) if norm is None else norm,
         origin="upper",
         extent=(*LON_BOUNDS, *LAT_BOUNDS),
         interpolation="none",
@@ -484,6 +494,48 @@ def _coefficient_a_colorbar(fig, ax, image, norm):
     return cb
 
 
+def _coefficient_frame_norms(data, start, stop, coefficient, norm_builder=_data_norm):
+    """Build one fixed normalization per channel across the selected interval.
+
+    Scan all days, including those skipped during rendering, in bounded chunks.
+    Ignore non-finite values and retain the existing normalization rules.
+    """
+    channels = data.shape[1] if data.ndim == 4 else 1
+    minima = np.full(channels, np.inf)
+    maxima = np.full(channels, -np.inf)
+    for left in range(start, stop, 12):
+        block = data[left:min(left + 12, stop)]
+        for j in range(channels):
+            values = block[:, j] if data.ndim == 4 else block
+            finite = values[np.isfinite(values)]
+            if finite.size:
+                minima[j] = min(minima[j], float(finite.min()))
+                maxima[j] = max(maxima[j], float(finite.max()))
+    return [norm_builder(np.array([lo, hi]), coefficient)
+            for lo, hi in zip(minima, maxima)]
+
+
+def _coefficient_layout(coefficient: str, channels_num: int):
+    """Return figure layout and axis order for coefficient frame maps."""
+    if coefficient in ("B", "B_with_reg") and channels_num == 4:
+        return dict(nrows=2, ncols=2, figsize=(12.4, 10.2),
+                    axis_order=((0, 0), (1, 1), (0, 1), (1, 0)),
+                    adjust=dict(left=0.055, right=0.972, bottom=0.075,
+                                top=None, wspace=0.16, hspace=0.18))
+    return dict(nrows=1, ncols=channels_num, figsize=(6.55 * channels_num, 5.6),
+                axis_order=tuple((0, idx) for idx in range(channels_num)),
+                adjust=dict(left=0.055, right=0.972, bottom=0.075,
+                            top=None, wspace=0.14, hspace=0.0))
+
+
+def _axis_label_flags(layout, position):
+    """Return whether a subplot should show longitude and latitude labels."""
+    nrows = layout["nrows"]
+    ncols = layout["ncols"]
+    row, col = position
+    return row == nrows - 1, col == 0
+
+
 def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                        *, start=None, stop=None, step=1,
                        style="auto", gamma_negative=0.35, gamma_positive=0.35,
@@ -500,7 +552,8 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
         show_contours=True or style="nonlinear_contours",
       - gamma=0.35 gives higher contrast for small absolute values.
 
-    The original style is preserved for B/C/F/FS and with style='original'.
+    The existing color styles are preserved for B/C/F/FS and style='original',
+    with fixed per-channel color limits across [start, stop).
     video_frames : bool
         Add localized map titles and the endpoint observation date. Save labeled
         PNGs in a separate video_frames directory; default False omits titles.
@@ -508,7 +561,11 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
     root = Path(files_path_prefix)
     folder = "Nonparametric_2d" if method == "np" else "Semiparametric_2d"
     parent = root / "Coefficients" / "continuous" / f"2d_bins_{n_bins_2d}" / f"{names[0]}_{names[1]}" / folder
-    files = sorted(parent.glob(f"{coefficient}_*-*.npy"))
+    # Match the complete coefficient name, excluding variants such as B_with_reg.
+    files = sorted(path for path in parent.glob("*.npy")
+                   if path.is_file()
+                   and path.stem.rpartition("_")[0] == coefficient
+                   and re.fullmatch(r"[0-9]+-[0-9]+", path.stem.rpartition("_")[2]))
     if len(files) != 1:
         raise FileNotFoundError(f"Expected one collected {coefficient} array under {parent}; found {files}")
     data = np.load(files[0], mmap_mode="r", allow_pickle=False)
@@ -544,14 +601,22 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
         for ch, (lo, hi) in enumerate(bounds):
             print(f"  component {ch + 1}: {lo:.7g} .. {hi:.7g}; gamma-={gamma_negative:g}, gamma+={gamma_positive:g}")
 
+    if not alternative:
+        norms = _coefficient_frame_norms(data, start, stop, coefficient)
+
     frames = []
     for i in range(start, stop, step):
         channels = data[i] if data.ndim == 4 else data[i][None, ...]
-        fig, axes = plt.subplots(1, len(channels), figsize=(6.55 * len(channels), 5.6), squeeze=False,
+        layout = _coefficient_layout(coefficient, len(channels))
+        fig, axes = plt.subplots(layout["nrows"], layout["ncols"], figsize=layout["figsize"], squeeze=False,
                                  constrained_layout=False)
-        fig.subplots_adjust(left=0.055, right=0.972, bottom=0.075, top=0.86 if video_frames else 0.965, wspace=0.14)
+        adjust = dict(layout["adjust"])
+        adjust["top"] = 0.90 if (video_frames and layout["nrows"] > 1) else (0.86 if video_frames else 0.965)
+        fig.subplots_adjust(**adjust)
         try:
-            for j, (ax, field) in enumerate(zip(axes[0], channels)):
+            for j, (position, field) in enumerate(zip(layout["axis_order"], channels)):
+                ax = axes[position]
+                show_x_labels, show_y_labels = _axis_label_flags(layout, position)
                 if coefficient in ("B", "B_with_reg") and len(channels) == 4 and len(names) == 2:
                     row, col = ((0, 0), (1, 1), (0, 1), (1, 0))[j]
                     detail = f"{labels.get(names[row], names[row])} / {labels.get(names[col], names[col])}"
@@ -567,7 +632,8 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                 if not alternative:
                     image = _draw_map(ax, field,
                                       title, video_frames=video_frames,
-                                      name=coefficient, show_y_labels=(j == 0))
+                                      name=coefficient, show_x_labels=show_x_labels,
+                                      show_y_labels=show_y_labels, norm=norms[j])
                     _add_colorbar(fig, ax, image)
                     continue
 
@@ -580,7 +646,7 @@ def coefficient_frames(files_path_prefix, names, n_bins_2d, method, coefficient,
                 image = ax.imshow(np.ma.masked_invalid(z), cmap=cmap, norm=norm,
                                   extent=(*LON_BOUNDS, *LAT_BOUNDS), origin="upper",
                                   interpolation="bilinear", aspect="auto")
-                _format_geo_axis(ax, show_y_labels=(j == 0))
+                _format_geo_axis(ax, show_x_labels=show_x_labels, show_y_labels=show_y_labels)
                 if video_frames:
                     ax.set_title(title, fontsize=13, pad=7)
                 valid = z[np.isfinite(z)]

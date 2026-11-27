@@ -36,7 +36,7 @@ def main():
     set_plot_language(plot_language)
 
     # Add panel captions and an observation date to geographic video frames.
-    video_frames = False
+    video_frames = True
 
     # Monochrome for stationary maps/regions and individual copula contours.
     monochrome = False
