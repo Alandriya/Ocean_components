@@ -22,6 +22,7 @@ CSV_FIELDS = [
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     parser = argparse.ArgumentParser(
         description="Collect Forecast_1d metrics without third-party dependencies"
     )
@@ -36,6 +37,7 @@ def build_parser():
 
 
 def _results_root(override):
+    """Compute results root for collect results from ``override``."""
     if override is not None:
         return Path(override).expanduser().resolve()
     from project_paths import DATA_ROOT
@@ -43,9 +45,11 @@ def _results_root(override):
 
 
 def _level_for(model):
+    """Compute level for for collect results from ``model``."""
     return model_level(model)
 
 def _metric_row(model, split, point_id, channel, horizon, score):
+    """Compute metric row for collect results from ``model``, ``split``, ``point_id``, ``channel``, ``horizon``."""
     return {
         "level": _level_for(model),
         "model": model,
@@ -63,6 +67,7 @@ def _metric_row(model, split, point_id, channel, horizon, score):
 
 
 def collect(args):
+    """Collect the requested collect results data using the supplied inputs."""
     points = tuple(args.points)
     if not points or len(set(points)) != len(points):
         raise ValueError("Select nonempty unique point IDs")
@@ -179,6 +184,7 @@ def collect(args):
 
 
 def main(argv=None):
+    """Run the collect results workflow using its configured options."""
     return collect(build_parser().parse_args(argv))
 
 

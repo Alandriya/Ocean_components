@@ -22,6 +22,7 @@ from .experiment import select_points
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", choices=MODEL_NAMES, default="gru")
     p.add_argument("--points", nargs="+", default=None)
@@ -59,6 +60,7 @@ def build_parser():
 
 
 def _batched_score(model, x, y, device, size, amp):
+    """Compute batched score for train features from ``model``, ``x``, ``y``, ``device``, ``size``."""
     import torch
     model.eval()
     errors = 0.0
@@ -78,6 +80,7 @@ def _batched_score(model, x, y, device, size, amp):
 
 
 def train_one(exp, args, point_id, root):
+    """Train one for the train features workflow."""
     import torch
     from torch.utils.data import DataLoader, TensorDataset
     from .models.neural import build_model, default_config
@@ -195,6 +198,7 @@ def train_one(exp, args, point_id, root):
 
 
 def run(args):
+    """Run the train features workflow using its configured options."""
     if min(args.in_len, args.out_len, args.epochs, args.batch_size, args.patience) <= 0:
         raise ValueError("Window sizes, epochs, batch size and patience must be positive")
     if not 0 < args.lr_factor < 1:
@@ -219,6 +223,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the train features workflow using its configured options."""
     return run(build_parser().parse_args(argv))
 
 

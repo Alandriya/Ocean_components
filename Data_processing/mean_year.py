@@ -96,6 +96,7 @@ def _valid_calendar_day(month, day):
 
 
 def _safe_component(value):
+    """Sanitize a string for use as a path component."""
     if (not isinstance(value, str) or not value or value in (".", "..")
             or any(c in value for c in "\\/:")):
         raise ValueError(f"Unsafe mean-year path component: {value!r}")

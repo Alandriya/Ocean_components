@@ -28,6 +28,7 @@ class DDMSimVP(nn.Module):
     to the forward() method, so evaluation never needs future coefficient maps.
     """
     def __init__(self, in_len, out_len, simvp_params):
+        """Initialize DDMSim VP with ``in_len``, ``out_len``, ``simvp_params``."""
         super().__init__()
         self.backbone = SimVPForecaster(in_len, out_len, in_channels=2, **simvp_params)
         width = int(simvp_params['base_channels']) * (2 ** int(simvp_params['depth']))
@@ -36,6 +37,7 @@ class DDMSimVP(nn.Module):
                                  nn.GELU(), nn.Conv2d(hidden, 5, 1))
 
     def forward(self, x, mask):
+        """Apply the DDMSim VP transformation to the input tensors."""
         forecast, context = self.backbone(x, mask, return_bottleneck=True)
         params = F.interpolate(self.aux(context), size=x.shape[-2:], mode='bilinear', align_corners=False)
         a = params[:, 0:2].float()
@@ -66,6 +68,7 @@ class EOFProjector:
     Retains full masked spatial mean, so rank truncation does not discard it.
     """
     def __init__(self, rank=16, snapshots=512, seed=2025):
+        """Initialize EOFProjector with ``rank``, ``snapshots``, ``seed``."""
         self.rank = int(rank)
         self.snapshots = int(snapshots)
         self.seed = int(seed)
@@ -73,6 +76,7 @@ class EOFProjector:
             raise ValueError('Require 2<=rank and snapshots>=rank+2')
 
     def fit(self, reader, mask, train_end, mean, std, chunk=16):
+        """Fit eofprojector data using the supplied inputs."""
         mask = np.asarray(mask, bool)
         self.mask = mask
         self.shape = (2, *mask.shape)
@@ -127,18 +131,21 @@ class EOFProjector:
         return self
 
     def state_dict(self):
+        """Return the serializable model state."""
         keys = ('rank','snapshots','seed','mask','shape','mean','std','spatial_mean',
                 'components','latent_mean','latent_std','innovation_cov')
         return {k:getattr(self,k) for k in keys}
 
     @classmethod
     def from_state_dict(cls, state):
+        """Reconstruct the object from its saved state dictionary."""
         obj = cls(state['rank'],state['snapshots'],state['seed'])
         for k,v in state.items():
             setattr(obj,k,v)
         return obj
 
     def to_torch(self, device):
+        """Convert the fitted representation to PyTorch tensors."""
         self._device = torch.device(device)
         self._mask_t = torch.as_tensor(self.mask, dtype=torch.bool, device=device)
         self._spatial = torch.as_tensor(self.spatial_mean, dtype=torch.float32, device=device)
@@ -150,6 +157,7 @@ class EOFProjector:
 
     def encode(self, maps):
         # maps: [B,T,2,H,W] or [B,2,H,W], already normalized
+        """Encode eofprojector data using the supplied inputs."""
         if maps.shape[-3] != 2:
             raise ValueError('EOF projector requires joint sensible+latent inputs')
         flat = maps[..., self._mask_t].reshape(*maps.shape[:-3], -1)
@@ -158,6 +166,7 @@ class EOFProjector:
 
     def decode(self, scores):
         # z: [...,rank] -> [...,2,H,W], zero on land
+        """Decode eofprojector data using the supplied inputs."""
         shp = tuple(scores.shape[:-1]); c,h,w = self.shape
         flat = ((scores * self._scale + self._center) @ self._basis + self._spatial)
         maps = flat.new_zeros(*shp, c, h, w)
@@ -166,6 +175,7 @@ class EOFProjector:
 
     def project_drift(self, a):
         # Normalized A_t [B,2,H,W] -> standardized latent derivative [B,k]
+        """Compute project drift for EOFProjector from ``a``."""
         return (a.float()[...,self._mask_t].reshape(len(a),-1) @ self._basis.T) / self._scale
 
     def covariance_target(self, b):
@@ -188,6 +198,7 @@ class LatentSDERNN(nn.Module):
     state. Trajectories are updated with their OWN sampled next state.
     """
     def __init__(self, rank=16, hidden=128, dt=1.0):
+        """Initialize Latent SDERNN with ``rank``, ``hidden``, ``dt``."""
         super().__init__()
         self.rank, self.hidden, self.dt = int(rank), int(hidden), float(dt)
         if self.rank < 2 or self.dt <= 0:
@@ -205,12 +216,14 @@ class LatentSDERNN(nn.Module):
 
     def encode_history(self, history):
         # [batch,time,rank]
+        """Encode the observed history for forecasting."""
         hidden = torch.tanh(self.start(history[:,0]))
         for t in range(history.shape[1]):
             hidden = self.gru(history[:,t],hidden)
         return hidden
 
     def params(self, hidden):
+        """Compute params for Latent SDERNN from ``hidden``."""
         z = self.body(hidden)
         drift = self.drift(z)
         tril = self.cholesky(z)
@@ -257,6 +270,7 @@ class LatentSDERNN(nn.Module):
             'first_drift':first_a,'first_cov':first_cov}
 
     def mean_forecast(self, history, horizon):
+        """Generate the mean forecast under the model."""
         h=self.encode_history(history)
         z=history[:,-1]
         states=[]
@@ -269,6 +283,7 @@ class LatentSDERNN(nn.Module):
 
     @torch.no_grad()
     def sample(self, history, horizon=3, members=8):
+        """Draw predictions or samples from the fitted model."""
         if members<1:raise ValueError('members>=1')
         batch, steps, r=history.shape
         h=self.encode_history(history).repeat_interleave(members,dim=0)

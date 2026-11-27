@@ -1,3 +1,5 @@
+"""Radial-basis-function KAN layers for neural forecasting."""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,16 +8,19 @@ import torch.nn.functional as F
 class PixelLayerNorm(nn.Module):
     """LayerNorm over the channel vector at every spatial point."""
     def __init__(self, channels):
+        """Initialize Pixel Layer Norm with ``channels``."""
         super().__init__()
         self.norm = nn.LayerNorm(channels)
 
     def forward(self, x):
+        """Apply the Pixel Layer Norm transformation to the input tensors."""
         return self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
 
 class RBFKANHead(nn.Module):
     """Compact residual RBF-KAN head from the SDE-Energy paper."""
     def __init__(self, in_channels, out_channels, kan_dim=64, num_centers=32, gamma=1.0, dropout=0.05):
+        """Initialize RBFKANHead with ``in_channels``, ``out_channels``, ``kan_dim``, ``num_centers``, ``gamma``, ``dropout``."""
         super().__init__()
         self.gamma = gamma
         self.project = nn.Conv2d(in_channels, kan_dim, 1)
@@ -30,6 +35,7 @@ class RBFKANHead(nn.Module):
 
     def forward(self, h):
         # u = tanh(Norm(P h + p)), so every KAN coordinate lies in [-1, 1].
+        """Apply the RBFKANHead transformation to the input tensors."""
         u = torch.tanh(self.norm(self.project(h)))
 
         # Compute sum_m a_{r,m} exp(-gamma (u_r-c_m)^2) without creating a huge BxDxMxHxW tensor.

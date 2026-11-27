@@ -43,6 +43,7 @@ CONFIG = '''    # NEW FOLLOW-UP VALIDATION (read-only for existing results).
 
 
 def install(path: Path, dry_run=False):
+    """Install the requested install fp followup task data using the supplied inputs."""
     path = Path(path)
     old = path.read_text(encoding="utf-8")
     new = old

@@ -38,10 +38,12 @@ FLUX_VARIABLES = frozenset(("avg_ishf", "avg_slhtf"))
 
 
 def _canonical_name(value):
+    """Normalize the GRIB variable identifier to the project naming convention."""
     return ALIASES.get(str(value), str(value))
 
 
 def _eccodes():
+    """Load the ecCodes decoder when GRIB processing is requested."""
     try:
         import eccodes
     except ImportError as exc:
@@ -50,6 +52,7 @@ def _eccodes():
 
 
 def _get(codes, message, key, default=None):
+    """Read a GRIB metadata key with fallback handling."""
     try:
         return codes.codes_get(message, key)
     except Exception:
@@ -57,6 +60,7 @@ def _get(codes, message, key, default=None):
 
 
 def _timestamp(codes, message):
+    """Read the valid timestamp of a GRIB message."""
     ymd = _get(codes, message, "validityDate")
     hm = _get(codes, message, "validityTime")
     if ymd is None or hm is None:
@@ -112,6 +116,7 @@ def _check_level(codes, message, name):
 
 
 def _open_inputs(paths):
+    """Open the requested GRIB input sources."""
     if isinstance(paths, (str, Path)):
         paths = [paths]
     found = []
@@ -133,6 +138,7 @@ def _open_inputs(paths):
 
 
 def _iter_messages(codes, sources, *, headers_only):
+    """Iterate over GRIB messages without retaining the full input in memory."""
     for source in sources:
         with source.open("rb") as reader:
             number = 0
@@ -148,6 +154,7 @@ def _iter_messages(codes, sources, *, headers_only):
 
 
 def _grid_spec(codes, message):
+    """Read the GRIB grid specification."""
     kind = str(_get(codes, message, "gridType", ""))
     if kind != "regular_ll":
         raise ValueError(f"Unsupported gridType {kind!r}; use a regular lat/lon grid")
@@ -165,6 +172,7 @@ def _grid_spec(codes, message):
 
 
 def _inspect(sources, variables, hours, first_date, last_date, *, skip_incomplete_last_day=True, duplicate_keys=None):
+    """Inspect GRIB metadata before allocating output arrays."""
     codes = _eccodes()
     by_variable = {name: {} for name in variables}
     specifications = {}
@@ -239,6 +247,7 @@ def _inspect(sources, variables, hours, first_date, last_date, *, skip_incomplet
 
 
 def _spatial_selection(codes, message, grid, stride):
+    """Determine the grid indices selected for the requested region."""
     ni, nj = grid[:2]
     lat = np.asarray(codes.codes_get_array(message, "latitudes"), dtype=np.float64).reshape(nj, ni)
     lon = np.asarray(codes.codes_get_array(message, "longitudes"), dtype=np.float64).reshape(nj, ni)
@@ -263,6 +272,7 @@ def _spatial_selection(codes, message, grid, stride):
 
 
 def _mask_array(mask, root, grid_shape):
+    """Prepare the spatial mask in the required array layout."""
     if mask is None:
         return None
     if isinstance(mask, (str, Path)):
@@ -281,6 +291,7 @@ def _mask_array(mask, root, grid_shape):
 
 
 def _atomic_memmap_path(output_path):
+    """Construct the temporary path for a memory-mapped output."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         dir=output_path.parent, prefix=f".{output_path.stem}_", suffix=".npy", delete=False,
@@ -289,6 +300,7 @@ def _atomic_memmap_path(output_path):
 
 
 def _write_space_time(sums, output_path, *, days, mask, factor, dtype, overwrite, block_pixels):
+    """Write the decoded observations in space-time layout."""
     if output_path.exists() and not overwrite:
         raise FileExistsError(output_path)
     tmp = _atomic_memmap_path(output_path)
@@ -310,6 +322,7 @@ def _write_space_time(sums, output_path, *, days, mask, factor, dtype, overwrite
 
 
 def _make_flux_sum(sensible_path, latent_path, flux_path, *, overwrite, dtype, block_pixels=256):
+    """Combine sensible and latent heat fluxes into total flux."""
     sensible = np.load(sensible_path, mmap_mode="r", allow_pickle=False)
     latent = np.load(latent_path, mmap_mode="r", allow_pickle=False)
     if sensible.shape != latent.shape:
@@ -543,6 +556,7 @@ def convert_era5_grib(
 def convert_grib(files_path_prefix, grib_file, variable, output_file, *, mask=None,
                  spatial_stride="auto", period_label="2019-2026", flux_units="native",
                  overwrite=False):
+    """Decode selected GRIB observations and publish the grouped output arrays."""
     root = Path(files_path_prefix)
     inp = Path(grib_file)
     if not inp.is_absolute():
@@ -570,6 +584,7 @@ def convert_grib(files_path_prefix, grib_file, variable, output_file, *, mask=No
 
 
 def split_years(files_path_prefix, source_file, variable, year_ranges, *, samples_per_day=1):
+    """Split a grouped time series into the configured annual intervals."""
     root = Path(files_path_prefix)
     inp = Path(source_file)
     arr = np.load(inp if inp.is_absolute() else root / inp, mmap_mode="r", allow_pickle=False)
@@ -592,6 +607,7 @@ def split_years(files_path_prefix, source_file, variable, year_ranges, *, sample
 
 
 def main():
+    """Run the GRIB workflow using its configured options."""
     parser = argparse.ArgumentParser(description="Stream ERA5 GRIB to daily NumPy arrays")
     parser.add_argument("--grib", nargs="+", required=True, type=Path)
     parser.add_argument("--root", required=True, type=Path)

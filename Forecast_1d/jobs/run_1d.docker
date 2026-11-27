@@ -1,4 +1,5 @@
 #!/bin/bash
+# Launch the run 1d workflow using the configured environment.
 # Execute Forecast_1d commands inside the existing NGC PyTorch container.
 set -euo pipefail
 cd /home/aosipova/Ocean_Components

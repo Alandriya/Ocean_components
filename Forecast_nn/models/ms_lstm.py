@@ -1,3 +1,5 @@
+"""Multi-scale convolutional LSTM cells and sequence forecasting model."""
+
 import sys
 
 import torch
@@ -8,7 +10,9 @@ from Forecast_nn.config import cfg
 
 
 class MK_LSTM_Cell(nn.Module):
+    """PyTorch module implementing the MK LSTM Cell architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size, stride, padding):
+        """Initialize MK LSTM Cell with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``."""
         super().__init__()
         self._batch_size, self._state_height, self._state_width = b_h_w
         self._conv_x2h_3 = cfg.LSTM_conv(in_channels=input_channel, out_channels=output_channel * 4,
@@ -33,6 +37,7 @@ class MK_LSTM_Cell(nn.Module):
         self._output_channel = output_channel
 
     def forward(self, x, hiddens):
+        """Apply the MK LSTM Cell transformation to the input tensors."""
         if hiddens is None:
             h = torch.zeros((x.shape[0], self._input_channel, self._state_height, self._state_width),
                             dtype=torch.float).cuda()
@@ -69,7 +74,9 @@ class MK_LSTM_Cell(nn.Module):
 
 
 class MS_LSTM(nn.Module):
+    """PyTorch module implementing the MS LSTM architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size, stride, padding):
+        """Initialize MS LSTM with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``."""
         super().__init__()
         self.n_layers = cfg.LSTM_layers
         B, H, W = b_h_w
@@ -88,6 +95,7 @@ class MS_LSTM(nn.Module):
 
     def forward(self, x, m, layer_hiddens, embed, fc):
         # print(x.shape)
+        """Apply the MS LSTM transformation to the input tensors."""
         x = embed(x)
         # print(x.shape)
 

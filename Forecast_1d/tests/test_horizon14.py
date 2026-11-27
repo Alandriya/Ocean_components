@@ -22,7 +22,9 @@ from Forecast_1d.collect_results import build_parser as collect_parser
 
 
 class Horizon14Tests(unittest.TestCase):
+    """Regression tests covering Horizon14."""
     def test_defaults_and_daily_splits(self):
+        """Verify that defaults and daily splits."""
         self.assertEqual(DEFAULT_HORIZON, 14)
         for parser in (train.build_parser(), test.build_parser(), collect_parser()):
             self.assertEqual(parser.parse_args([]).out_len, 14)
@@ -38,6 +40,7 @@ class Horizon14Tests(unittest.TestCase):
             self.assertEqual(origins[-1]+14, end-1)
 
     def test_baseline_forecasts_do_not_use_future(self):
+        """Verify that baseline forecasts do not use future."""
         rng = np.random.default_rng(11)
         data = rng.normal(size=(200, 10, 2))
         params = fit_ar1(data, 0, 100)
@@ -52,6 +55,7 @@ class Horizon14Tests(unittest.TestCase):
         np.testing.assert_array_equal(params, fit_ar1(changed, 0, 100))
 
     def test_train_evaluate_plot_collect(self):
+        """Verify that train evaluate plot collect."""
         torch.set_num_threads(1)
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

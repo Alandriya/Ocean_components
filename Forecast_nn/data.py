@@ -12,11 +12,13 @@ NATIVE_SPACE_SIZE = NATIVE_HEIGHT * NATIVE_WIDTH
 
 
 def downsampled_shape(factor=1):
+    """Calculate the spatial grid dimensions after downsampling."""
     factor = max(1, int(factor))
     return len(range(0, NATIVE_HEIGHT, factor)), len(range(0, NATIVE_WIDTH, factor))
 
 
 def load_mask(mask_file, downsample=1):
+    """Read and spatially subsample the legacy binary ocean mask."""
     mask = np.fromfile(os.fspath(mask_file), dtype=np.bool_, count=NATIVE_SPACE_SIZE)
     if mask.size != NATIVE_SPACE_SIZE:
         raise ValueError(f'Mask {mask_file} contains {mask.size} values, expected {NATIVE_SPACE_SIZE}.')
@@ -34,6 +36,7 @@ class OceanFieldReader:
     send a multi-GB mmap through multiprocessing pipes.
     """
     def __init__(self, data_file, downsample=1):
+        """Initialize Ocean Field Reader with ``data_file``, ``downsample``."""
         self.data_file = os.fspath(data_file)
         self.downsample = max(1, int(downsample))
         self.height, self.width = downsampled_shape(self.downsample)
@@ -62,20 +65,24 @@ class OceanFieldReader:
 
     @property
     def data(self):
+        """Compute data for Ocean Field Reader."""
         if self._data is None:
             self._data = np.load(self.data_file, mmap_mode='r')
         return self._data
 
     def __getstate__(self):
+        """Return serializable instance state for worker processes or persistence."""
         state = self.__dict__.copy()
         state['_data'] = None
         return state
 
     def __setstate__(self, state):
+        """Restore the instance from its serialized state."""
         self.__dict__.update(state)
         self._data = None
 
     def read_indices(self, indices):
+        """Read observations at the specified time indices."""
         indices = np.asarray(indices, dtype=np.int64)
         d = self.data
         if self.layout == 'space_time':
@@ -99,6 +106,7 @@ class OceanFieldReader:
         return arr
 
     def read_range(self, start, end):
+        """Read observations over the requested index interval."""
         return self.read_indices(np.arange(start, end, dtype=np.int64))
 
 
@@ -106,6 +114,7 @@ class OceanFieldReader:
 class OceanMultiFieldReader:
     """Join flux histories along channel axis, without eagerly loading data."""
     def __init__(self, data_files, downsample=1):
+        """Initialize Ocean Multi Field Reader with ``data_files``, ``downsample``."""
         from types import SimpleNamespace
         if len(data_files) != 2:
             raise ValueError('Joint mode requires exactly two flux files')
@@ -122,13 +131,16 @@ class OceanMultiFieldReader:
         self.data = SimpleNamespace(shape=(self.length, self.channels, self.height, self.width))
 
     def read_indices(self, indices):
+        """Read observations at the specified time indices."""
         return np.concatenate([r.read_indices(indices) for r in self.readers], axis=1)
 
     def read_range(self, start, end):
+        """Read observations over the requested index interval."""
         return self.read_indices(np.arange(start, end, dtype=np.int64))
 
 
 def make_field_reader(data_file, downsample=1):
+    """Create a reader for the configured gridded field source."""
     if isinstance(data_file, (list, tuple)):
         return OceanMultiFieldReader(data_file, downsample)
     return OceanFieldReader(data_file, downsample)
@@ -142,11 +154,13 @@ def resolve_flux_source(variable, data_files):
 
 
 def source_exists(source):
+    """Check that the requested data source is present."""
     if isinstance(source, (list, tuple)):
         return all(Path(item).is_file() for item in source)
     return Path(source).is_file()
 
 def estimate_normalization(reader, mask, start_idx, end_idx, chunk=32, verbose=True):
+    """Estimate normalization statistics from the selected input observations."""
     sums = np.zeros(reader.channels, dtype=np.float64)
     sums2 = np.zeros(reader.channels, dtype=np.float64)
     counts = np.zeros(reader.channels, dtype=np.int64)
@@ -169,10 +183,12 @@ def estimate_normalization(reader, mask, start_idx, end_idx, chunk=32, verbose=T
 
 
 def normalization_file(stats_root, variable, downsample, train_end):
+    """Construct the path of the saved normalization statistics."""
     return Path(stats_root) / f'norm_{variable}_ds{downsample}_train{train_end}.npz'
 
 
 def load_or_create_normalization(data_file, mask, variable, downsample, train_end, stats_root, rebuild=False):
+    """Load cached normalization statistics or calculate and save them."""
     path = normalization_file(stats_root, variable, downsample, train_end)
     if path.exists() and not rebuild:
         with np.load(path) as f:
@@ -187,6 +203,7 @@ def load_or_create_normalization(data_file, mask, variable, downsample, train_en
 class OceanSequenceDataset(Dataset):
     """Return normalized input/target sequences as [T,C,H,W]."""
     def __init__(self, data_file, mask, start_idx, end_idx, in_len, out_len, mean, std, stride=1, downsample=1):
+        """Initialize Ocean Sequence Dataset with ``data_file``, ``mask``, ``start_idx``, ``end_idx``, ``in_len``, ``out_len``, ``mean`` and the remaining options."""
         self.reader = make_field_reader(data_file, downsample)
         self.mask = mask.astype(bool)
         self.start_idx = int(start_idx)
@@ -199,10 +216,12 @@ class OceanSequenceDataset(Dataset):
         self.channels = self.reader.channels
 
     def __len__(self):
+        """Return the number of available samples."""
         needed_span = (self.in_len + self.out_len - 1) * self.stride
         return max(0, self.end_idx - self.start_idx - needed_span)
 
     def __getitem__(self, index):
+        """Return the sample indexed by the data loader."""
         indices = self.start_idx + index + np.arange(self.in_len + self.out_len) * self.stride
         seq = self.reader.read_indices(indices)
         seq = (seq - self.mean[None, :, None, None]) / self.std[None, :, None, None]
@@ -214,6 +233,7 @@ class OceanSequenceDataset(Dataset):
 
 
 def psnr_file(stats_root, variable, downsample, train_end, percentiles, max_frames):
+    """Compute psnr file for data from ``stats_root``, ``variable``, ``downsample``, ``train_end``, ``percentiles``."""
     low, high = (float(v) for v in percentiles)
     return Path(stats_root) / (
         f'psnr_{variable}_ds{downsample}_train{train_end}_'

@@ -1,3 +1,5 @@
+"""Plot calendar-year climatologies of observed fields and stochastic-model coefficients."""
+
 import datetime
 
 import matplotlib.colors as colors

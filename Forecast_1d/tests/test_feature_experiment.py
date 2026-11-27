@@ -10,7 +10,9 @@ from Forecast_1d.feature_experiment import FeatureExperiment, PointTransform
 
 
 class TestFeatureAlignment(unittest.TestCase):
+    """Regression tests covering Test Feature Alignment."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.ctx = tempfile.TemporaryDirectory()
         self.addCleanup(self.ctx.cleanup)
         root = Path(self.ctx.name)
@@ -41,6 +43,7 @@ class TestFeatureAlignment(unittest.TestCase):
         np.save(self.features / 'dates.npy', self.dates[:-1])
 
     def test_trimmed_last_day_preserves_original_split(self):
+        """Verify that trimmed last day preserves original split."""
         exp = FeatureExperiment(features_directory=self.features, flux_directory=self.flux)
         self.assertEqual(exp.split.train_end, self.N - 1095)
         self.assertEqual(exp.split.test_end, self.N-1)
@@ -58,12 +61,14 @@ class TestFeatureAlignment(unittest.TestCase):
         self.assertEqual(tr.unscale(targets, origins[:3]).shape, (3,14,2))
 
     def test_shifted_features_rejected(self):
+        """Verify that shifted features rejected."""
         dates = np.load(self.features/'dates.npy')
         np.save(self.features/'dates.npy', dates + np.timedelta64(1,'D'))
         with self.assertRaises(ValueError):
             FeatureExperiment(features_directory=self.features, flux_directory=self.flux)
 
     def test_target_mismatch_rejected(self):
+        """Verify that target mismatch rejected."""
         t = np.load(self.features/'targets.npy')
         t[7,0,0] += 1
         np.save(self.features/'targets.npy', t)

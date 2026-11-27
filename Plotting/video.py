@@ -1,3 +1,5 @@
+"""Assemble saved image frames into videos and prepare frame sequences."""
+
 import os
 import subprocess
 import time

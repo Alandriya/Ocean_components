@@ -30,6 +30,7 @@ from Coefficients.coefficients_cf import (
 
 
 def demo_pair(seed=12, shape=(9, 10), steps=5):
+    """Compute demo pair for test aligned from ``seed``, ``shape``, ``steps``."""
     rng = np.random.default_rng(seed)
     first = np.zeros((steps, *shape))
     second = np.zeros((steps, *shape))
@@ -44,7 +45,9 @@ def demo_pair(seed=12, shape=(9, 10), steps=5):
 
 
 class AlignedTests(unittest.TestCase):
+    """Regression tests covering Aligned."""
     def test_mask_water_one_land_zero(self):
+        """Verify that mask water one land zero."""
         mask = np.array([[1, 0], [0, 1]], dtype=np.uint8)
         water = load_water_mask(mask, (2, 2))
         np.testing.assert_array_equal(water, [[True, False], [False, True]])
@@ -56,6 +59,7 @@ class AlignedTests(unittest.TestCase):
             np.testing.assert_array_equal(load_water_mask(raw, (2, 2)), water)
 
     def test_input_orientations(self):
+        """Verify that input orientations."""
         t, h, w = 4, 161, 181
         data = np.arange(t*h*w, dtype=np.float32).reshape((t,h,w))
         flat_spatial_first = data.reshape((t,-1)).T
@@ -76,6 +80,7 @@ class AlignedTests(unittest.TestCase):
                 load_series(np.zeros((7,12)))
 
     def test_scalar_np_sp_agreement(self):
+        """Verify that scalar np sp agreement."""
         first, _ = demo_pair()
         group = prepare_transition(first[0], first[1], 4)
         an, bn = estimate_np(group)
@@ -85,6 +90,7 @@ class AlignedTests(unittest.TestCase):
         self.assertEqual(diag['non_converged_bins'],0)
 
     def test_2d_covariance_and_channel_order(self):
+        """Verify that 2d covariance and channel order."""
         first, second = demo_pair()
         mask = np.ones(first.shape[1:], dtype=np.uint8)
         mask[0,0] = 0
@@ -113,6 +119,7 @@ class AlignedTests(unittest.TestCase):
             np.testing.assert_allclose(braw@braw.T,cov+1e-6*np.eye(2),atol=1e-9)
 
     def test_2d_two_file_wrappers(self):
+        """Verify that 2d two file wrappers."""
         x, y = demo_pair(steps=4)
         water = np.ones(x.shape[1:],dtype=int)
         water[1,2] = 0
@@ -135,6 +142,7 @@ class AlignedTests(unittest.TestCase):
             self.assertTrue(np.isnan(np.load(folder/'1_F.npy')[1,2]))
 
     def test_cf_interpretation(self):
+        """Verify that cf interpretation."""
         a=np.zeros((3,2,2,2))
         b=np.zeros((3,4,2,2))
         for t in range(3):

@@ -9,7 +9,9 @@ import torch
 
 
 class EOFVAR:
+    """Container for eofvar state and associated operations."""
     def __init__(self, rank=24, lags=5, ridge=1.0, snapshot_stride=7, seed=2025):
+        """Initialize EOFVAR with ``rank``, ``lags``, ``ridge``, ``snapshot_stride``, ``seed``."""
         self.rank = int(rank)
         self.lags = int(lags)
         self.ridge = float(ridge)
@@ -19,6 +21,7 @@ class EOFVAR:
             raise ValueError('rank, lags, snapshot_stride must be positive, ridge non-negative')
 
     def fit(self, reader, mask, train_end, mean, std, chunk=32):
+        """Fit eofvar data using the supplied inputs."""
         rng = np.random.default_rng(self.seed)
         self.mask = mask.astype(bool)
         self.shape = (int(reader.channels), *mask.shape)
@@ -63,11 +66,13 @@ class EOFVAR:
 
     def _flatten(self, frames):
         # raw frames [N,C,H,W]; mask land, then ravel per channel.
+        """Compute flatten for EOFVAR from ``frames``."""
         norm = (frames - self.mean[None, :, None, None]) / self.std[None, :, None, None]
         norm = np.nan_to_num(norm, nan=0.0, posinf=0.0, neginf=0.0)
         return norm[:, :, self.mask].reshape(len(frames), -1)
 
     def predict(self, history, horizon=3, members=1, seed=None):
+        """Predict eofvar data using the supplied inputs."""
         if isinstance(history, torch.Tensor):
             history = history.detach().cpu().numpy()
         history = np.asarray(history, dtype=np.float32)
@@ -92,11 +97,13 @@ class EOFVAR:
         return output
 
     def state_dict(self):
+        """Return the serializable model state."""
         return {k: getattr(self, k) for k in ('rank','lags','ridge','snapshot_stride','seed','mask','shape','mean',
                       'std','spatial_mean','components','eof_center','beta','resid_chol')}
 
     @classmethod
     def from_state_dict(cls, state):
+        """Reconstruct the object from its saved state dictionary."""
         obj = cls(*(state[k] for k in ('rank','lags','ridge','snapshot_stride','seed')))
         vars(obj).update(state)
         return obj

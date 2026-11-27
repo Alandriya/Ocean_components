@@ -1,4 +1,5 @@
 #!/bin/bash
+# Launch the submit 1d workflow using the configured environment.
 # Create the shared log directory before Slurm opens stdout/stderr files.
 # Usage:
 #   bash Forecast_1d/jobs/submit_1d.sh train --model tcn --points P3 P5 P7 P9

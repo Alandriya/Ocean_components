@@ -16,7 +16,7 @@ import numpy as np
 
 from .data import PointDataset, dataset_dir, results_dir
 from .feature_data import PointHistoryFeatures
-from .models.seasonal import calendar_index, fit_seasonal
+from Forecast_1d.models.baselines import calendar_index, fit_seasonal
 from .experiment import DEFAULT_HORIZON
 
 MODEL_NAMES = ("mlp", "tcn", "gru", "nbeats", "nhits", "tide")
@@ -25,6 +25,7 @@ TARGET_MODES = ("anomaly", "raw")
 
 
 def features_dir(override=None, flux_dir=None) -> Path:
+    """Compute features dir for feature experiment from ``override``, ``flux_dir``."""
     return (Path(override).expanduser().resolve() if override is not None
             else (dataset_dir(flux_dir) / "features_era5"))
 
@@ -46,6 +47,7 @@ def checksum_features(folder: Path) -> str:
 
 @dataclass(frozen=True)
 class TimeSplits:
+    """Container for time splits state and associated operations."""
     train_end: int
     val_start: int
     val_end: int
@@ -55,6 +57,7 @@ class TimeSplits:
     out_len: int
 
     def origins(self, split: str) -> np.ndarray:
+        """Return eligible forecast origins within the selected split."""
         if split == "train":
             first, last = self.in_len - 1, self.train_end
         elif split == "val":
@@ -71,6 +74,7 @@ class FeatureExperiment:
     """Ensure original flux and ERA5 augmented values share the same daily index."""
     def __init__(self, *, features_directory=None, flux_directory=None,
                  in_len=60, out_len=DEFAULT_HORIZON, val_days=730, test_days=365):
+        """Initialize Feature Experiment with ``features_directory``, ``flux_directory``, ``in_len``, ``out_len``, ``val_days``, ``test_days``."""
         self.flux = PointDataset(dataset_dir(flux_directory))
         self.features = PointHistoryFeatures(features_dir(features_directory, flux_directory))
         f, b = self.features, self.flux
@@ -102,16 +106,19 @@ class FeatureExperiment:
         self.point_ids = f.point_ids
 
     def selected_names(self, feature_set: str):
+        """Return the names of selected features."""
         if feature_set not in FEATURE_SETS:
             raise ValueError(f"Unknown feature set: {feature_set}")
         n = {"flux": 2, "era5": 8, "all": 20}[feature_set]
         return tuple(self.features.feature_names[:n])
 
     def selected_indices(self, feature_set: str):
+        """Return the indices of selected features."""
         return np.arange(len(self.selected_names(feature_set)), dtype=np.int64)
 
 
 def base_folder(*, results_override, target_mode, feature_set, run_id, out_len):
+    """Compute base folder for feature experiment from ``results_override``, ``target_mode``, ``feature_set``, ``run_id``, ``out_len``."""
     if any(ch in run_id for ch in ("/", "\\", "..")) or not run_id.strip():
         raise ValueError("run-id must be a simple nonempty directory name")
     if target_mode not in TARGET_MODES or feature_set not in FEATURE_SETS:
@@ -121,6 +128,7 @@ def base_folder(*, results_override, target_mode, feature_set, run_id, out_len):
 
 
 def set_seed(seed):
+    """Seed the random number generators used by the experiment."""
     import torch
     random.seed(seed)
     np.random.seed(seed)
@@ -130,6 +138,7 @@ def set_seed(seed):
 
 
 def torch_device(choice):
+    """Resolve the PyTorch device requested for the experiment."""
     import torch
     if choice == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but PyTorch cannot find a GPU")
@@ -142,6 +151,7 @@ class PointTransform:
     """Training-only climatology and separate x/y normalization per location."""
     def __init__(self, exp: FeatureExperiment, point_idx: int, feature_set: str,
                  target_mode: str, climatology_radius: int):
+        """Initialize Point Transform with ``exp``, ``point_idx``, ``feature_set``, ``target_mode``, ``climatology_radius``."""
         self.exp = exp
         self.point_idx = int(point_idx)
         self.feature_names = exp.selected_names(feature_set)
@@ -182,6 +192,7 @@ class PointTransform:
         self.y_norm = ((self.y_work - self.y_mean) / self.y_scale).astype(np.float32)
 
     def windows(self, origins: np.ndarray, in_len: int, out_len: int):
+        """Construct history and target windows for the supplied forecast origins."""
         origins = np.asarray(origins, dtype=np.int64)
         if origins.size == 0 or origins.min() < in_len-1 or origins.max()+out_len >= self.exp.n_dates:
             raise ValueError("Invalid forecast origins for feature history")
@@ -199,6 +210,7 @@ class PointTransform:
         return y
 
     def metadata(self):
+        """Return metadata describing the current dataset or experiment."""
         return {
             "feature_names": list(self.feature_names),
             "target_mode": self.mode,
@@ -208,6 +220,7 @@ class PointTransform:
         }
 
     def validate_metadata(self, saved):
+        """Validate saved metadata against the current configuration."""
         a = self.metadata()
         for key in ("feature_names", "target_mode", "climatology_radius"):
             if saved[key] != a[key]:
@@ -218,6 +231,7 @@ class PointTransform:
 
 
 def save_json(path, obj):
+    """Serialize the supplied result to a JSON file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False, allow_nan=False)+"\n",encoding="utf-8")

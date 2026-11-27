@@ -25,9 +25,11 @@ if "Coefficients.common" not in sys.modules:
     except ModuleNotFoundError:
         cm = types.ModuleType("Coefficients.common")
         def _bin_ids(values, n_bins):
+            """Map values to the corresponding quantile-bin indices."""
             edges = np.quantile(values, np.linspace(0, 1, n_bins+1))
             return np.clip(np.searchsorted(edges, values, side="right")-1, 0, n_bins-1), edges
         def load_water_mask(mask, shape):
+            """Load water mask for the test quantile resampling workflow."""
             return np.ones(shape, dtype=bool) if mask is None else np.asarray(mask, dtype=bool).reshape(shape)
         cm._bin_ids = _bin_ids
         cm.load_water_mask = load_water_mask
@@ -44,7 +46,9 @@ from Coefficients.quantile_hourly import _group_for_mode
 
 
 class ResamplingTests(unittest.TestCase):
+    """Regression tests covering Resampling."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -74,6 +78,7 @@ class ResamplingTests(unittest.TestCase):
         )
 
     def test_spatial_masks_matched_size_and_regular_step(self):
+        """Verify that spatial masks matched size and regular step."""
         rng = np.random.default_rng(72)
         picks = _spatial_choices(self.mask, 2, rng)
         self.assertEqual([x[0] for x in picks], ["grid", "random"])
@@ -84,6 +89,7 @@ class ResamplingTests(unittest.TestCase):
         np.testing.assert_array_equal(picks[0][1] & ~self.mask, np.zeros(self.shape,bool))
 
     def test_vectorized_fits_match_original_quantile_method(self):
+        """Verify that vectorized fits match original quantile method."""
         rng = np.random.default_rng(3)
         for dimension in (1, 2):
             prev = rng.normal(size=(3, 6, 8, dimension))
@@ -109,6 +115,7 @@ class ResamplingTests(unittest.TestCase):
             np.testing.assert_array_equal(sizes, fit["sizes"])
 
     def test_full_run_has_expected_rows_and_nested_hours(self):
+        """Verify that full run has expected rows and nested hours."""
         result = run_quantile_hourly_resampling(**self.opts)
         self.assertEqual(result["processed_dates"], 2)
         with (self.root / "out" / "resampling_daily.csv").open(newline="") as f:
@@ -133,6 +140,7 @@ class ResamplingTests(unittest.TestCase):
                          ["time_shift_hours"], 0)
 
     def test_resume_keeps_complete_days_and_recomputes_partial(self):
+        """Verify that resume keeps complete days and recomputes partial."""
         first = run_quantile_hourly_resampling(**self.opts)
         output = Path(first["daily"])
         with output.open(newline="") as f:
@@ -153,6 +161,7 @@ class ResamplingTests(unittest.TestCase):
         self.assertEqual(before, rebuilt)
 
     def test_extend_from_smoke_to_full_without_losing_days(self):
+        """Verify that extend from smoke to full without losing days."""
         smoke = dict(self.opts, max_days=1)
         run_quantile_hourly_resampling(**smoke)
         with (self.root / "out" / "resampling_daily.csv").open(newline="") as f:
@@ -165,12 +174,14 @@ class ResamplingTests(unittest.TestCase):
         self.assertEqual(len(rows_final), 2*len(rows_first))
 
     def test_changed_seed_rejects_resume(self):
+        """Verify that changed seed rejects resume."""
         run_quantile_hourly_resampling(**self.opts)
         other = dict(self.opts, random_seed=31)
         with self.assertRaisesRegex(ValueError, "settings or input files changed"):
             run_quantile_hourly_resampling(**other)
 
     def test_valid_old_cache_does_not_require_grib_seek(self):
+        """Verify that valid old cache does not require GRIB seek."""
         files = (self.root/"a.grib",self.root/"b.grib")
         for path in files:
             path.write_bytes(b"GRIBnot-real-data")
@@ -194,6 +205,7 @@ class ResamplingTests(unittest.TestCase):
         self.assertFalse(_cache_matches(cached,files,days,self.shape,"auto"))
 
     def test_incompatible_settings(self):
+        """Verify that incompatible settings."""
         with self.assertRaisesRegex(ValueError, "<= 24"):
             run_quantile_hourly_resampling(**dict(self.opts, hours=(25,)))
 

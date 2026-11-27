@@ -28,6 +28,7 @@ class FactorizedSTBlock(nn.Module):
     """Residual spatiotemporal block: temporal depthwise conv + spatial depthwise conv."""
 
     def __init__(self, channels, temporal_kernel=3, spatial_kernel=3, dropout=0.0):
+        """Initialize Factorized STBlock with ``channels``, ``temporal_kernel``, ``spatial_kernel``, ``dropout``."""
         super().__init__()
         if temporal_kernel % 2 == 0 or spatial_kernel % 2 == 0:
             raise ValueError('temporal_kernel and spatial_kernel must be odd.')
@@ -66,6 +67,7 @@ class FactorizedSTBlock(nn.Module):
         self.dropout = nn.Dropout3d(dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x):
+        """Apply the Factorized STBlock transformation to the input tensors."""
         x = x + self.dropout(self.temporal(self.norm_temporal(x)))
         x = x + self.dropout(self.spatial(self.norm_spatial(x)))
         return x
@@ -97,6 +99,7 @@ class SimVPForecaster(nn.Module):
         spatial_kernel=3,
         horizon_embedding=True,
     ):
+        """Initialize Sim VPForecaster with ``in_len``, ``out_len``, ``in_channels``, ``base_channels``, ``depth``, ``dropout``, ``residual`` and the remaining options."""
         super().__init__()
         self.in_len = int(in_len)
         self.out_len = int(out_len)
@@ -164,6 +167,7 @@ class SimVPForecaster(nn.Module):
 
     @staticmethod
     def _coords(batch, height, width, device, dtype):
+        """Build normalized spatial coordinate channels for the model grid."""
         y = torch.linspace(-1.0, 1.0, height, device=device, dtype=dtype)
         x = torch.linspace(-1.0, 1.0, width, device=device, dtype=dtype)
         yy, xx = torch.meshgrid(y, x, indexing='ij')
@@ -171,6 +175,7 @@ class SimVPForecaster(nn.Module):
 
     @staticmethod
     def _prepare_mask(mask, batch, x):
+        """Convert and broadcast the ocean mask to the input tensor layout."""
         if mask is None:
             return None
         if mask.ndim == 2:
@@ -189,6 +194,7 @@ class SimVPForecaster(nn.Module):
         return mask
 
     def _feature_mask(self, feature, mask):
+        """Adapt the ocean mask to the feature tensor resolution."""
         if not self.mask_features or mask is None:
             return feature
         return feature * _resize_mask(mask, feature.shape[-2:], feature.dtype)
@@ -201,6 +207,7 @@ class SimVPForecaster(nn.Module):
         return feature * m[:, :, None]
 
     def _frame_input(self, frame, mask, coords):
+        """Prepare one input frame and its auxiliary features."""
         parts = [frame]
         if self.use_mask_channel:
             if mask is None:
@@ -211,6 +218,7 @@ class SimVPForecaster(nn.Module):
         return torch.cat(parts, dim=1)
 
     def _encode(self, frame, mask, coords):
+        """Encode the input frame into a latent representation."""
         skips = []
         z = self._feature_mask(self.stem(self._frame_input(frame, mask, coords)), mask)
         skips.append(z)
@@ -221,12 +229,14 @@ class SimVPForecaster(nn.Module):
         return z, skips
 
     def _decode(self, latent, last_skips, mask):
+        """Decode latent features into the spatial prediction grid."""
         z = self._feature_mask(latent, mask)
         for block, skip in zip(self.up, reversed(last_skips)):
             z = self._feature_mask(block(z, skip), mask)
         return self.output(z)
 
     def forward(self, x, mask=None, return_bottleneck=False):
+        """Apply the Sim VPForecaster transformation to the input tensors."""
         if x.ndim != 5:
             raise ValueError(f'x must be [B,T,C,H,W], got shape {tuple(x.shape)}.')
 

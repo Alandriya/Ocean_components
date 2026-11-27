@@ -110,6 +110,7 @@ def compute_fs(a_map, b_map, mask=None):
 
 
 def _target(files_path_prefix, pair_name):
+    """Resolve the target path for a derived coefficient product."""
     destination = Path(files_path_prefix) / 'Coeff_data_3d' / pair_name
     destination.mkdir(parents=True, exist_ok=True)
     return destination

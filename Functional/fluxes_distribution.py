@@ -1,3 +1,5 @@
+"""Empirical distribution and dependence analysis of heat flux observations."""
+
 import datetime
 import os
 

@@ -1,3 +1,5 @@
+"""Stochastic differential equation hidden-state neural networks for one-dimensional and spatial forecasts."""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,7 +7,9 @@ import torch.nn.functional as F
 
 # ----- SDE Block for spatiotemporal data -----
 class SDEHNN(nn.Module):
+    """PyTorch module implementing the SDEHNN architecture or layer."""
     def __init__(self, output_length, in_channels=1, hidden_channels=32, step_size=0.5, num_steps=3, dropout_p=0.1):
+        """Initialize SDEHNN with ``output_length``, ``in_channels``, ``hidden_channels``, ``step_size``, ``num_steps``, ``dropout_p``."""
         super().__init__()
         self.dt = step_size
         self.num_steps = num_steps
@@ -69,7 +73,9 @@ class SDEHNN(nn.Module):
 
 
 class SDEBlock(nn.Module):
+    """PyTorch module implementing the SDEBlock architecture or layer."""
     def __init__(self, hidden_dim=64, step_size=0.5, num_steps=3, dropout_p=0.1):
+        """Initialize SDEBlock with ``hidden_dim``, ``step_size``, ``num_steps``, ``dropout_p``."""
         super().__init__()
         self.hidden_dim = hidden_dim
         self.dt = step_size
@@ -112,7 +118,9 @@ class SDEBlock(nn.Module):
 
 
 class SDEHNN_1d(nn.Module):
+    """PyTorch module implementing the SDEHNN 1d architecture or layer."""
     def __init__(self, input_dim, hidden_dim=64):
+        """Initialize SDEHNN 1d with ``input_dim``, ``hidden_dim``."""
         super().__init__()
         self.init_layer = nn.Linear(input_dim, hidden_dim)
         self.sde_block = SDEBlock(hidden_dim)
@@ -123,6 +131,7 @@ class SDEHNN_1d(nn.Module):
         )
 
     def forward(self, x):
+        """Apply the SDEHNN 1d transformation to the input tensors."""
         h0 = F.relu(self.init_layer(x))
         hT = self.sde_block(h0)
         mu = self.mean_head(hT)

@@ -44,6 +44,7 @@ class SDEFieldReader:
 
     def __init__(self, source, *, downsample=1, b_kind='diffusion',
                  feature_clip=5.0, feature_stats=None, state_std=None):
+        """Initialize SDEField Reader with ``source``, ``downsample``, ``b_kind``, ``feature_clip``, ``feature_stats``, ``state_std``."""
         source = dict(source or {})
         if 'a_file' not in source or 'b_file' not in source:
             raise ValueError('SDE field source must contain a_file and b_file.')
@@ -89,9 +90,11 @@ class SDEFieldReader:
 
     def __getstate__(self):
         # OceanFieldReader already drops its mmap handles when pickled.
+        """Return serializable instance state for worker processes or persistence."""
         return self.__dict__.copy()
 
     def set_feature_stats(self, feature_stats):
+        """Set normalization statistics for conditioning features."""
         stats = {k: np.asarray(v, dtype=np.float32) for k, v in dict(feature_stats).items()}
         required = ('a_mean', 'a_std', 'b_feature_mean', 'b_feature_std')
         missing = [k for k in required if k not in stats]
@@ -100,6 +103,7 @@ class SDEFieldReader:
         self.feature_stats = stats
 
     def set_state_std(self, state_std):
+        """Set state-variable standard deviations used to scale SDE inputs."""
         state_std = np.asarray(state_std, dtype=np.float32).reshape(-1)
         if state_std.size not in (1, self.channels):
             raise ValueError(
@@ -111,14 +115,17 @@ class SDEFieldReader:
 
     @property
     def first_flux_index(self):
+        """Return the first flux observation index covered by this source."""
         return self.time_offset
 
     @property
     def last_flux_index(self):
         # Inclusive flux-state index represented by the final coefficient map.
+        """Return the last flux observation index covered by this source."""
         return self.time_offset + self.length - 1
 
     def describe(self):
+        """Compute describe for SDEField Reader."""
         return {
             'a_file': self.a_file,
             'b_file': self.b_file,
@@ -131,11 +138,13 @@ class SDEFieldReader:
         }
 
     def _b_feature(self, b):
+        """Compute b feature for SDEField Reader from ``b``."""
         if self.b_kind == 'variance':
             return np.sqrt(np.maximum(b, 0.0))
         return np.abs(b)
 
     def read_coefficient_indices(self, coefficient_indices):
+        """Read SDE coefficients at the requested time indices."""
         coefficient_indices = np.asarray(coefficient_indices, dtype=np.int64)
         if coefficient_indices.size == 0:
             shape = (0, self.channels, self.height, self.width)
@@ -175,6 +184,7 @@ class SDEFieldReader:
         return a, b, valid
 
     def conditioning_features_numpy(self, flux_indices, mask=None):
+        """Construct NumPy conditioning features for the requested observations."""
         if self.feature_stats is None:
             raise RuntimeError('SDE feature_stats are required for conditioning.')
         a, b, valid = self.read_for_flux_indices(flux_indices)
@@ -228,6 +238,7 @@ class SDEFieldReader:
 
 
 def _accumulate_stats(reader, mask, coefficient_end, chunk=32, verbose=True):
+    """Compute accumulate stats for SDE from ``reader``, ``mask``, ``coefficient_end``, ``chunk``, ``verbose``."""
     channels = reader.channels
     sums_a = np.zeros(channels, np.float64)
     sums2_a = np.zeros(channels, np.float64)
@@ -273,6 +284,7 @@ def _accumulate_stats(reader, mask, coefficient_end, chunk=32, verbose=True):
 
 
 def sde_normalization_file(stats_root, variable, downsample, train_end, b_kind, time_offset):
+    """Compute SDE normalization file for SDE from ``stats_root``, ``variable``, ``downsample``, ``train_end``, ``b_kind``."""
     return Path(stats_root) / (
         f'sde_field_norm_{variable}_ds{downsample}_train{train_end}_'
         f'{b_kind}_offset{time_offset}.npz'
@@ -282,6 +294,7 @@ def sde_normalization_file(stats_root, variable, downsample, train_end, b_kind, 
 def load_or_create_sde_field_normalization(source, mask, variable, downsample,
                                            train_end, stats_root, b_kind='diffusion',
                                            feature_clip=5.0, rebuild=False):
+    """Load or create SDE field normalization for the SDE workflow."""
     time_offset = int(dict(source).get('time_offset', 1))
     path = sde_normalization_file(stats_root, variable, downsample, train_end, b_kind, time_offset)
     if path.exists() and not rebuild:
@@ -311,6 +324,7 @@ class SDEOceanSequenceDataset(OceanSequenceDataset):
     """Ocean sequence dataset plus causally aligned historical A/B maps."""
 
     def __init__(self, *args, sde_reader, **kwargs):
+        """Initialize SDEOcean Sequence Dataset with ``sde_reader``."""
         super().__init__(*args, **kwargs)
         self.sde_reader = sde_reader
         if self.sde_reader.channels != self.channels:
@@ -319,6 +333,7 @@ class SDEOceanSequenceDataset(OceanSequenceDataset):
             )
 
     def __getitem__(self, index):
+        """Return the sample indexed by the data loader."""
         x, y = super().__getitem__(index)
         all_indices = self.start_idx + index + np.arange(self.in_len + self.out_len) * self.stride
         input_indices = all_indices[:self.in_len]
@@ -335,6 +350,7 @@ class SDEOceanSequenceDataset(OceanSequenceDataset):
 
 
 def source_to_serializable(source):
+    """Compute source to serializable for SDE from ``source``."""
     out = {}
     for key, value in dict(source).items():
         out[key] = os.fspath(value) if isinstance(value, (str, os.PathLike, Path)) else value

@@ -6,13 +6,14 @@ import argparse
 from pathlib import Path
 import torch
 from Forecast_nn.config import cfg
-from Forecast_nn.logging_utils import tee_output
+from Forecast_nn.runtime import tee_output
 from Forecast_nn.generative_utils import prepare_data, run_tag, save_json, EnsembleScores
 from Forecast_nn.models.generative import ConditionalDDPM, ConditionalGAN
 from Forecast_nn.models.eof_var import EOFVAR
 
 
 def arguments():
+    """Parse command-line options for the experiment."""
     p=argparse.ArgumentParser()
     p.add_argument('--model',choices=('ddpm','gan','var'),required=True)
     p.add_argument('--variable',choices=('sensible','latent','joint'),default='joint')
@@ -39,6 +40,7 @@ def arguments():
 
 
 def run(args):
+    """Run the test generative workflow using its configured options."""
     if args.members<2:
         raise ValueError('Probabilistic evaluation requires at least 2 members for meaningful spread/CRPS')
     info=prepare_data(args,split=args.split)
@@ -99,6 +101,7 @@ def run(args):
 
 
 def main():
+    """Run the test generative workflow using its configured options."""
     args=arguments()
     name=f'test_{args.model}_{run_tag(args)}_{args.variable}_{args.split}.txt'
     with tee_output(Path(cfg.results_root).parent/'logs'/name):run(args)

@@ -1,3 +1,5 @@
+"""Functional approximations of stochastic drift and diffusion, stationary-density helpers and joint-state meshes."""
+
 import datetime
 import os
 import pandas as pd
@@ -109,6 +111,7 @@ def estimate_A_B(files_path_prefix: str,
                  a:np.ndarray,
                  b:np.ndarray,
                  quantiles_amount: int = 250):
+    """Estimate functional representations of the drift and diffusion coefficients."""
     x_grouped, _ = scale_to_bins(x, quantiles_amount)
     quantiles = np.unique(x_grouped)
     quantiles = quantiles[np.logical_not(np.isnan(quantiles))]
@@ -141,6 +144,7 @@ def estimate_A_B(files_path_prefix: str,
 
 
 def get_values(arr_grouped):
+    """Return values for the func estimation workflow."""
     quantiles = np.unique(arr_grouped)
     quantiles = quantiles[np.logical_not(np.isnan(quantiles))]
     quantiles = quantiles[quantiles != 0] #hotfix
@@ -148,6 +152,7 @@ def get_values(arr_grouped):
 
 
 def kl_coeff(x, n, l):
+    """Calculate the Kullback-Leibler coefficient for the supplied densities."""
     if n == 0:
         return 1 / l
     elif n == 1:
@@ -162,6 +167,7 @@ def kl_coeff(x, n, l):
         raise ValueError("n must be 0..4")
 
 def Phi(x, l, k):
+    """Compute Phi for func estimation from ``x``, ``l``, ``k``."""
     k0, k1, k2, k3, k4 = k
     return np.exp(l * x) * (
             k4 * kl_coeff(x, 4, l)
@@ -173,6 +179,7 @@ def Phi(x, l, k):
 
 
 def Psi_minus(x, c, k):
+    """Compute Psi minus for func estimation from ``x``, ``c``, ``k``."""
     tmp = 0.0
     try:
         for n in range(5):
@@ -184,6 +191,7 @@ def Psi_minus(x, c, k):
 
 
 def Psi_plus(x, c, k):
+    """Compute Psi plus for func estimation from ``x``, ``c``, ``k``."""
     tmp = 0.0
     for n in range(5):
         tmp += k[n] * c ** (-2 * n - 2) * gammaincc(2 * n + 2, c * np.sqrt(x)) * gamma(2 * n + 2)
@@ -191,6 +199,7 @@ def Psi_plus(x, c, k):
 
 
 def I(x, args):
+    """Compute I for func estimation from ``x``, ``args``."""
     c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4 = args
     dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
     dC = c3
@@ -221,6 +230,7 @@ def I(x, args):
             return prefR * Psi_plus(x, c4, k) + const4
 
 def log_b2(x, args):
+    """Evaluate the logarithm of squared diffusion."""
     c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4 = args
     dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
     dC = c3
@@ -246,6 +256,7 @@ def create_quantiles_2d(files_path_prefix: str,
                         start_year: int,
                         block_size: int,
                         b_type:str):
+    """Build quantile coordinates for the two-dimensional state space."""
     str_types = f'{data1_name}-{data2_name}'
     a_array = np.load(files_path_prefix + f'Components/{str_types}/A_{coef_start}-{coef_end}.npy')
 
@@ -318,13 +329,14 @@ def create_quantiles_2d(files_path_prefix: str,
 
 def get_isolines(prob, x: np.ndarray, amount: int) -> np.ndarray:
     """Compatibility adapter for the canonical stationary quantile implementation."""
-    from Functional.stationary_diagnostics import equal_probability_regions
+    from Functional.stationary import equal_probability_regions
     x = np.asarray(x, dtype=float)
     internal, _ = equal_probability_regions(x, np.asarray([prob(t) for t in x], dtype=float), amount)
     return np.r_[x[0], internal, x[-1]]
 
 
 def moments(pdf, x_grid):
+    """Compute moments for func estimation from ``pdf``, ``x_grid``."""
     p = np.array([pdf(x) for x in x_grid], dtype=float)
     p /= trapezoid(p, x_grid)
     mu = trapezoid(x_grid * p, x_grid)
@@ -333,6 +345,7 @@ def moments(pdf, x_grid):
 
 
 def count_constants(params):
+    """Calculate constants for the func estimation workflow."""
     x0, x1, k, x_min, x_max, c1, c2, c3, c4, z = params
     dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
     dC = c3
@@ -350,6 +363,7 @@ def count_constants(params):
     return [dL, dC, dR, prefL, prefC, prefR, const1, const2, const3, const4]
 
 def model_logb2(x, x1, x0, c1, c2, c3, c4):
+    """Evaluate the piecewise model of log squared diffusion."""
     dL = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
     dC = c3
     dR = c3 + (c2 - c4) * np.sqrt(abs(x0))
@@ -373,6 +387,7 @@ def create_mesh(files_path_prefix: str,
                c_array: np.ndarray = None,
 
                ):
+    """Construct the grid for joint-state calculations."""
     x1_grouped, _ = scale_to_bins(data1_array, quantiles_amount)
     x2_grouped, _ = scale_to_bins(data2_array, quantiles_amount)
     quantiles1 = get_values(x1_grouped)
@@ -422,6 +437,7 @@ def count_N_in_mesh(files_path_prefix: str,
                 coef_end: int,
                 str_types: str,
                ):
+    """Count observations in the joint-state mesh cells."""
     x1_grouped, _ = scale_to_bins(data1_array, quantiles_amount)
     x2_grouped, _ = scale_to_bins(data2_array, quantiles_amount)
     quantiles1 = get_values(x1_grouped)
@@ -440,6 +456,7 @@ def count_N_in_mesh(files_path_prefix: str,
     return
 
 def count_correlation_BTT_mesh(c_mesh: np.ndarray,):
+    """Compute the diffusion correlation on the joint-state mesh."""
     corr_mesh = np.zeros((c_mesh.shape[1], c_mesh.shape[2]))
     corr_mesh = c_mesh[2] / (np.sqrt(c_mesh[0] * c_mesh[1]))
     return corr_mesh

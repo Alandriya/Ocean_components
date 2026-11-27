@@ -26,6 +26,7 @@ SCHEMA_VERSION = 1
 
 
 def _raw_source(root, name, start_year, end_year):
+    """Compute raw source for hybrid tails from ``root``, ``name``, ``start_year``, ``end_year``."""
     paths = field_candidates(root, name, start_year, end_year)
     path = next((p for p in paths if p.is_file()), None)
     if path is None:
@@ -37,16 +38,19 @@ def _raw_source(root, name, start_year, end_year):
 
 
 def _signature(path):
+    """Build a signature for validating cached inputs or results."""
     s = path.stat()
     return {"path": str(path.resolve()), "size": int(s.st_size),
             "mtime_ns": int(s.st_mtime_ns)}
 
 
 def _json(path):
+    """Compute JSON for hybrid tails from ``path``."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _safe_write_json(path, obj):
+    """Compute safe write JSON for hybrid tails from ``path``, ``obj``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -103,6 +107,7 @@ def observed_sample(root, name, start_year, end_year, *,
 
 
 def _gpd_estimate(sample, side, quantile):
+    """Compute gpd estimate for hybrid tails from ``sample``, ``side``, ``quantile``."""
     if side not in ("left", "right"):
         raise ValueError("side must be left or right")
     if side == "right":
@@ -130,6 +135,7 @@ def _fit_scale_for_shape(excess, shape, initial):
         lower = max(lower, -float(shape) * zmax * 1.00001)
     upper = max(initial * 20.0, lower * 30.0, zmean * 20.0)
     def objective(scale):
+        """Evaluate the loss minimized during parameter estimation."""
         pdf = genpareto.logpdf(excess, c=shape, loc=0, scale=scale)
         if not np.isfinite(pdf).all():
             return np.inf
@@ -141,6 +147,7 @@ def _fit_scale_for_shape(excess, shape, initial):
 
 
 def _pooled_gpd(local_sample, reference_sample, side, quantile, reference_weight):
+    """Compute pooled gpd for hybrid tails from ``local_sample``, ``reference_sample``, ``side``, ``quantile``, ``reference_weight``."""
     local = _gpd_estimate(local_sample, side, quantile)
     ref = _gpd_estimate(reference_sample, side, quantile)
     shape = (1 - reference_weight) * local["shape"] + reference_weight * ref["shape"]
@@ -178,6 +185,7 @@ def _smooth_monotone_log_bridge(distance, length, p0, outward_slope,
     arch = s_knots * (1 - s_knots)
     # Stable log-integral through the root range; exp is bounded by clipping.
     def total_drop(c):
+        """Calculate the total decrease used by the tail-fitting criterion."""
         lograte = np.clip(base + c * arch, -700.0, 400.0)
         return float(length * np.trapezoid(np.exp(lograte), s_knots))
     c = brentq(lambda a: total_drop(a) - drop, -2800.0, 1600.0, xtol=1e-10)

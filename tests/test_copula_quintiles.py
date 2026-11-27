@@ -1,19 +1,23 @@
+"""Regression tests for copula quintiles."""
+
 import json
 import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
-from Functional.copula_quintiles import (histogram_classes, bernstein_classes,
-    elliptical_classes, estimate_joint_quantile_classes, _trapz)
+from Functional.copula import histogram_classes, bernstein_classes, elliptical_classes, estimate_joint_quantile_classes, _trapz
 
 class JointClassesTest(unittest.TestCase):
+    """Regression tests covering Joint Classes."""
     def test_independence(self):
+        """Check uniform joint quintile probabilities under independence."""
         for p in (histogram_classes(np.ones((7,7))/49,5),
                   bernstein_classes(np.ones((7,7))/49,5),
                   elliptical_classes(0,5)):
             np.testing.assert_allclose(p, .04, atol=1e-9)
 
     def test_asymmetry_and_orientation(self):
+        """Check matrix orientation, marginal masses and positive association."""
         p = np.roll(np.eye(5)/5, 1, axis=1)
         np.testing.assert_allclose(histogram_classes(p,5), p, atol=1e-12)
         for x in (bernstein_classes(p,5), elliptical_classes(.666,5,df=7.662)):
@@ -23,6 +27,7 @@ class JointClassesTest(unittest.TestCase):
         self.assertGreater(elliptical_classes(.666,5,df=7.662)[0,0], .04)
 
     def test_cached_workflow(self):
+        """Generate joint quintile summaries from a synthetic cached copula fit."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); src = root/'Functional'/'Copulas'; src.mkdir(parents=True)
             p = np.roll(np.eye(5)/5,1,axis=1)

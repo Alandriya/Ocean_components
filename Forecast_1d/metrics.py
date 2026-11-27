@@ -10,6 +10,7 @@ from .data import CHANNELS
 
 
 def _scores(pred, target, mask=None):
+    """Compute scores for metrics from ``pred``, ``target``, ``mask``."""
     finite = np.isfinite(pred) & np.isfinite(target)
     if mask is not None:
         finite &= mask
@@ -26,6 +27,7 @@ def _scores(pred, target, mask=None):
 
 
 def _add_skill(score, reference):
+    """Compute add skill for metrics from ``score``, ``reference``."""
     score["persistence_mse_skill"] = (
         float(1.0 - score["mse"] / reference["mse"])
         if score["mse"] is not None and reference["mse"] not in (None, 0)
@@ -101,6 +103,7 @@ def score_predictions(pred, target, *, baseline=None, shared_mask=None,
 
 
 def save_json(path, payload):
+    """Serialize the supplied result to a JSON file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

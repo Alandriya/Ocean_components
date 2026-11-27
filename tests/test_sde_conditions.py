@@ -1,3 +1,5 @@
+"""Regression tests for SDE conditions."""
+
 import csv
 import json
 import tempfile
@@ -13,7 +15,9 @@ from Data_processing.sde_conditions import (
 
 
 class TestSDEConditions(unittest.TestCase):
+    """Regression tests covering Test SDEConditions."""
     def test_scalar_bound_matches_thesis_formula(self):
+        """Verify that scalar bound matches thesis formula."""
         c = constants_from_bounds(np.array([-32.02]), np.array([40.77]),
                                   np.array([0.]), np.array([148.02]), .1)
         self.assertAlmostEqual(c['K1'], 2208.1)
@@ -21,11 +25,13 @@ class TestSDEConditions(unittest.TestCase):
         self.assertEqual(c['K'], c['K2'])
 
     def test_vector_and_matrix_norms(self):
+        """Verify that vector and matrix norms."""
         c = constants_from_bounds([0, -1], [1, 1], [0,0,0,0], [0,0,3,4], .5)
         self.assertAlmostEqual(c['K1'], (np.sqrt(5)+5)/.5)
         self.assertAlmostEqual(c['K2'], 1+1+9+16)
 
     def test_first_last_layout_and_diagonal(self):
+        """Verify that first last layout and diagonal."""
         last = np.arange(8.).reshape((1,2,2,2))
         first = np.moveaxis(last, (2,3), (0,1))
         np.testing.assert_array_equal(
@@ -46,6 +52,7 @@ class TestSDEConditions(unittest.TestCase):
             _flat_coefficients(d,n=2,spatial_shape=(1,2),layout='last',kind='b')
 
     def test_pooled_window_quantiles_and_time_index(self):
+        """Verify that pooled window quantiles and time index."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             period = '1979-1989'
@@ -82,6 +89,7 @@ class TestSDEConditions(unittest.TestCase):
             self.assertEqual(r['observed_last_date'], '1979-01-05')
 
     def test_end_period_partial_uses_real_length(self):
+        """Verify that end period partial uses real length."""
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             d=root/'DATA'/'SST';d.mkdir(parents=True)
@@ -100,6 +108,7 @@ class TestSDEConditions(unittest.TestCase):
             self.assertEqual(result['n_coefficient_days'],2)
 
     def test_batch_outputs_explicit_missing(self):
+        """Verify that batch outputs explicit missing."""
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             d=root/'DATA'/'Fluxes'; d.mkdir(parents=True)
@@ -113,6 +122,7 @@ class TestSDEConditions(unittest.TestCase):
             self.assertTrue((root/'Conditions'/'details'/'sensible-latent'/'1979-1989.json').exists())
 
     def test_all_five_periods_with_configured_named_pair(self):
+        """Verify that all five periods with configured named pair."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             for start, end in PERIODS:
@@ -149,6 +159,7 @@ class TestSDEConditions(unittest.TestCase):
             self.assertEqual(len((root / "Conditions" / "sde_constants.csv").read_text().splitlines()), 6)
 
     def test_default_source_is_overridable_without_json(self):
+        """Verify that default source is overridable without JSON."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             field = root / "DATA" / "SST"

@@ -1,3 +1,5 @@
+"""Visualize and compare legacy probabilistic forecasts."""
+
 import datetime
 import math
 import os
@@ -20,6 +22,7 @@ def plot_probabilistic_forecast_compare(files_path_prefix: str,
                                 flux_type: str,
                                 offset: int = 0,
                                 ):
+    """Plot probabilistic forecast compare for the plot forecasts workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/Probabilistic'):
         os.mkdir(files_path_prefix + f'videos/Forecast/Probabilistic')
     amount = time_end-time_start
@@ -98,6 +101,7 @@ def plot_probabilistic_forecast(files_path_prefix: str,
                                 flux_type: str,
                                 offset: int = 0,
                                 ):
+    """Plot probabilistic forecast for the plot forecasts workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/Probabilistic'):
         os.mkdir(files_path_prefix + f'videos/Forecast/Probabilistic')
     amount = time_end-time_start

@@ -98,6 +98,7 @@ class PairSource:
     reverse_components: bool = False
 
     def __post_init__(self):
+        """Validate or initialize derived fields after dataclass construction."""
         if self.layout not in ("first", "last"):
             raise ValueError("layout must be 'first' or 'last'")
         if self.diffusion not in ("matrix", "diagonal"):
@@ -123,6 +124,7 @@ DEFAULT_SOURCE = PairSource(
 
 
 def pair_key(names: tuple[str, str]) -> str:
+    """Construct the canonical identifier for a variable pair."""
     if len(names) != 2 or not all(isinstance(n, str) and n for n in names):
         raise ValueError("pair requires two nonempty names")
     if any("/" in n or "\\" in n or n in (".", "..") for n in names):
@@ -131,6 +133,7 @@ def pair_key(names: tuple[str, str]) -> str:
 
 
 def _modern_collected_source(bins: int = 12, method: str = "sp") -> PairSource:
+    """Resolve the current collected coefficient source."""
     if method not in ("sp", "np"):
         raise ValueError(f"Unknown coefficient method: {method}")
     if bins < 1:
@@ -275,6 +278,7 @@ def _resolve_source_for_pair(root: Path, names: tuple[str, str],
 def _format_file(root: Path, pattern: str, names: tuple[str, str], period: str,
                  index: int, *, first_label: int | None = None,
                  last_label: int | None = None) -> Path:
+    """Format the path to the requested saved result."""
     value = pattern.format(
         pair=pair_key(names), left=names[0], right=names[1], period=period,
         index=index,
@@ -334,6 +338,7 @@ def _flat_coefficients(raw: np.ndarray, *, n: int,
 
 
 def _pair_dimension(names: tuple[str,str], source: PairSource) -> int:
+    """Determine the dimension of the selected variable pair."""
     return (source.state_dimension if source.state_dimension is not None
             else (1 if names[0] == names[1] else 2))
 
@@ -342,6 +347,7 @@ def _prepare_pair_maps(a_raw: np.ndarray, b_raw: np.ndarray,
                        names: tuple[str,str], source: PairSource,
                        spatial_shape: tuple[int,int],
                        mask: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+    """Prepare aligned coefficient maps for the variable pair."""
     n = _pair_dimension(names, source)
     a = _flat_coefficients(a_raw, n=n, spatial_shape=spatial_shape,
                            layout=source.layout, kind="a")
@@ -363,6 +369,7 @@ def _prepare_pair_maps(a_raw: np.ndarray, b_raw: np.ndarray,
 def load_pair_maps(root: Path, names: tuple[str,str], period: str, index: int,
                    source: PairSource, spatial_shape: tuple[int,int],
                    mask: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Load coefficient maps for the specified pair."""
     if source.storage != "daily":
         raise ValueError("load_pair_maps requires daily storage")
     ap = _format_file(root,source.a_pattern,names,period,index)
@@ -390,6 +397,7 @@ def _open_collected_maps(root: Path, names: tuple[str,str], period: str,
                              first_label,first_label=first_label,last_label=last_label)
     # Discover merged files by their actual label ranges, not a guessed last day.
     def matches(example: Path, prefix: str) -> list[tuple[int,int,Path]]:
+        """Check whether the source metadata matches the requested configuration."""
         regex = re.compile(rf"^{re.escape(prefix)}_(\d+)-(\d+)\.npy$")
         found = []
         for candidate in example.parent.glob(f"{prefix}_*-*.npy"):
@@ -424,6 +432,7 @@ def _open_collected_maps(root: Path, names: tuple[str,str], period: str,
 
 
 def read_mask(root: Path, spatial_shape: tuple[int,int], policy: str = "auto") -> np.ndarray | None:
+    """Read the binary ocean mask."""
     if policy not in ("auto", "none", "required"):
         raise ValueError("mask_policy must be 'auto', 'none' or 'required'")
     if policy == "none":
@@ -476,6 +485,7 @@ def _field_day_counts(root: Path, names: tuple[str,str], period: str,
 def actual_days(root: Path, names: tuple[str,str], period: str,
                 spatial_shape: tuple[int,int],
                 fields: Mapping[str,Sequence[str]] = FIELD_PATHS) -> int:
+    """Determine the number of observations present in the source."""
     return min(_field_day_counts(Path(root),names,period,spatial_shape,fields).values())
 
 

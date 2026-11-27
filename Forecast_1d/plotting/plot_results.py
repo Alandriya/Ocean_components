@@ -13,6 +13,7 @@ from ..registry import ALL_MODELS, LEVEL0
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     parser = argparse.ArgumentParser(description="Plot 1D forecast results")
     parser.add_argument(
         "--model",
@@ -39,6 +40,7 @@ def build_parser():
 
 
 def _load_predictions(path):
+    """Load predictions for the plot results workflow."""
     if not path.is_file():
         raise FileNotFoundError(f"Missing {path}. Run Forecast_1d.test first.")
     with np.load(path, allow_pickle=False) as archive:
@@ -55,6 +57,7 @@ def _load_predictions(path):
 
 
 def run(args):
+    """Run the plot results workflow using its configured options."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -175,6 +178,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the plot results workflow using its configured options."""
     return run(build_parser().parse_args(argv))
 
 

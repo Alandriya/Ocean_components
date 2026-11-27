@@ -12,6 +12,7 @@ import numpy as np
 
 
 def parse_order(value, count: int) -> tuple[int, ...]:
+    """Parse an autoregressive model order specification."""
     if isinstance(value, (list, tuple)):
         parts = tuple(int(v) for v in value)
     else:
@@ -22,6 +23,7 @@ def parse_order(value, count: int) -> tuple[int, ...]:
 
 
 def fast_ar1_supported(order, seasonal_order, trend):
+    """Check whether the requested model supports the fast AR(1) implementation."""
     return tuple(order) == (1, 0, 0) and tuple(seasonal_order) == (0, 0, 0, 0) and trend == "c"
 
 
@@ -53,6 +55,7 @@ def fit_ar1(values: np.ndarray, fit_start: int, fit_end: int) -> np.ndarray:
 
 def forecast_ar1(values: np.ndarray, origins: np.ndarray, horizon: int,
                  params: np.ndarray) -> np.ndarray:
+    """Generate the autoregressive AR(1) forecast from the available history."""
     if params.shape != (values.shape[1], 2, 4):
         raise ValueError(f"Invalid AR(1) parameter shape: {params.shape}")
     current = np.asarray(values[origins], dtype=np.float64)
@@ -64,6 +67,7 @@ def forecast_ar1(values: np.ndarray, origins: np.ndarray, horizon: int,
 
 
 def _sarimax_model(endog, order, seasonal_order, trend):
+    """Compute sarimax model for SARIMA from ``endog``, ``order``, ``seasonal_order``, ``trend``."""
     try:
         from statsmodels.tsa.statespace.sarimax import SARIMAX
     except ImportError as exc:

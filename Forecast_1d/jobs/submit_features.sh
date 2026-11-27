@@ -1,4 +1,5 @@
 #!/bin/bash
+# Launch the submit features workflow using the configured environment.
 # Submit multivariate experiments using the established A100 Docker runtime.
 # bash Forecast_1d/jobs/submit_features.sh train --model gru --feature-set all
 set -euo pipefail

@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_module():
+    """Load module for the test fokker planck 2d plots workflow."""
     spec = importlib.util.spec_from_file_location(
         "fp2d_plots_under_test",
         ROOT / "Plotting" / "fokker_planck_2d_plots.py",
@@ -25,6 +26,7 @@ def _load_module():
 
 
 def _synthetic_result(path, n, shift=0.0):
+    """Compute synthetic result for test fokker planck 2d plots from ``path``, ``n``, ``shift``."""
     edges = np.linspace(-5.0, 5.0, n + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
     xx, yy = np.meshgrid(centers, centers, indexing="ij")
@@ -52,6 +54,7 @@ def _synthetic_result(path, n, shift=0.0):
 
 
 def test_marginals_are_normalized():
+    """Verify that marginals are normalized."""
     module = _load_module()
     mass = np.ones((5, 7), dtype=float)
     x_edges = np.linspace(0.0, 5.0, 6)
@@ -62,6 +65,7 @@ def test_marginals_are_normalized():
 
 
 def test_comparison_plot_writes_both_figures(tmp_path):
+    """Verify that comparison plot writes both figures."""
     module = _load_module()
     source = tmp_path / "stationary.npz"
     _synthetic_result(source, 20, shift=0.3)
@@ -80,6 +84,7 @@ def test_comparison_plot_writes_both_figures(tmp_path):
 
 
 def test_grid_convergence_writes_summary(tmp_path):
+    """Verify that grid convergence writes summary."""
     module = _load_module()
     files = {}
     for resolution, shift in ((20, 0.5), (30, 0.3), (40, 0.1)):
@@ -105,6 +110,7 @@ def test_grid_convergence_writes_summary(tmp_path):
 
 
 def test_relative_difference_masks_low_empirical_density(tmp_path):
+    """Verify that relative difference masks low empirical density."""
     module = _load_module()
     source = tmp_path / "stationary.npz"
     _synthetic_result(source, 20, shift=0.2)

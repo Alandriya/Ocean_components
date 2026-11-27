@@ -9,7 +9,7 @@ and experiment path selection are updated. All code and comments remain in Engli
 
 For each location and channel, fit a smoothed daily climatology using **only the
 training interval** (the same 366-bin calendar and ±15-day circular window used
-by `models/seasonal.py`):
+by `models/baselines.py`):
 
     mu(d) = train-only seasonal climatology for calendar date d
     z(t)  = x(t) - mu(d(t))
@@ -223,4 +223,4 @@ checkpoint isolation. Existing forecasting tests were also rerun.
 Cluster execution on real Atlantic15 data has not yet been verified by this
 patch. Stronger anomaly forecasts are a hypothesis to be tested, not a claimed
 result. References: PyTorch `AdamW`, `ReduceLROnPlateau` official documentation;
-the statistical baseline formulation is in `Forecast_1d/models/seasonal.py`.
+the statistical baseline formulation is in `Forecast_1d/models/baselines.py`.

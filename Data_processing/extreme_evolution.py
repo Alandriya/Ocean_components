@@ -1,3 +1,5 @@
+"""Fit linear and Fourier trends and extract extreme coefficient statistics from saved fields."""
+
 import os
 import os.path
 
@@ -12,9 +14,11 @@ from data_processing import load_ABCFE
 
 
 def fit_linear(x, a, b):
+    """Fit a linear trend to the supplied observations."""
     return a*x + b
 
 def rmse(x, y):
+    """Compute the root mean squared error between the supplied arrays."""
     return np.sqrt(np.sum((x-y)**2))
 
 def fourier_series(x, f, n=10):
@@ -35,6 +39,7 @@ def fourier_series(x, f, n=10):
 
 
 def fit_fourier(sens_x, lat_x, sens_res, lat_res):
+    """Fit a Fourier representation of the observed evolution."""
     x, y = variables('x, y')
     w, = parameters('w')
     model_dict = {y: fourier_series(x, f=w, n=10)}
@@ -62,7 +67,9 @@ def fit_sin(tt, yy):
     guess_offset = numpy.mean(yy)
     guess = numpy.array([guess_amp, 2. * numpy.pi * guess_freq, 0., guess_offset])
 
-    def sinfunc(t, A, w, p, c): return A * numpy.sin(w * t + p) + c
+    def sinfunc(t, A, w, p, c):
+        """Evaluate the sinusoidal fitting function."""
+        return A * numpy.sin(w * t + p) + c
 
     popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess, maxfev=10000)
     A, w, p, c = popt
@@ -255,6 +262,7 @@ def extract_extreme_coeff_flux(files_path_prefix: str,
                                sensible_array: np.ndarray,
                                latent_array: np.ndarray,
                                window: int = 1):
+    """Extract extreme coeff flux for the extreme evolution workflow."""
     max_sens, min_sens, med_sens, max_lat, min_lat, med_lat = list(), list(), list(), list(), list(), list()
     for t in tqdm.tqdm(range(0, time_end - time_start - window, window)):
         a_timelist, b_timelist, c_timelist, f_timelist, fs_timelist, borders = load_ABCFE(files_path_prefix,
@@ -318,6 +326,7 @@ def collect_extreme(files_path_prefix: str,
                     local_path_prefix: str = '',
                     mean_days: int = 365,
                     ):
+    """Collect extreme for the extreme evolution workflow."""
     max_sens_list, min_sens_list, mean_sens_list = list(), list(), list()
     max_lat_list, min_lat_list, mean_lat_list = list(), list(), list()
     # for time_start, time_end in [(1, 3653), (3654, 7305), (7306, 10958), (10959, 14610), (14611, 16071)]:

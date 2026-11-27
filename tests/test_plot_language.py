@@ -17,6 +17,7 @@ from Plotting.paths import save_figure
 
 
 def svg(figure):
+    """Compute svg for test plot language from ``figure``."""
     buffer = io.StringIO()
     with matplotlib.rc_context({"svg.fonttype": "none"}):
         figure.savefig(buffer, format="svg", bbox_inches="tight")
@@ -24,15 +25,19 @@ def svg(figure):
 
 
 class LanguageTests(unittest.TestCase):
+    """Regression tests covering Language."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.before = get_plot_language()
         set_plot_language("en")
 
     def tearDown(self):
+        """Release the test fixtures and temporary resources."""
         plt.close("all")
         set_plot_language(self.before)
 
     def test_en_ru_labels_and_exact_scientific_names(self):
+        """Verify that en ru labels and exact scientific names."""
         self.assertEqual(translate_label("Собственные векторы", "en"), "Eigenvectors")
         self.assertEqual(translate_label("Плотность вероятности", "en"), "Probability density")
         self.assertEqual(translate_label("Bernstein copula stationary density", "ru"),
@@ -50,6 +55,7 @@ class LanguageTests(unittest.TestCase):
             set_plot_language("de")
 
     def test_direct_save_and_colorbar_text(self):
+        """Verify that direct save and colorbar text."""
         fig, ax = plt.subplots(constrained_layout=True)
         ax.set_title("Поля океанографических переменных")
         ax.set_xlabel("Longitude")
@@ -77,6 +83,7 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(svg(fig).count("Долгота"), russian.count("Долгота"))
 
     def test_regenerated_tick_labels_and_subfigures(self):
+        """Verify that regenerated tick labels and subfigures."""
         fig = plt.figure(constrained_layout=True)
         sub = fig.subfigures(1, 1)
         sub.suptitle("Training curve")
@@ -95,6 +102,7 @@ class LanguageTests(unittest.TestCase):
         self.assertIn("Кривая обучения", ru)
 
     def test_scoped_override_and_legacy_save_path(self):
+        """Verify that scoped override and legacy save path."""
         fig, ax = plt.subplots()
         ax.set_xlabel("Longitude")
         with tempfile.TemporaryDirectory() as d:
@@ -109,6 +117,7 @@ class LanguageTests(unittest.TestCase):
                 self.assertIn("Longitude", result.read_text(encoding="utf-8"))
 
     def test_install_is_idempotent(self):
+        """Verify that install is idempotent."""
         from matplotlib.text import Text
         original = Text.draw
         install_matplotlib_localization()
@@ -116,10 +125,12 @@ class LanguageTests(unittest.TestCase):
 
     def test_stationary_regions_isolines_and_classes(self):
         # Only the renderer is being tested here: use precomputed synthetic caches.
+        """Verify that stationary regions isolines and classes."""
         from unittest.mock import patch
-        from Plotting import stationary_spatial_plots as a
+        from Plotting import stationary_plots as a
         images = {}
         def capture(fig, path, dpi):
+            """Compute capture for test stationary regions isolines and classes from ``fig``, ``path``, ``dpi``."""
             images[str(path.name)] = svg(fig)
             return path
         with tempfile.TemporaryDirectory() as d:

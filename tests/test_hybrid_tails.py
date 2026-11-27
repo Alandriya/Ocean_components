@@ -31,7 +31,9 @@ from Functional.hybrid_tails import (
 
 
 class HybridTailTests(unittest.TestCase):
+    """Regression tests covering Hybrid Tail."""
     def test_monotone_C1_transition(self):
+        """Verify that monotone C1 transition."""
         x = np.linspace(0, 35, 10001)
         logp = _smooth_monotone_log_bridge(
             x, 35, p0=0.012, outward_slope=-0.04,
@@ -43,6 +45,7 @@ class HybridTailTests(unittest.TestCase):
         self.assertAlmostEqual((logp[-1]-logp[-2])/(x[1]-x[0]), -0.022, delta=0.0002)
 
     def test_hybrid_density_normalized_and_no_bubble(self):
+        """Verify that hybrid density normalized and no bubble."""
         rng = np.random.default_rng(42)
         grid = np.linspace(-700, 700, 2801)
         # Known trustworthy central PDF, contaminated outer tails (old model)
@@ -68,6 +71,7 @@ class HybridTailTests(unittest.TestCase):
         # C0 and C1 across analytically constructed joins tested via fine grid.
 
     def test_sample_cache_is_reused(self):
+        """Verify that sample cache is reused."""
         with tempfile.TemporaryDirectory() as dirname:
             root = Path(dirname)
             source = root / "DATA" / "Fluxes" / "sensible_1979-2026_grouped.npy"

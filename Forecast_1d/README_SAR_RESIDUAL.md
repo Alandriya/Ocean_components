@@ -50,7 +50,7 @@ contribute to fitted SAR, climatology, scaling, optimization, or training labels
 The fold-wise and full-train SAR climatologies are not identical; that is a
 legitimate source of train/validation distribution shift to be measured.
 
-The `seasonal_ar1` reference is the existing `models/seasonal.py` implementation;
+The `seasonal_ar1` reference is the existing `models/baselines.py` implementation;
 it is **not** the `sarima` CLI model, which currently defaults to ordinary AR(1).
 There is **no** prerequisite `train --model sarima` command.
 

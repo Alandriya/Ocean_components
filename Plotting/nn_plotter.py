@@ -1,3 +1,5 @@
+"""Visualization of neural and graph forecasts, training losses, spatial clusters and observed fields."""
+
 import copy
 import datetime
 import os
@@ -72,6 +74,7 @@ def plot_predictions(files_path_prefix: str,
     # print('Plotting')
     # (5, 3, 81, 91)
     # sns.set_style("whitegrid")
+    """Plot predictions for the neural network plotter workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/{model_name}'):
         os.mkdir(files_path_prefix + f'videos/Forecast/{model_name}')
 
@@ -250,6 +253,7 @@ def plot_1d_predictions(files_path_prefix: str,
                         cluster_idx: int,
                         point_idx: int,
                         ):
+    """Plot 1d predictions for the neural network plotter workflow."""
     fig = plt.figure(figsize=(20, 5))
     days_prediction = len(y_test)
     days_str = [(start_day + datetime.timedelta(days=d)).strftime('%d.%m.%Y') for d in range(days_prediction)]
@@ -274,6 +278,7 @@ def plot_clusters(files_path_prefix: str,
         labels: np.ndarray,
         yhat: np.ndarray,
         filename: str):
+    """Plot clusters for the neural network plotter workflow."""
     fig, axs = plt.subplots(3, 3, figsize=(30, 30))
     for label in labels:
         # get row indexes for samples with this cluster
@@ -295,6 +300,7 @@ def plot_clusters(files_path_prefix: str,
 
 
 def plot_train_loss(files_path_prefix, loss_arr, start_year, end_year, model_name):
+    """Plot train loss for the neural network plotter workflow."""
     if not os.path.exists(files_path_prefix + f'videos/Forecast/Loss'):
         os.mkdir(files_path_prefix + f'videos/Forecast/Loss')
     fig = plt.figure(figsize=(10, 5))
@@ -318,6 +324,7 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start_pic_num: int = 1,
                         frequency: int = 1,
                         ):
+    """Plot flux SST press for the neural network plotter workflow."""
     sns.set_style("whitegrid")
 
     # if not os.path.exists(files_path_prefix + f'videos/3D/flux-sst-press/hourly'):

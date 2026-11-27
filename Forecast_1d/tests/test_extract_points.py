@@ -16,7 +16,9 @@ RECEIVED_MASK = Path(__file__).parent / 'fixtures' / 'mask'
 
 
 class ExtractTest(unittest.TestCase):
+    """Regression tests covering Extract."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -35,6 +37,7 @@ class ExtractTest(unittest.TestCase):
         self.latent = np.stack([100 - space + 3*t for t in range(self.days)]).astype('float32')
 
     def save_sources(self, sensible_layout, latent_layout):
+        """Save sources for the test extract points workflow."""
         for channel, original, layout in [
             ('sensible', self.sensible, sensible_layout),
             ('latent', self.latent, latent_layout),
@@ -46,6 +49,7 @@ class ExtractTest(unittest.TestCase):
             np.save(self.root / 'DATA' / 'Fluxes' / f'{channel}_1979-2026_grouped.npy', data)
 
     def test_offshore_points_and_latlon(self):
+        """Verify that offshore points and latlon."""
         ocean, digest = _mask_from_bytes(self.root/'DATA'/'mask')
         points = _validate_points(POINTS_JSON, ocean)
         self.assertEqual(len(points),15)
@@ -53,6 +57,7 @@ class ExtractTest(unittest.TestCase):
             self.assertEqual(sum(bool(ocean[int(p['grid_y']),int(p['grid_x'])]) for p in points),15)
 
     def test_extract_mixed_legacy_layouts(self):
+        """Verify that extract mixed legacy layouts."""
         self.save_sources('time_hw', 'space_time')
         out = self.root/'DATA'/'Forecast_1d'/'test'
         info = extract(self.root, POINTS_JSON, out, chunk_days=9)
@@ -83,6 +88,7 @@ class ExtractTest(unittest.TestCase):
         self.assertTrue((out/'centers.npy').exists())
 
     def test_extract_time_space(self):
+        """Verify that extract time space."""
         self.save_sources('space_time','time_space')
         out = self.root/'data'
         extract(self.root,POINTS_JSON,out,chunk_days=11)
@@ -92,6 +98,7 @@ class ExtractTest(unittest.TestCase):
         self.assertAlmostEqual(float(vals[31,0,1]),float(self.latent[31,y,x]))
 
     def test_input_dates_mismatch_fails_early(self):
+        """Verify that input dates mismatch fails early."""
         self.save_sources('time_hw','space_time')
         p=self.root/'DATA'/'Fluxes'/'latent_1979-2026_grouped.npy'
         np.save(p, self.latent[:34])
@@ -101,6 +108,7 @@ class ExtractTest(unittest.TestCase):
         self.assertFalse(out.exists())
 
     def test_mask_invalid_cell(self):
+        """Verify that mask invalid cell."""
         water=np.frombuffer(self.mask_bytes,dtype=np.uint8).reshape(GRID).copy()
         water[92,40]=0
         (self.root/'DATA'/'mask').write_bytes(water.tobytes())

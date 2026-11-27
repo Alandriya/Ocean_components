@@ -22,6 +22,7 @@ from Forecast_nn.models.unet import _groups, _resize_mask
 
 
 class SpectralConv2d(nn.Module):
+    """PyTorch module implementing the Spectral Conv2d architecture or layer."""
     def __init__(
         self,
         in_channels,
@@ -29,6 +30,7 @@ class SpectralConv2d(nn.Module):
         modes_y,
         modes_x
     ):
+        """Initialize Spectral Conv2d with ``in_channels``, ``out_channels``, ``modes_y``, ``modes_x``."""
         super().__init__()
 
         self.in_channels = in_channels
@@ -38,9 +40,9 @@ class SpectralConv2d(nn.Module):
 
         scale = 1.0 / (in_channels * out_channels)
 
-        # ВАЖНО:
-        # обучаемые параметры только float32,
-        # никаких nn.Parameter(dtype=torch.cfloat)
+        # IMPORTANT:
+        # Trainable parameters must remain float32;
+        # do not use nn.Parameter(dtype=torch.cfloat).
         self.weight_pos_real = nn.Parameter(
             scale * torch.randn(
                 in_channels,
@@ -110,9 +112,9 @@ class SpectralConv2d(nn.Module):
 
         original_dtype = x.dtype
 
-        # FFT держим в float32.
-        # Это особенно важно для нашей сетки 81 x 91
-        # и обучения с AMP.
+        # Keep FFT computations in float32.
+        # This is especially important for the 81 x 91 grid
+        # and training with AMP.
         with torch.autocast(
             device_type=x.device.type,
             enabled=False
@@ -135,8 +137,8 @@ class SpectralConv2d(nn.Module):
                 dtype=torch.complex64
             )
 
-            # Создаём complex64 только во время forward.
-            # nn.Parameter остаются float32.
+            # Create complex64 tensors only during the forward pass.
+            # nn.Parameter objects remain float32.
             weight_pos = torch.complex(
                 self.weight_pos_real,
                 self.weight_pos_imag
@@ -173,13 +175,14 @@ class SpectralConv2d(nn.Module):
                 norm="ortho"
             )
 
-        # Возвращаем dtype внешнего AMP-контекста.
+        # Restore the dtype of the outer AMP context.
         return out.to(dtype=original_dtype)
 
 class FNOBlock(nn.Module):
     """Residual spectral block with global Fourier and local 1x1 branches."""
 
     def __init__(self, width, modes_y, modes_x, dropout=0.0):
+        """Initialize FNOBlock with ``width``, ``modes_y``, ``modes_x``, ``dropout``."""
         super().__init__()
         self.norm = nn.GroupNorm(_groups(width), width)
         self.spectral = SpectralConv2d(width, width, modes_y, modes_x)
@@ -188,6 +191,7 @@ class FNOBlock(nn.Module):
         self.dropout = nn.Dropout2d(dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x):
+        """Apply the FNOBlock transformation to the input tensors."""
         z = self.norm(x)
         z = self.spectral(z) + self.local(z)
         z = self.dropout(self.activation(z))
@@ -220,6 +224,7 @@ class FNOForecaster(nn.Module):
         projection_width=96,
         padding=6,
     ):
+        """Initialize FNOForecaster with ``in_len``, ``out_len``, ``in_channels``, ``width``, ``modes_y``, ``modes_x``, ``layers`` and the remaining options."""
         super().__init__()
         self.in_len = int(in_len)
         self.out_len = int(out_len)
@@ -258,6 +263,7 @@ class FNOForecaster(nn.Module):
 
     @staticmethod
     def _coords(batch, height, width, device, dtype):
+        """Build normalized spatial coordinate channels for the model grid."""
         y = torch.linspace(-1.0, 1.0, height, device=device, dtype=dtype)
         x = torch.linspace(-1.0, 1.0, width, device=device, dtype=dtype)
         yy, xx = torch.meshgrid(y, x, indexing='ij')
@@ -265,6 +271,7 @@ class FNOForecaster(nn.Module):
 
     @staticmethod
     def _prepare_mask(mask, batch, x):
+        """Convert and broadcast the ocean mask to the input tensor layout."""
         if mask is None:
             return None
         if mask.ndim == 2:
@@ -283,11 +290,13 @@ class FNOForecaster(nn.Module):
         return mask
 
     def _feature_mask(self, feature, mask):
+        """Adapt the ocean mask to the feature tensor resolution."""
         if not self.mask_features or mask is None:
             return feature
         return feature * _resize_mask(mask, feature.shape[-2:], feature.dtype)
 
     def forward(self, x, mask=None):
+        """Apply the FNOForecaster transformation to the input tensors."""
         if x.ndim != 5:
             raise ValueError(f'x must be [B,T,C,H,W], got shape {tuple(x.shape)}.')
 

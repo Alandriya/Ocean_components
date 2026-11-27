@@ -16,6 +16,7 @@ from Forecast_nn.evaluation import to_jsonable, write_csv
 
 
 def _flatten(report, path):
+    """Compute flatten for aggregate metrics from ``report``, ``path``."""
     meta = report.get('checkpoint', {})
     row = {
         'Variable': report.get('variable'),
@@ -47,6 +48,7 @@ def _flatten(report, path):
 
 
 def _sort_rmse(row):
+    """Compute sort RMSE for aggregate metrics from ``row``."""
     value = row.get('Overall RMSE')
     try:
         return float(value)
@@ -55,6 +57,7 @@ def _sort_rmse(row):
 
 
 def collect(root):
+    """Collect the requested aggregate metrics data using the supplied inputs."""
     root = Path(root)
     files = sorted(root.rglob('metrics_*.json'))
     summary, horizons, errors = [], [], []
@@ -84,6 +87,7 @@ def collect(root):
 
 
 def main(argv=None):
+    """Run the aggregate metrics workflow using its configured options."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', default=str(cfg.results_root),
                         help='Root of results tree with metrics_*.json files.')

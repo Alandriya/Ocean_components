@@ -72,6 +72,7 @@ def save_figure(figure, filename, *args, **kwargs):
 
 
 def _format_geo_axis(ax, *, show_x_labels=True, show_y_labels=True):
+    """Format geo axis for the map workflows workflow."""
     ax.set_xlim(*LON_BOUNDS)
     ax.set_ylim(*LAT_BOUNDS)
     ax.set_xticks(LON_TICKS)
@@ -145,6 +146,7 @@ def _draw_map(ax, data, title, *, name="", cmap=None, vmin=None, vmax=None,
 
 
 def _add_colorbar(fig, ax, image):
+    """Compute add colorbar for map workflows from ``fig``, ``ax``, ``image``."""
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="3.2%", pad=0.05)
     colorbar = fig.colorbar(image, cax=cax)
@@ -154,6 +156,7 @@ def _add_colorbar(fig, ax, image):
 
 def _mean_year_context(category, name, *, pair=None, method=None,
                        n_bins_2d=None, variable=None, n_bins_1d=None):
+    """Compute mean year context for map workflows from ``category``, ``name``, ``pair``, ``method``, ``n_bins_2d``."""
     if category == "Coefficients_1d":
         return (f"{NAMES_RU.get(name, name)} — {NAMES_RU.get(variable, variable)} "
                 f"({method.upper()}, {n_bins_1d} групп)")
@@ -350,6 +353,7 @@ def _coefficient_a_signed_scale(lo: float, hi: float,
         )
 
         def forward(x):
+            """Apply the model transformation to the input tensors."""
             x = np.asarray(x, dtype=float)
             y = np.empty_like(x)
             mask = x < 0
@@ -358,6 +362,7 @@ def _coefficient_a_signed_scale(lo: float, hi: float,
             return y
 
         def inverse(y):
+            """Transform values between the data and display coordinates."""
             y = np.asarray(y, dtype=float)
             x = np.empty_like(y)
             mask = y < 0.5
@@ -373,9 +378,11 @@ def _coefficient_a_signed_scale(lo: float, hi: float,
         )
 
         def forward(x):
+            """Apply the model transformation to the input tensors."""
             return (np.maximum(np.asarray(x, dtype=float), 0.0) / pos) ** gamma_positive
 
         def inverse(y):
+            """Transform values between the data and display coordinates."""
             return pos * np.maximum(np.asarray(y, dtype=float), 0.0) ** (1.0 / gamma_positive)
 
         minimum, maximum = 0.0, hi
@@ -386,9 +393,11 @@ def _coefficient_a_signed_scale(lo: float, hi: float,
         )
 
         def forward(x):
+            """Apply the model transformation to the input tensors."""
             return 1.0 - (np.maximum(-np.asarray(x, dtype=float), 0.0) / neg) ** gamma_negative
 
         def inverse(y):
+            """Transform values between the data and display coordinates."""
             return -neg * np.maximum(1.0 - np.asarray(y, dtype=float), 0.0) ** (1.0 / gamma_negative)
 
         minimum, maximum = lo, 0.0
@@ -446,6 +455,7 @@ def _coefficient_a_water_mask(root: Path, shape):
 
 
 def _coefficient_a_colorbar(fig, ax, image, norm):
+    """Compute coefficient a colorbar for map workflows from ``fig``, ``ax``, ``image``, ``norm``."""
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="3.2%", pad=0.05)
     # Uniform visual spacing; tick labels are the real coefficient values.

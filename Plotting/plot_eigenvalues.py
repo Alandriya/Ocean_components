@@ -88,6 +88,7 @@ def _map_contribution(coefficient, left_vector, right_vector, bins1, bins2,
 
 
 def _format_axis(ax, *, show_x_labels=True, show_y_labels=True):
+    """Format axis for the plot eigenvalues workflow."""
     ax.set_xlim(*LON_BOUNDS)
     ax.set_ylim(*LAT_BOUNDS)
     ax.set_xticks(LON_TICKS)
@@ -99,6 +100,7 @@ def _format_axis(ax, *, show_x_labels=True, show_y_labels=True):
 
 
 def _color_limits(matrix, signed=True, fixed_limit=None):
+    """Compute color limits for plot eigenvalues from ``matrix``, ``signed``, ``fixed_limit``."""
     if fixed_limit is not None:
         if not np.isfinite(fixed_limit) or fixed_limit <= 0:
             raise ValueError("fixed_limit must be finite and positive")
@@ -110,6 +112,7 @@ def _color_limits(matrix, signed=True, fixed_limit=None):
 
 
 def _map_norm(matrix, signed=True, fixed_limit=None):
+    """Compute map norm for plot eigenvalues from ``matrix``, ``signed``, ``fixed_limit``."""
     vmin, vmax = _color_limits(matrix, signed=signed, fixed_limit=fixed_limit)
     if signed:
         return mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
@@ -117,6 +120,7 @@ def _map_norm(matrix, signed=True, fixed_limit=None):
 
 
 def _map_cmap(signed=True, cmap=None):
+    """Compute map cmap for plot eigenvalues from ``signed``, ``cmap``."""
     if cmap is not None:
         return cmap
     return BLUE_WHITE_RED if signed else "viridis"
@@ -153,6 +157,7 @@ class _FrameFigure:
     def __init__(self, stack, rows, cols, shape, figsize, *, signed=True,
                  fixed_limit=None, xlabels_mode="all", ylabels_mode="all",
                  aspect="auto", cmap=None):
+        """Initialize Frame Figure with ``stack``, ``rows``, ``cols``, ``shape``, ``figsize``, ``signed``, ``fixed_limit`` and the remaining options."""
         self.rows = rows
         self.cols = cols
         self.xlabels_mode = xlabels_mode
@@ -184,27 +189,32 @@ class _FrameFigure:
                 self.colorbars[row, col].ax.tick_params(labelsize=8, pad=2)
 
     def _show_x_labels(self, row):
+        """Compute show x labels for Frame Figure from ``row``."""
         if self.xlabels_mode == "bottom":
             return row == self.rows - 1
         return True
 
     def _show_y_labels(self, col):
+        """Compute show y labels for Frame Figure from ``col``."""
         if self.ylabels_mode == "left":
             return col == 0
         return True
 
     def update(self, row, col, matrix, title, *, fixed_limit=None):
+        """Update the internal state using the supplied observations or values."""
         image = self.images[row, col]
         limit = self.fixed_limit if fixed_limit is None else fixed_limit
         _update_matrix(image, matrix, title, self.signed, limit)
         self.colorbars[row, col].update_normal(image)
 
     def save(self, path, title):
+        """Compute save for Frame Figure from ``path``, ``title``."""
         self.title.set_text(title)
         self.fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.08)
 
 
 def _spectrum_paths(folder, step, mixed):
+    """Compute spectrum paths for plot eigenvalues from ``folder``, ``step``, ``mixed``."""
     stems = (("singular_values", "left_singularvectors", "right_singularvectors")
              if mixed else ("eigenvalues", "eigenvectors"))
     return tuple(folder / f"{stem}_{step}.npy" for stem in stems)
@@ -447,12 +457,12 @@ def plot_eigenvalues(
                 examples.setdefault(category, f"{date}: {detail}")
 
             # date_label = f"{date:%d.%m.%Y}"
-            # vector_title = f"Сингулярные моды {pair}" if mixed else f"Собственные векторы {pair}"
+            # Use singular modes for mixed pairs and eigenvectors for self-pairs.
             # vectors.save(out_dir / f"Lambdas_{step}.png", vector_title + "\n" + date_label)
             vectors.save(out_dir / f"Lambdas_{step}.png", "")
             if contributions is not None:
                 # contributions.save(out_dir / f"Mode_contributions_{step}.png",
-                #                    f"Вклады спектральных мод {pair}\n{date_label}")
+                # Show the spectral-mode contributions for the pair and date.
                 contributions.save(out_dir / f"Mode_contributions_{step}.png", "")
             if reconstruction is not None:
                 # Compare cumulative rank approximations using one daily scale.

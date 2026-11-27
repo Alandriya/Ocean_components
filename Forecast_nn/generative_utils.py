@@ -13,6 +13,7 @@ from Forecast_nn.evaluation import to_jsonable
 
 
 def prepare_data(args, *, split=None, batch_size=None, workers=None):
+    """Prepare data for the generative utils workflow."""
     src = resolve_flux_source(args.variable, cfg.data_files)
     if not source_exists(src):
         raise FileNotFoundError(f'No flux maps at {src}; edit Forecast_nn/config.py on the cluster')
@@ -39,6 +40,7 @@ def prepare_data(args, *, split=None, batch_size=None, workers=None):
 
 
 def metadata(args, info):
+    """Return metadata describing the current dataset or experiment."""
     bounds=info['bounds']
     return {'model_name':args.model, 'variable':args.variable,'data_file':info['src'],
             'in_len':cfg.in_len,'out_len':cfg.out_len,'stride':cfg.stride,
@@ -53,6 +55,7 @@ def metadata(args, info):
 
 
 def run_tag(args):
+    """Compute run tag for generative utils from ``args``."""
     common = f'ds{args.downsample}_i{cfg.in_len}_o{cfg.out_len}'
     if args.model=='ddpm':
         extra=f'w{args.width}_n{args.diffusion_steps}'
@@ -70,6 +73,7 @@ def run_tag(args):
 
 
 def save_json(path, obj):
+    """Serialize the supplied result to a JSON file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(to_jsonable(obj), indent=2, ensure_ascii=False, allow_nan=False), encoding='utf-8')
@@ -82,6 +86,7 @@ class EnsembleScores:
     ensemble and is evaluated separately for every grid cell and lead time.
     """
     def __init__(self, horizon, std, ranges):
+        """Initialize Ensemble Scores with ``horizon``, ``std``, ``ranges``."""
         self.std = np.asarray(std, np.float64)
         self.ranges = np.asarray(ranges, np.float64)
         self.errors = np.zeros((horizon, len(self.std)), np.float64)
@@ -96,6 +101,7 @@ class EnsembleScores:
     @torch.no_grad()
     def update(self, ensemble, truth, last, mask):
         # All values are normalized. Convert errors to physical units with train std.
+        """Update the internal state using the supplied observations or values."""
         b, m, k, c, h, w = ensemble.shape
         scale = torch.as_tensor(self.std, device=truth.device, dtype=torch.float32).reshape(1,1,1,c,1,1)
         ys = truth.float() * scale[:,0]
@@ -127,6 +133,7 @@ class EnsembleScores:
             self.energy_count += b*int(mask.sum())
 
     def summary(self):
+        """Return a summary of the accumulated results."""
         mse = self.errors / np.maximum(self.count,1)
         baseline_mse = self.baseline / np.maximum(self.count,1)
         crps = self.crps / np.maximum(self.count,1)

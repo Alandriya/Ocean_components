@@ -17,7 +17,9 @@ from Plotting.map_workflows import plot_mean_year
 
 
 class MeanYearScalarTests(unittest.TestCase):
+    """Regression tests covering Mean Year Scalar."""
     def test_streaming_matches_reference(self):
+        """Verify that streaming matches reference."""
         rng = np.random.default_rng(37)
         dates = [date(1979, 1, 1) + timedelta(days=i) for i in range(732)]
         for shape in ((732,), (732, 2, 3), (732, 4, 2, 3)):
@@ -46,11 +48,13 @@ class MeanYearScalarTests(unittest.TestCase):
                 orig_asarray = np.asarray
                 orig_where = np.where
                 def checked_asarray(a, *args, **kwargs):
+                    """Compute checked asarray for test mean year 1d from ``a``."""
                     dtype = args[0] if args else kwargs.get('dtype')
                     if getattr(a, 'shape', None) == shape and dtype is not None:
                         raise AssertionError('Full source dtype conversion')
                     return orig_asarray(a, *args, **kwargs)
                 def checked_where(cond, *args):
+                    """Compute checked where for test mean year 1d from ``cond``."""
                     if any(getattr(x, 'shape', None) == shape for x in args):
                         raise AssertionError('Full source masking')
                     return orig_where(cond, *args)
@@ -62,6 +66,7 @@ class MeanYearScalarTests(unittest.TestCase):
                 np.testing.assert_array_equal(data, arr)
 
     def test_scalar_load_save_plot_and_isolation(self):
+        """Verify that scalar load save plot and isolation."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             years = (1979, 2026)
@@ -93,6 +98,7 @@ class MeanYearScalarTests(unittest.TestCase):
             self.assertEqual(len(list((root/'Mean_year').rglob('A_1979-2026.npy'))),4)
 
     def test_scalar_validation_and_progress(self):
+        """Verify that scalar validation and progress."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             folder = root/'Coefficients'/'1979-2026'/'1d_bins_144'/'Flux'/'Semiparametric'

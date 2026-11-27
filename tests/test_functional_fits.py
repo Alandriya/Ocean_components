@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def model_logb2(x, x1, x0, c1, c2, c3, c4):
+    """Evaluate the piecewise model of log squared diffusion."""
     d_l = c3 + c2 * np.sqrt(abs(x1)) - c1 * abs(x1)
     d_r = c3 + (c2 - c4) * np.sqrt(abs(x0))
     if x < x1:
@@ -25,6 +26,7 @@ def model_logb2(x, x1, x0, c1, c2, c3, c4):
 
 @pytest.fixture
 def modules(monkeypatch):
+    """Compute modules for test functional fits from ``monkeypatch``."""
     functional = types.ModuleType("Functional")
     functional.__path__ = []
     func_estimation = types.ModuleType("Functional.func_estimation")
@@ -45,6 +47,7 @@ def modules(monkeypatch):
 
 
 def synthetic_data(variable, *, noisy=False):
+    """Compute synthetic data for test functional fits from ``variable``, ``noisy``."""
     if variable == "sensible":
         x = np.r_[np.linspace(-120, -0.5, 240), [0.0], np.linspace(0.5, 30, 60)]
         c1, c2, c3, c4 = 0.014, 0.255, 5.7, 0.27
@@ -60,6 +63,7 @@ def synthetic_data(variable, *, noisy=False):
 
 @pytest.mark.parametrize('variable', ('sensible','latent'))
 def test_fit_recovers_continuous_model(modules, variable):
+    """Verify that fit recovers continuous model."""
     stationary, plots = modules
     x, drift, y, expected = synthetic_data(variable)
     fit = stationary._fit_log_diffusion(x, y, variable)
@@ -78,6 +82,7 @@ def test_fit_recovers_continuous_model(modules, variable):
 
 
 def test_noisy_latent_join_is_still_exact(modules):
+    """Verify that noisy latent join is still exact."""
     stationary, plots = modules
     x, drift, y, _ = synthetic_data('latent', noisy=True)
     fit = stationary._fit_log_diffusion(x, y, 'latent')
@@ -87,6 +92,7 @@ def test_noisy_latent_join_is_still_exact(modules):
 
 
 def test_historical_plot_uses_white_background(tmp_path, monkeypatch, modules):
+    """Verify that historical plot uses white background."""
     stationary, plots = modules
     data = {}
     for name in ('sensible','latent'):

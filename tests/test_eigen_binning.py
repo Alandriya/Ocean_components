@@ -11,10 +11,11 @@ from Eigenvalues.eigenvalues import (
     get_eig, _moment_matrix, count_eigenvalues_pair,
     reconstruct_b2_map, matrix_to_map,
 )
-from main_parts import run_eigenvalues_for_period
+from Eigenvalues.eigenvalues import run_eigenvalues_for_period
 
 
 def test_scale_bins_constant_ties_and_bad_values():
+    """Check that constant values and invalid observations receive consistent quantile-bin assignments."""
     x = np.array([7, 7, 7, np.nan, np.inf, -np.inf], dtype=float)
     y, q = scale_to_bins(x, 4)
     assert y.dtype.kind == 'f' and len(q) == 5
@@ -24,6 +25,7 @@ def test_scale_bins_constant_ties_and_bad_values():
 
 
 def test_scale_integer_quantiles_maximum_included():
+    """Check quantile edges and inclusion of the maximum integer observation."""
     x = np.array([0, 1, 2, 3, 4], dtype=np.int64)
     y, q = scale_to_bins(x, 2)
     np.testing.assert_allclose(q, [0,2,4])
@@ -34,6 +36,7 @@ def test_scale_integer_quantiles_maximum_included():
 
 
 def test_joint_matrix_and_missing_t_plus_one():
+    """Exclude missing next observations from conditional second moments."""
     x0=np.array([0.0, 0.0, 1.0, 1.0])
     x1=np.array([1.0, 3.0, 4.0, np.nan])
     # Finite increments: [1,3,3] => diag [5,9], not [5,nan].
@@ -46,6 +49,7 @@ def test_joint_matrix_and_missing_t_plus_one():
 
 
 def test_svd_not_square_eigenvalues():
+    """Check that mixed fields use singular values rather than squared eigenvalues."""
     b=np.array([[0,6.0],[2,0]])
     sig,u = get_eig(b,('sensible','latent'))
     np.testing.assert_allclose(sig,[6,2])
@@ -53,6 +57,7 @@ def test_svd_not_square_eigenvalues():
 
 
 def test_pair_saves_complete_arrays_and_recovers_b2(tmp_path):
+    """Check that stored spectral arrays reconstruct the retained diffusion modes."""
     x=np.array([[0,1,2],[0,1,2],[1,3,4],[1,2,4]],dtype=float)
     y=np.array([[1,2,3],[0,2,2],[1,1,2],[0,0,0]],dtype=float)
     _,qx=scale_to_bins(x,2)
@@ -77,8 +82,18 @@ def test_pair_saves_complete_arrays_and_recovers_b2(tmp_path):
     np.testing.assert_allclose(bn,(u[:,:1]*s[:1])@v[:,:1].T)
 
 
-def test_main_runner_calculates_ten_pairs(tmp_path):
-    # Four tiny fields, all same time axis, with 3 daily points.
+def test_main_runner_calculates_ten_pairs(tmp_path, monkeypatch):
+    """Calculate all ten unordered spectral pairs from four synthetic fields."""
+    # Other legacy tests install a partial Data_processing.io stub in sys.modules.
+    # Use the real reader locally, without altering the module state after this test.
+    import importlib.util
+    import sys
+    spec = importlib.util.spec_from_file_location(
+        "Data_processing.io", Path(__file__).resolve().parents[1] / "Data_processing" / "io.py")
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+    monkeypatch.setitem(sys.modules, "Data_processing.io", reader)
+    # Four tiny fields, all on the same time axis, with three daily points.
     paths={
         'sensible': 'DATA/Fluxes/sensible_grouped_2019-2026.npy',
         'latent': 'DATA/Fluxes/latent_grouped_2019-2026.npy',
@@ -89,7 +104,8 @@ def test_main_runner_calculates_ten_pairs(tmp_path):
         path=tmp_path/rel;path.parent.mkdir(parents=True,exist_ok=True)
         a=np.array([[0,1,2],[1,2,3],[2,3,4],[3,4,5]],float)+k
         np.save(path,a)
-    result=run_eigenvalues_for_period(str(tmp_path),2019,2026,2,1,spatial_shape=(2,2))
+    result=run_eigenvalues_for_period(str(tmp_path),2019,2026,2,1,spatial_shape=(2,2),
+                                     variables=tuple(paths))
     assert result['first_index']==14611 and result['last_index']==14612
     assert len(result['pairs'])==10
     assert len(list((tmp_path/'Eigenvalues').iterdir()))==10
@@ -97,6 +113,7 @@ def test_main_runner_calculates_ten_pairs(tmp_path):
 
 
 def test_plotter_supports_mixed_singular_vectors(tmp_path):
+    """Render paired left/right singular modes using both input fields."""
     import matplotlib
     matplotlib.use('Agg')
     from Plotting.plot_eigenvalues import plot_eigenvalues
@@ -107,5 +124,5 @@ def test_plotter_supports_mixed_singular_vectors(tmp_path):
     # array2 supplied in plotting corresponds to right singular vectors.
     plot_eigenvalues(str(tmp_path)+'/', 1, np.ones(4,bool), 0, 1, 14611,
                      arr+1, (np.asarray(q)+1).tolist(),
-                     ('sensible','latent'), (2,2))
-    assert (tmp_path/'videos/Eigenvalues/sensible-latent/Lambdas_14611.png').exists()
+                     ('sensible','latent'), (2,2), array1=arr, array1_quantiles=q)
+    assert (tmp_path/'Plots/Eigenvalues/sensible-latent/Lambdas_14611.png').exists()

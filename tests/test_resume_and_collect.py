@@ -20,7 +20,9 @@ from Coefficients.runner import (
 
 
 class ResumeAndCollectTests(unittest.TestCase):
+    """Regression tests covering Resume And Collect."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -43,6 +45,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.sp_daily = self.base / 'Semiparametric_2d' / 'daily'
 
     def test_restart_begins_at_first_missing_sp_without_refitting_np(self):
+        """Verify that restart begins at first missing sp without refitting np."""
         run_decade_coefficients(**self.kwargs)
         old_np = (self.np_daily / 'B_2.npy').stat().st_mtime_ns
         old_sp = (self.sp_daily / 'B_2.npy').stat().st_mtime_ns
@@ -59,6 +62,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual((self.sp_daily / 'B_2.npy').stat().st_mtime_ns, old_sp)
 
     def test_malformed_file_is_recomputed(self):
+        """Verify that malformed file is recomputed."""
         run_decade_coefficients(**self.kwargs)
         corrupted = self.sp_daily / 'B_3.npy'
         corrupted.write_bytes(b'bad-npy')
@@ -66,6 +70,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual(np.load(corrupted).shape, (4, 12, 13))
 
     def test_multiple_corrupt_days_repaired_in_one_restart(self):
+        """Verify that multiple corrupt days repaired in one restart."""
         run_decade_coefficients(**self.kwargs)
         broken_earlier = self.sp_daily / 'A_3.npy'
         broken_later = self.sp_daily / 'B_4.npy'
@@ -76,6 +81,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual(np.load(broken_later).shape, (4, 12, 13))
 
     def test_collect_2d_selected_range_and_correct_order(self):
+        """Verify that collect 2d selected range and correct order."""
         run_decade_coefficients(**self.kwargs)
         outputs = collect_daily_coefficients(
             str(self.root), path=str(self.base.relative_to(self.root)),
@@ -99,6 +105,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual(second['B'].stat().st_mtime_ns, baseline)
 
     def test_collect_all_enabled_methods(self):
+        """Verify that collect all enabled methods."""
         run_decade_coefficients(**self.kwargs)
         result = collect_period_coefficients(
             str(self.root), names=('sensible','latent'),
@@ -111,6 +118,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual(np.load(result['2d/sp']['B'], mmap_mode='r').shape, (5,4,12,13))
 
     def test_missing_day_prevents_partial_merge(self):
+        """Verify that missing day prevents partial merge."""
         run_decade_coefficients(**self.kwargs)
         (self.np_daily / 'A_4.npy').unlink()
         with self.assertRaisesRegex(FileNotFoundError, 'A_4.npy'):
@@ -122,6 +130,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertFalse((self.base / 'Nonparametric_2d' / 'A_2-6.npy').exists())
 
     def test_collect_1d_arrays(self):
+        """Verify that collect 1d arrays."""
         from Coefficients.nonparametric import count_1d_nonparam
         count_1d_nonparam(str(self.root), self.x0, 0, 6,
                           path='scalar_case', start_index=1,
@@ -134,6 +143,7 @@ class ResumeAndCollectTests(unittest.TestCase):
         self.assertEqual(np.load(merged['B'], mmap_mode='r').shape, (3, 12, 13))
 
     def test_all_complete_restart_does_not_invoke_estimators(self):
+        """Verify that all complete restart does not invoke estimators."""
         run_decade_coefficients(**self.kwargs)
         with patch('Coefficients.runner.count_2d_nonparam', side_effect=AssertionError('NP called')):
             with patch('Coefficients.runner.count_semi_2d_AB', side_effect=AssertionError('SP called')):
@@ -144,7 +154,9 @@ if __name__ == '__main__':
     unittest.main(verbosity=2)
 
 class GenericRunnerResumeTests(unittest.TestCase):
+    """Regression tests covering Generic Runner Resume."""
     def test_direct_2d_runner_resumes_only_missing_sp(self):
+        """Verify that direct 2d runner resumes only missing sp."""
         from Coefficients.runner import run_2d_coefficients
         rng = np.random.default_rng(778)
         x0 = rng.normal(size=(6, 9, 11))

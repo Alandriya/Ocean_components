@@ -23,10 +23,12 @@ except ImportError:
 
 @unittest.skipIf(xr is None, "xarray is required for GRIB-style coordinate tests")
 class HourlyGribStepTests(unittest.TestCase):
+    """Regression tests covering Hourly GRIB Step."""
     @staticmethod
     def make_dataset(*, include_valid_time=True):
         # Daily forecast cycles, with steps 1..24 h. Validity 00 UTC of
         # Jan 1 is the *previous* cycle, step 24; no manual time correction.
+        """Construct dataset for the test hourly GRIB step workflow."""
         starts = np.datetime64("1978-12-31T00") + np.arange(4).astype("timedelta64[D]")
         leads = np.arange(1, 25).astype("timedelta64[h]")
         valids = starts[:, None] + leads[None, :]
@@ -43,6 +45,7 @@ class HourlyGribStepTests(unittest.TestCase):
                           coords=coordinates), data
 
     def test_non_singleton_step_mapped_by_valid_time(self):
+        """Verify that non singleton step mapped by valid time."""
         ds, data = self.make_dataset()
         da, times, coords, selectors = HourlySource._normalize_array(ds["msshf"])
         self.assertEqual(da.dims, ("time", "step", "latitude", "longitude"))
@@ -66,6 +69,7 @@ class HourlyGribStepTests(unittest.TestCase):
                 np.testing.assert_array_equal(fields["latent"][0], data[0, 23] * 2)
 
     def test_full_diagnostic_with_time_step_input(self):
+        """Verify that full diagnostic with time step input."""
         ds, _ = self.make_dataset()
         with tempfile.TemporaryDirectory() as d:
             file = Path(d) / "fluxes.nc"
@@ -89,6 +93,7 @@ class HourlyGribStepTests(unittest.TestCase):
                 self.assertEqual(int(row["valid"]), 35 if row["mode"] == "daily_mean4" else 24*35)
 
     def test_missing_valid_time_derived_from_step_timedelta(self):
+        """Verify that missing valid time derived from step timedelta."""
         ds, data = self.make_dataset(include_valid_time=False)
         field, times, _, selectors = HourlySource._normalize_array(ds["msshf"])
         self.assertEqual(field.shape[:2], (4, 24))
@@ -96,12 +101,14 @@ class HourlyGribStepTests(unittest.TestCase):
         self.assertEqual(selectors[24], (1, 0))
 
     def test_non_hour_validity_and_nat_rejected(self):
+        """Verify that non hour validity and nat rejected."""
         with self.assertRaises(ValueError):
             _as_hour(np.datetime64("NaT"))
         with self.assertRaises(ValueError):
             _as_hour(np.datetime64("1979-01-01T01:30"))
 
     def test_duplicate_valid_hour_is_not_silently_selected(self):
+        """Verify that duplicate valid hour is not silently selected."""
         ds, _ = self.make_dataset()
         # Two forecast references 12 h apart and steps 1 and 13 h
         # yield a duplicate validity hour, so the input is ambiguous.

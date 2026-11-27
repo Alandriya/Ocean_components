@@ -1,3 +1,5 @@
+"""Plot evolution of extreme stochastic coefficients and eigenvalues."""
+
 import os.path
 import os
 import numpy as np
@@ -673,6 +675,7 @@ def plot_extreme_coeff_flux(files_path_prefix: str,
          time_start: int,
          time_end: int,
          window: int = 1):
+    """Plot extreme coeff flux for the plot extreme workflow."""
     min_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_min_sens({time_start}-{time_end})_{window}.npy')
     max_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_max_sens({time_start}-{time_end})_{window}.npy')
     med_sens = np.load(files_path_prefix + f'Extreme/data/Flux_{coeff_type}_med_sens({time_start}-{time_end})_{window}.npy')
@@ -744,6 +747,7 @@ def plot_eigenvalues_extreme(files_path_prefix: str,
                              mean_days: int,
                    names: tuple = ('Sensible', 'Latent'),
                 ):
+    """Plot eigenvalues extreme for the plot extreme workflow."""
     sns.set_style("whitegrid")
     font = {'size': 14}
     font_names = {'weight': 'bold', 'size': 20}

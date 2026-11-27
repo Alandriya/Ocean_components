@@ -24,14 +24,17 @@ io = ModuleType('Data_processing.io')
 
 
 def field_candidates(root, name, start, end):
+    """Compute field candidates for smoke stationary spatial from ``root``, ``name``, ``start``, ``end``."""
     return [Path(root)/'DATA'/'Fluxes'/f'{name}_{start}-{end}_grouped.npy']
 
 
 def load_field(root, name, start, end):
+    """Load field for the smoke stationary spatial workflow."""
     return np.load(field_candidates(root,name,start,end)[0], mmap_mode='r')
 
 
 def read_ocean_mask(root, shape=(40,50)):
+    """Read ocean mask for the smoke stationary spatial workflow."""
     return np.load(Path(root)/'DATA'/'ocean_mask.npy')
 io.field_candidates = field_candidates
 io.load_field = load_field
@@ -39,15 +42,14 @@ io.read_ocean_mask = read_ocean_mask
 sys.modules['Data_processing'] = dp
 sys.modules['Data_processing.io'] = io
 
-from Functional import stationary_diagnostics as diagnostics
-from Functional.stationary_diagnostics import (stationary_density,
-    equal_probability_regions, classify_map, prepare_stationary_diagnostics)
-from Plotting.stationary_spatial_plots import (plot_stationary_spatial,
-    _class_grid_edges, _class_mask_path, _grid_boundary_segments)
+from Functional import stationary as diagnostics
+from Functional.stationary import stationary_density, equal_probability_regions, classify_map, prepare_stationary_diagnostics
+from Plotting.stationary_plots import plot_stationary_spatial, _class_grid_edges, _class_mask_path, _grid_boundary_segments
 from Plotting.copula_plotting import plot_copula_contours
 
 
 def make_root(root):
+    """Construct root for the smoke stationary spatial workflow."""
     (root/'DATA'/'Fluxes').mkdir(parents=True)
     (root/'Functional'/'Stationary').mkdir(parents=True)
     water = np.ones((40, 50), bool)
@@ -74,6 +76,7 @@ def make_root(root):
 
 
 def test_pdf_quintiles():
+    """Verify that pdf quintiles."""
     grid = np.linspace(-8,8,5001)
     pdf = np.exp(-grid**2/2)/np.sqrt(2*np.pi)
     q, mass = equal_probability_regions(grid,pdf)
@@ -84,6 +87,7 @@ def test_pdf_quintiles():
 
 
 def test_maps_and_reuse():
+    """Verify that maps and reuse."""
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         water = make_root(root)
@@ -148,6 +152,7 @@ def test_maps_and_reuse():
 
 
 def test_copula_contours():
+    """Verify that copula contours."""
     with tempfile.TemporaryDirectory() as d:
         root=Path(d)
         folder=root/'Functional'/'Copulas'
@@ -175,6 +180,7 @@ def test_copula_contours():
 
 def test_class_geometry():
     # Hatches must cover precisely the selected cells and no others.
+    """Verify that class geometry."""
     mask = np.array([[1, 1, 0], [0, 1, 0]], dtype=bool)
     x, y = _class_grid_edges(mask.shape)
     path = _class_mask_path(mask, x, y)

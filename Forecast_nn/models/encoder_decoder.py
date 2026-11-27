@@ -1,3 +1,5 @@
+"""Convolutional encoder-decoder with attention and recurrent forecasting components."""
+
 import torch
 import torch.nn as nn
 
@@ -5,7 +7,9 @@ from Forecast_nn.config import cfg
 
 
 class up_conv(nn.Module):
+    """PyTorch module implementing the up conv architecture or layer."""
     def __init__(self,ch_in,ch_out):
+        """Initialize up conv with ``ch_in``, ``ch_out``."""
         super(up_conv,self).__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2),
@@ -14,12 +18,15 @@ class up_conv(nn.Module):
 			nn.ReLU(inplace=True)
         )
     def forward(self,x):
+        """Apply the up conv transformation to the input tensors."""
         x = self.up(x)
         return x
 
 
 class conv_block(nn.Module):
+    """PyTorch module implementing the conv block architecture or layer."""
     def __init__(self,ch_in,ch_out):
+        """Initialize conv block with ``ch_in``, ``ch_out``."""
         super(conv_block,self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(ch_in, ch_out, kernel_size=3,stride=1,padding=1,bias=True),
@@ -30,11 +37,14 @@ class conv_block(nn.Module):
             nn.ReLU(inplace=True)
         )
     def forward(self,x):
+        """Apply the conv block transformation to the input tensors."""
         x = self.conv(x)
         return x
 
 class Attention_block(nn.Module):
+    """PyTorch module implementing the Attention block architecture or layer."""
     def __init__(self, F_g, F_l, F_int):
+        """Initialize Attention block with ``F_g``, ``F_l``, ``F_int``."""
         super(Attention_block, self).__init__()
         self.W_g = nn.Sequential(
             nn.Conv2d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
@@ -55,6 +65,7 @@ class Attention_block(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, g, x):
+        """Apply the Attention block transformation to the input tensors."""
         g1 = self.W_g(g)
         x1 = self.W_x(x)
         psi = self.relu(g1 + x1)
@@ -64,7 +75,9 @@ class Attention_block(nn.Module):
 
 
 class Encoder_Decoder(nn.Module):
+    """PyTorch module implementing the Encoder Decoder architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size, stride, padding, verbose=False):
+        """Initialize Encoder Decoder with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``, ``verbose``."""
         super().__init__()
         self.batch = b_h_w[0]
         self.height = b_h_w[1]
@@ -98,6 +111,7 @@ class Encoder_Decoder(nn.Module):
         self.Conv_1x1 = nn.Conv2d(64, output_channel, kernel_size=kernel_size, stride=stride, padding=padding)
 
     def encode(self, x):
+        """Encode encoder decoder data using the supplied inputs."""
         if self.verbose:
             print(x.shape) # torch.Size([16, 10, 6, 81, 91])
         x = torch.nn.functional.pad(x, (2, 3, 7, 8))
@@ -150,6 +164,7 @@ class Encoder_Decoder(nn.Module):
         #     print(y4.shape) # torch.Size([16, 60, 94, 94])
 
         # decoding + concat path
+        """Decode encoder decoder data using the supplied inputs."""
         d5 = self.Up5(y)
         x4 = self.Att5(g=d5, x=d5)
         d5 = torch.cat((x4, d5), dim=1)
@@ -182,6 +197,7 @@ class Encoder_Decoder(nn.Module):
         return output
 
     def forward(self, x, mode):
+        """Apply the Encoder Decoder transformation to the input tensors."""
         if mode in ['train','test']:
             y = self.encode(x)
             # print(y.shape) #torch.Size([16, 256, 24, 24])

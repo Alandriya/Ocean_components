@@ -15,7 +15,9 @@ MASK = Path(__file__).parent / 'fixtures' / 'mask'
 
 
 class WindowsMemmapTest(unittest.TestCase):
+    """Regression tests covering Windows Memmap."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -31,17 +33,20 @@ class WindowsMemmapTest(unittest.TestCase):
         self.output = self.root / 'DATA' / 'Forecast_1d' / ep.DEFAULT_SUBDIR
 
     def test_all_writer_mappings_closed_before_rename(self):
+        """Verify that all writer mappings closed before rename."""
         original_memmap = np.lib.format.open_memmap
         original_rename = ep._rename_with_retry
         held = []
 
         def track_memmap(*args, **kwargs):
+            """Compute track memmap for test all writer mappings closed before rename."""
             arr = original_memmap(*args, **kwargs)
             if '.building-' in str(args[0]):
                 held.append(arr)
             return arr
 
         def check_closed_before_publish(source, dest, **kwargs):
+            """Check closed before publish for the test windows memmap workflow."""
             self.assertEqual(len(held),8)
             self.assertTrue(all(x._mmap.closed for x in held),
                             'Windows would lock an open output memmap')
@@ -54,6 +59,7 @@ class WindowsMemmapTest(unittest.TestCase):
         self.assertEqual(len(held), 8)
 
     def test_rename_retries_transient_access_denied(self):
+        """Verify that rename retries transient access denied."""
         self.output.parent.mkdir(parents=True, exist_ok=True)
         source = self.output.parent / 'tempdir'
         source.mkdir()
@@ -61,6 +67,7 @@ class WindowsMemmapTest(unittest.TestCase):
         attempts = [0]
 
         def temporarily_locked(path, target):
+            """Compute temporarily locked for test rename retries transient access denied from ``path``, ``target``."""
             attempts[0] += 1
             if attempts[0] <= 2:
                 raise PermissionError('Simulated Windows lock')
@@ -74,6 +81,7 @@ class WindowsMemmapTest(unittest.TestCase):
         self.assertTrue(self.output.is_dir())
 
     def test_failed_publish_preserves_complete_staging_for_recovery(self):
+        """Verify that failed publish preserves complete staging for recovery."""
         with mock.patch.object(ep, '_rename_with_retry', side_effect=PermissionError('WinError 5')):
             with self.assertRaises(PermissionError):
                 ep.extract(self.root, POINTS, self.output, chunk_days=8)
@@ -87,6 +95,7 @@ class WindowsMemmapTest(unittest.TestCase):
         self.assertEqual(np.load(self.output / 'dates.npy').shape,(self.days,))
 
     def test_incomplete_staging_is_not_published(self):
+        """Verify that incomplete staging is not published."""
         with mock.patch.object(ep, '_rename_with_retry', side_effect=PermissionError('WinError 5')):
             with self.assertRaises(PermissionError):
                 ep.extract(self.root, POINTS, self.output, chunk_days=11)
@@ -100,9 +109,11 @@ class WindowsMemmapTest(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
     def test_writer_mappings_closed_and_partial_removed_after_processing_error(self):
+        """Verify that writer mappings closed and partial removed after processing error."""
         held=[]
         real_open = np.lib.format.open_memmap
         def track(*args, **kwargs):
+            """Compute track for test writer mappings closed and partial removed after processing error."""
             a=real_open(*args,**kwargs)
             if '.building-' in str(args[0]):
                 held.append(a)

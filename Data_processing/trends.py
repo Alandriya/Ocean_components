@@ -23,11 +23,13 @@ STAT_NAMES = ('max', 'min', 'mean', 'range')
 
 
 def day_label(d):
+    """Convert the date to the project day-index convention."""
     return (d - BASE_DATE).days + 1
 
 
 def _bounds(start_year, end_year, last_date=None):
     # The project's 2026 full-period filename may include real days in 2026.
+    """Determine the relevant interval bounds."""
     first = day_label(date(start_year, 1, 1))
     stop = day_label(date(end_year + (end_year == 2026), 1, 1))
     if last_date is not None:
@@ -38,6 +40,7 @@ def _bounds(start_year, end_year, last_date=None):
 
 
 def _npy(path):
+    """Load or resolve the requested NPY array."""
     try:
         return np.load(path, mmap_mode='r', allow_pickle=False)
     except (ValueError, OSError, EOFError) as exc:
@@ -123,6 +126,7 @@ def linear_fit(labels, values):
 
 
 def result_path(root, category, identifier, start_year, end_year, *, method='sp', n_bins=12):
+    """Construct the output path for the requested result."""
     base = Path(root)/'Trends'/category
     if category in ('Coefficients', 'Derived'):
         base = base/f'{n_bins}_bins'/method
@@ -130,6 +134,7 @@ def result_path(root, category, identifier, start_year, end_year, *, method='sp'
 
 
 def _publish(path, labels, daily, channels, windows, anchor, min_coverage, metadata, *, spectral_min=False):
+    """Publish the completed output."""
     path.parent.mkdir(parents=True, exist_ok=True)
     labels = np.asarray(labels, dtype=np.int64)
     if not len(labels):
@@ -166,7 +171,9 @@ def _publish(path, labels, daily, channels, windows, anchor, min_coverage, metad
 def _field_blocks(root, name, sy, ey, periods, ocean):
     # Prefer the exact requested collected array. Fall back only if absent,
     # not if a candidate exists but is corrupt (that must be repaired).
+    """Yield blocks of input observations for memory-efficient processing."""
     def read(a,b):
+        """Read the requested trends data using the supplied inputs."""
         path=next((p for p in field_candidates(root,name,a,b) if p.is_file()),None)
         try:
             return load_field(root,name,a,b,ocean.shape)
@@ -181,6 +188,7 @@ def _field_blocks(root, name, sy, ey, periods, ocean):
 
 
 def _coefficient_file(root,pair,key,method,n_bins):
+    """Resolve the file containing the requested coefficient."""
     base=Path(root)/'Coefficients'; pair_id='_'.join(pair)
     parent=base/'continuous'/f'2d_bins_{n_bins}'/pair_id/('Nonparametric_2d' if method=='np' else 'Semiparametric_2d')
     manifest=base/'continuous'/f'manifest_{pair_id}_{n_bins}.json'
@@ -209,6 +217,7 @@ def _coefficient_file(root,pair,key,method,n_bins):
 
 
 def _channels(pair,key):
+    """Identify the relevant field channels."""
     if key=='A': return tuple(f'A({name})' for name in pair)
     if key in ('B','B_with_reg'): return tuple(f'{key}{suffix}' for suffix in ('00','11','01','10'))
     if key in ('C','FS'): return (f'{key}1',f'{key}2')
@@ -217,6 +226,7 @@ def _channels(pair,key):
 
 
 def _spectral_daily(root,pair,first,stop, *, ocean, mode_extrema, spectral_periods, n_bins):
+    """Load the daily spectral result."""
     folder=Path(root)/'Eigenvalues'/'-'.join(pair)
     mixed=pair[0]!=pair[1]
     kind='singular_values' if mixed else 'eigenvalues'
@@ -304,10 +314,14 @@ def run_trends(root,start_year,end_year,*, sources=('Variables','Coefficients','
     ocean=np.asarray(read_ocean_mask(root) if mask is None else mask,dtype=bool)
     first,stop=_bounds(start_year,end_year,last_date)
     results=[]
-    def target(cat,ident): return result_path(root,cat,ident,start_year,end_year,method=method,n_bins=n_bins_2d)
+    def target(cat,ident):
+        """Target the requested trends data using the supplied inputs."""
+        return result_path(root,cat,ident,start_year,end_year,method=method,n_bins=n_bins_2d)
     def publish(path,labels,daily,ch,meta, spectral_min=False):
+        """Publish the requested trends data using the supplied inputs."""
         results.append(_publish(path,labels,daily,ch,windows,first,min_coverage,meta,spectral_min=spectral_min))
     def reusable(path):
+        """Check whether the existing saved result can be reused."""
         if path.exists() and not overwrite:
             results.append(path); return True
         return False

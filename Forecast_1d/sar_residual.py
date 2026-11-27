@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .models.seasonal import calendar_index, fit_seasonal, forecast_seasonal
+from Forecast_1d.models.baselines import calendar_index, fit_seasonal, forecast_seasonal
 
 
 DEFAULT_OOF_FOLDS = 4
@@ -19,6 +19,7 @@ DEFAULT_BURN_FRACTION = 0.33
 
 @dataclass
 class ResidualTraining:
+    """Container for residual training state and associated operations."""
     x_train: np.ndarray             # [N,history,2], normalized anomaly inputs
     y_train: np.ndarray             # [N,horizon,2], normalized SAR corrections
     x_val: np.ndarray               # [V,history,2], normalized anomaly inputs
@@ -61,6 +62,7 @@ def anomaly_inputs(values: np.ndarray, dates: np.ndarray, origins: np.ndarray,
 
 
 def future_targets(values: np.ndarray, origins: np.ndarray, horizon: int):
+    """Select the target values at the specified forecast leads."""
     return np.stack([
         np.asarray(values[int(t)+1:int(t)+horizon+1], dtype=np.float64)
         for t in origins

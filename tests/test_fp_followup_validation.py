@@ -16,12 +16,15 @@ from Functional.fp_followup_validation import (
 
 
 class FollowupValidationTests(unittest.TestCase):
+    """Regression tests covering Followup Validation."""
     def test_independent_bridge_quadrature(self):
+        """Verify that independent bridge quadrature."""
         values = _bridge_replay_parameters(.4, .6, .27, -1., -1.1)
         self.assertLess(values["independent_integral_residual"], 1e-5)
         self.assertLess(values["root_equation_residual"], 1e-9)
 
     def test_saved_hybrid_grid_replay(self):
+        """Verify that saved hybrid grid replay."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stationary_dir = root / 'Functional' / 'Stationary'
@@ -71,6 +74,7 @@ class FollowupValidationTests(unittest.TestCase):
             self.assertLess(summary['maximum_independent_integral_residual'], 1e-5)
 
     def test_ou_is_actually_wide(self):
+        """Verify that ou is actually wide."""
         with tempfile.TemporaryDirectory() as tmp:
             rows = run_wide_ou(Path(tmp), sizes=(40,), signs=(1,), max_stencil_radius=9)
             self.assertEqual(len(rows), 1)

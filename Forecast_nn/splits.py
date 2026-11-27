@@ -9,12 +9,14 @@ from datetime import date
 
 @dataclass(frozen=True)
 class ChronologicalSplit:
+    """Container for chronological split state and associated operations."""
     train_end: int
     val_start: int
     test_start: int
     data_end: int
 
     def dataset_bounds(self, split, in_len, stride=1):
+        """Return the sample index bounds for the chronological split."""
         if split == 'train':
             return 0, self.train_end
         if split == 'val':
@@ -26,6 +28,7 @@ class ChronologicalSplit:
 
 def resolve_splits(reader_length, base_date, last_date, val_steps, test_steps,
                    in_len, out_len, stride=1):
+    """Resolve chronological split boundaries for the available series."""
     first = date.fromisoformat(str(base_date))
     last = date.fromisoformat(str(last_date))
     data_end = (last - first).days + 1

@@ -17,29 +17,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeEcCodes(types.ModuleType):
+    """PyTorch module implementing the Fake Ec Codes architecture or layer."""
     def __init__(self):
+        """Initialize Fake Ec Codes with default state."""
         super().__init__("eccodes")
         self.decode_calls = 0
 
     def codes_new_from_message(self, blob):
+        """Compute codes new from message for Fake Ec Codes from ``blob``."""
         self.decode_calls += 1
         return json.loads(blob[16:-4].decode("ascii"))
 
     def codes_get(self, handle, key):
+        """Compute codes get for Fake Ec Codes from ``handle``, ``key``."""
         if key not in handle:
             raise KeyError(key)
         return handle[key]
 
     def codes_get_array(self, handle, key):
+        """Compute codes get array for Fake Ec Codes from ``handle``, ``key``."""
         if key != "values":
             raise KeyError(key)
         return np.asarray(handle[key], dtype=float)
 
     def codes_release(self, handle):
+        """Compute codes release for Fake Ec Codes from ``handle``."""
         pass
 
 
 def fake_grib_message(var, day, hour, shift):
+    """Compute fake GRIB message for test GRIB stream cache from ``var``, ``day``, ``hour``, ``shift``."""
     vals = (np.arange(9) + shift + hour).tolist()
     obj = {"shortName": var, "validityDate": int(day.strftime("%Y%m%d")),
            "validityTime": 100 * hour, "gridType": "regular_ll",
@@ -51,7 +58,9 @@ def fake_grib_message(var, day, hour, shift):
 
 
 class GribStreamingTests(unittest.TestCase):
+    """Regression tests covering GRIB Streaming."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -68,6 +77,7 @@ class GribStreamingTests(unittest.TestCase):
         self.aliases = {"sensible": ("msshf",), "latent": ("mslhf",)}
 
     def convert(self):
+        """Convert grib streaming tests data using the supplied inputs."""
         from Coefficients.grib_stream_cache import prepare_grib_day_cache
         return prepare_grib_day_cache(
             paths=(self.file1, self.file2), days=self.ds,
@@ -76,6 +86,7 @@ class GribStreamingTests(unittest.TestCase):
             progress_every=0)
 
     def test_two_variables_and_exact_valid_hours(self):
+        """Verify that two variables and exact valid hours."""
         with patch.dict(sys.modules, {"eccodes": self.fake}):
             mapping, shape, stride = self.convert()
         self.assertEqual(shape, (3, 3))
@@ -89,6 +100,7 @@ class GribStreamingTests(unittest.TestCase):
         np.testing.assert_array_equal(b[23], [[123, 125], [129, 131]])
 
     def test_second_run_reuses_cache_without_decoder(self):
+        """Verify that second run reuses cache without decoder."""
         with patch.dict(sys.modules, {"eccodes": self.fake}):
             self.convert()
         old = self.fake.decode_calls
@@ -97,6 +109,7 @@ class GribStreamingTests(unittest.TestCase):
         self.assertEqual(self.fake.decode_calls, old)
 
     def test_truncated_grib_record_rejected(self):
+        """Verify that truncated GRIB record rejected."""
         from Coefficients.grib_stream_cache import _raw_messages
         with self.file1.open("ab") as f:
             f.write(b"GRIB\x00\x00\x00\x02" + (125).to_bytes(8, "big") + b"too_short")
@@ -104,6 +117,7 @@ class GribStreamingTests(unittest.TestCase):
             list(_raw_messages(self.file1))
 
     def test_duplicate_valid_hour_rejected(self):
+        """Verify that duplicate valid hour rejected."""
         with self.file1.open("ab") as f:
             f.write(fake_grib_message("msshf", self.ds[0], 0, 1))
         with patch.dict(sys.modules, {"eccodes": self.fake}):
@@ -111,6 +125,7 @@ class GribStreamingTests(unittest.TestCase):
                 self.convert()
 
     def test_full_diagnostic_and_csv_resume(self):
+        """Verify that full diagnostic and CSV resume."""
         import csv
         from Coefficients.quantile_hourly import run_hourly_quantile_diagnostics
         opts = dict(
@@ -136,6 +151,7 @@ class GribStreamingTests(unittest.TestCase):
             self.assertEqual(settings["processed_days"], 1)
 
     def test_hourly_source_reads_cached_days(self):
+        """Verify that hourly source reads cached days."""
         from Coefficients.quantile_hourly import HourlySource
         with patch.dict(sys.modules, {"eccodes": self.fake}):
             with HourlySource(

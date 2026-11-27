@@ -29,6 +29,7 @@ ROOT_DEFAULT = Path('/home/aosipova/EM_ocean')
 
 
 def load_lookup(path: Path) -> dict:
+    """Load lookup for the fp markov baselines workflow."""
     needed = {'coordinates', 'pi', 'x_edges', 'y_edges', 'domain_mask', 'mean'}
     with np.load(path, allow_pickle=False) as source:
         missing = needed - set(source.files)
@@ -60,6 +61,7 @@ def load_lookup(path: Path) -> dict:
 
 
 def finite_mean(x: np.ndarray, axis: int):
+    """Compute finite mean for fp markov baselines from ``x``, ``axis``."""
     good = np.isfinite(x)
     count = np.sum(good, axis=axis)
     total = np.sum(np.where(good, x, 0.), axis=axis, dtype=np.float64)
@@ -122,6 +124,7 @@ def fit_ar1(blocks: np.ndarray, min_pairs=60, clip=0.995) -> dict:
 
 
 def ar1_forecast(current: np.ndarray, intercept, phi, horizon: int) -> np.ndarray:
+    """Compute AR(1) forecast for fp markov baselines from ``current``, ``intercept``, ``phi``, ``horizon``."""
     pred = np.asarray(current, dtype=np.float64).copy()
     for _ in range(horizon):
         pred = intercept + phi * pred
@@ -253,8 +256,10 @@ def evaluate(blocks: np.ndarray, eval_origins: np.ndarray,
 
 def build_report(args, root, eval_start, n_dates, fit_start, lookup,
                  fitted, results):
+    """Construct report for the fp markov baselines workflow."""
     start_date = date.fromisoformat(args.base_date)
     def day(idx):
+        """Compute day for build report from ``idx``."""
         return (start_date + timedelta(days=int(idx))).isoformat()
     return {
         'created_utc': datetime.now(timezone.utc).isoformat(),
@@ -285,6 +290,7 @@ def build_report(args, root, eval_start, n_dates, fit_start, lookup,
 
 
 def save_csv(report, path):
+    """Save CSV for the fp markov baselines workflow."""
     rows = []
     for horizon, record in report['scores_by_horizon'].items():
         for model, score in record['models'].items():
@@ -299,6 +305,7 @@ def save_csv(report, path):
 
 
 def main():
+    """Run the fp markov baselines workflow using its configured options."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--root', type=Path, default=ROOT_DEFAULT)
     ap.add_argument('--lookup', type=Path, default=None,

@@ -13,6 +13,7 @@ from Coefficients.runner import run_decade_coefficients, run_2d_coefficients
 
 
 def sample_pair(seed=17, shape=(12, 13), steps=5):
+    """Compute sample pair for test runner from ``seed``, ``shape``, ``steps``."""
     rng = np.random.default_rng(seed)
     x0 = rng.normal(size=(steps, *shape))
     x1 = 0.4 * x0 + rng.normal(size=(steps, *shape))
@@ -20,7 +21,9 @@ def sample_pair(seed=17, shape=(12, 13), steps=5):
 
 
 class RunnerTests(unittest.TestCase):
+    """Regression tests covering Runner."""
     def test_decade_only_2d_and_resume(self):
+        """Verify that decade only 2d and resume."""
         x0, x1 = sample_pair()
         water = np.ones((12,13), dtype=int)
         water[0, 0] = 0
@@ -45,6 +48,7 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual((np_dir/'B_2.npy').stat().st_mtime_ns, baseline)
 
     def test_generic_2d_sp_only(self):
+        """Verify that generic 2d sp only."""
         x0, x1=sample_pair()
         with tempfile.TemporaryDirectory() as td:
             result=run_2d_coefficients(x0,x1,np.ones((12,13)),td,
@@ -55,6 +59,7 @@ class RunnerTests(unittest.TestCase):
             self.assertFalse((Path(td)/'comparison'/'Nonparametric_2d').exists())
 
     def test_generic_2d_cf(self):
+        """Verify that generic 2d cf."""
         x0, x1=sample_pair()
         with tempfile.TemporaryDirectory() as td:
             run_2d_coefficients(x0,x1,np.ones((12,13)),td,

@@ -13,6 +13,7 @@ from Forecast_nn.runtime import make_loader_kwargs
 
 
 def name(args):
+    """Compute name for ddm utils from ``args``."""
     common=f'ds{args.downsample}_i{cfg.in_len}_o{cfg.out_len}'
     if args.model=='simvp_ddm':
         tag=f'{common}_b{args.base_channels}_d{args.depth}_tb{args.temporal_blocks}'
@@ -34,10 +35,12 @@ def name(args):
 
 
 def experiment_root(args, tag):
+    """Compute experiment root for ddm utils from ``args``, ``tag``."""
     return Path(cfg.results_root)/args.model/'joint'/tag
 
 
 def prepare(args, *, split='val', training=False):
+    """Prepare the requested ddm utils data using the supplied inputs."""
     if args.variable!='joint':
         raise ValueError('Both bivariate DDM experiments require --variable joint.')
     info=prepare_data(args, split=split, batch_size=args.batch_size, workers=args.num_workers)
@@ -68,6 +71,7 @@ def prepare(args, *, split='val', training=False):
 
 
 def info_metadata(args, info, tag):
+    """Compute info metadata for ddm utils from ``args``, ``info``, ``tag``."""
     b=info['bounds']
     return dict(model_name=args.model,variable='joint',run_tag=tag,downsample=args.downsample,
                 in_len=cfg.in_len,out_len=cfg.out_len,stride=cfg.stride,
@@ -81,6 +85,7 @@ def info_metadata(args, info, tag):
 
 
 def assert_boundaries(meta, info):
+    """Validate that chronological dataset boundaries are respected."""
     b=info['bounds']
     for key,val in [('train_end_idx',b.train_end),('val_start_idx',b.val_start),
                     ('test_start_idx',b.test_start),('data_end_idx',b.data_end)]:
@@ -89,10 +94,12 @@ def assert_boundaries(meta, info):
 
 
 def unpack(batch, device):
+    """Unpack the requested ddm utils data using the supplied inputs."""
     return tuple(x.to(device,non_blocking=True) for x in batch)
 
 
 def forecast_mse(pred, target, mask):
+    """Calculate mean squared forecast error on valid observations."""
     return mask_mean((pred.float()-target.float()).square(),mask)
 
 

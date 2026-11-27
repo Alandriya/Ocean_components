@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Submit the extract points workflow to Slurm.
 #SBATCH --job-name=forecast_1d_extract
 #SBATCH --partition=intel
 #SBATCH --nodes=1

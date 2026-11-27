@@ -12,12 +12,13 @@ import torch
 from Forecast_nn.config import cfg
 from Forecast_nn.evaluation import to_jsonable
 from Forecast_nn.generative_utils import prepare_data, EnsembleScores, save_json
-from Forecast_nn.logging_utils import tee_output
+from Forecast_nn.runtime import tee_output
 from Forecast_nn.models.ddm import DDMSimVP, EOFProjector, LatentSDERNN
 from Forecast_nn.runtime import configure_runtime
 
 
 def arguments(argv=None):
+    """Parse command-line options for the experiment."""
     p=argparse.ArgumentParser()
     p.add_argument('--model',choices=('simvp_ddm','latent_sde_rnn'),required=True)
     p.add_argument('--variable',choices=('joint',),default='joint')
@@ -38,6 +39,7 @@ def arguments(argv=None):
 
 
 def resolve_checkpoint(args):
+    """Resolve the selected model checkpoint path."""
     if args.checkpoint:return Path(args.checkpoint)
     root=Path(cfg.results_root)/args.model/'joint'
     paths=sorted(root.glob('*/best.pth')) if root.is_dir() else []
@@ -50,6 +52,7 @@ def resolve_checkpoint(args):
 
 
 def run(args):
+    """Run the test ddm workflow using its configured options."""
     if args.members<2 and args.model=='latent_sde_rnn':
         raise ValueError('Use at least 2 ensemble members for probabilistic evaluation.')
     configure_runtime(args.seed,cfg.fast_cuda)
@@ -127,6 +130,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the test ddm workflow using its configured options."""
     args=arguments(argv)
     path=Path(cfg.results_root).parent/'logs'/f'test_{args.model}_{args.split}_joint.txt'
     with tee_output(path):run(args)

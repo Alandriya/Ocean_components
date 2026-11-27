@@ -21,12 +21,12 @@ class Config:
     # Data
     # -------------------------------------------------------------------------
     # Configured in the Git repository root: project_paths.py.
+    """Container for config state and associated operations."""
     root_path = DATA_ROOT
     variable = 'sensible'  # Primary targets: 'sensible', 'latent', or 'joint'.
     period = PERIOD
     data_files = data_paths(root_path, period)
-    # The Russian alternatives are retained for reference:
-    # variable = 'sensible'  # Основные цели: явный/скрытый тепловые потоки.
+        # variable = 'sensible'  # Primary targets: sensible and latent heat fluxes.
     mask_file = root_path / 'DATA' / 'mask'
 
     downsample = 2

@@ -19,7 +19,9 @@ from Forecast_1d.metrics import score_predictions
 
 
 class ForecastUnitTests(unittest.TestCase):
+    """Regression tests covering Forecast Unit."""
     def test_baselines_never_include_target(self):
+        """Verify that baselines never include target."""
         series = np.zeros((50, 10, 2), dtype=np.float64)
         series[:, :, :] = np.arange(50)[:, None, None]
         origins = np.array([30, 35])
@@ -32,6 +34,7 @@ class ForecastUnitTests(unittest.TestCase):
         np.testing.assert_array_equal(mean_predictions, input_mean(series, origins, 3, 5))
 
     def test_ar1_learns_only_prior_data(self):
+        """Verify that AR(1) learns only prior data."""
         rng = np.random.default_rng(52)
         values = np.zeros((165, 10, 2), dtype=np.float64)
         for t in range(1, len(values)):
@@ -46,6 +49,7 @@ class ForecastUnitTests(unittest.TestCase):
         np.testing.assert_array_equal(params, fit_ar1(altered, 0, 110))
 
     def test_splits_only_use_targets_inside_split(self):
+        """Verify that splits only use targets inside split."""
         split = split_dates(170, val_days=30, test_days=30, in_len=10, out_len=3)
         self.assertEqual(split.train_end, 110)
         for part in ("val", "test"):
@@ -57,6 +61,7 @@ class ForecastUnitTests(unittest.TestCase):
         self.assertEqual(split.origins("test").size, 28)
 
     def test_sarima_spec_and_errors(self):
+        """Verify that SARIMA spec and errors."""
         self.assertTrue(fast_ar1_supported((1, 0, 0), (0, 0, 0, 0), "c"))
         self.assertFalse(fast_ar1_supported((1, 0, 0), (1, 0, 0, 7), "c"))
         self.assertEqual(parse_order("0,1,1", 3), (0, 1, 1))
@@ -64,6 +69,7 @@ class ForecastUnitTests(unittest.TestCase):
             parse_order("1,-1,0", 3)
 
     def test_scores_zero_and_skill(self):
+        """Verify that scores zero and skill."""
         truth = np.full((2, 10, 2, 2), 10., dtype=np.float64)
         persistence_pred = np.zeros_like(truth)
         forecast = np.full_like(truth, 5.)
@@ -73,7 +79,9 @@ class ForecastUnitTests(unittest.TestCase):
 
 
 class ForecastIntegrationTests(unittest.TestCase):
+    """Regression tests covering Forecast Integration."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
         self.data_path = root / "dataset"
@@ -92,9 +100,11 @@ class ForecastIntegrationTests(unittest.TestCase):
         (self.data_path / "points.json").write_text(json.dumps(points), encoding="utf-8")
 
     def tearDown(self):
+        """Release the test fixtures and temporary resources."""
         self.temp.cleanup()
 
     def _args(self, **kwargs):
+        """Compute args for Forecast Integration Tests."""
         default = dict(model="sarima", dataset_dir=self.data_path,
                        results_dir=self.result_path,
                        val_days=30, test_days=30, in_len=10, out_len=3,
@@ -105,6 +115,7 @@ class ForecastIntegrationTests(unittest.TestCase):
         return SimpleNamespace(**default)
 
     def test_train_test_plot_and_no_refit(self):
+        """Verify that train test plot and no refit."""
         dataset = PointDataset(self.data_path)
         train_model(self._args())
         result_dir = test_model(self._args(model="level0"))

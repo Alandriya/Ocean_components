@@ -1,4 +1,5 @@
 #!/bin/bash
+# Submit the test features workflow to Slurm.
 #SBATCH --job-name=f1d_features_test
 #SBATCH --partition=intel-a100-pci5
 #SBATCH --nodes=1

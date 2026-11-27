@@ -23,9 +23,9 @@ from Data_processing.io import (load_field, field_candidates, read_ocean_mask, s
                                 dates_from_labels)
 from Data_processing.mean_year import save_mean_year, load_scalar_mean_year_source
 from Data_processing.collect_variables import collect_variable_periods
-from Eigenvalues.workflows import run_eigenvalues_for_period, collect_spectral_values
+from Eigenvalues.eigenvalues import run_eigenvalues_for_period, collect_spectral_values
 from Functional.stationary import estimate_stationary_characteristics
-from Functional.copula_workflows import estimate_copula_characteristics
+from Functional.copula import estimate_copula_characteristics
 
 PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
            (2009, 2019), (2019, 2026))
@@ -151,7 +151,7 @@ def run_selected_task(task, **settings):
                        f"{start_year}-{hourly_period_end}",
         )
     elif task == "stationary_spatial":
-        from Functional.stationary_diagnostics import prepare_stationary_diagnostics
+        from Functional.stationary import prepare_stationary_diagnostics
         return prepare_stationary_diagnostics(
             root, names, start_year, end_year,
             regions_period=settings.get("spatial_regions_period", (1979, 2026)),
@@ -491,6 +491,7 @@ def run_selected_task(task, **settings):
     elif task == "grib-check":
         # Paths are relative to files_path_prefix unless explicitly absolute.
         def resolve_input(value):
+            """Resolve input for the main workflow."""
             candidate = Path(value)
             return candidate if candidate.is_absolute() else Path(root) / candidate
 
@@ -552,7 +553,7 @@ def run_selected_task(task, **settings):
             dry_run=False,
         )
     elif task == "copula_quintiles":
-        from Functional.copula_quintiles import estimate_joint_quantile_classes
+        from Functional.copula import estimate_joint_quantile_classes
         chosen_periods = ((*periods, (start_year, end_year))
                           if settings.get("copula_quintile_all_periods", False)
                           else ((start_year, end_year),))

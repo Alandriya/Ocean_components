@@ -16,6 +16,7 @@ from Forecast_nn.source_paths import (data_paths, grouped_length,
 
 
 def _write_array(path, shape, fill=0.):
+    """Write array for the test forecast paths 1979 2026 workflow."""
     path.parent.mkdir(parents=True, exist_ok=True)
     array = np.lib.format.open_memmap(path, mode='w+', dtype=np.float32, shape=shape)
     array[:] = fill
@@ -24,6 +25,7 @@ def _write_array(path, shape, fill=0.):
 
 
 def test_data_layout_and_actual_last_date(tmp_path):
+    """Verify that data layout and actual last date."""
     paths = data_paths(tmp_path)
     assert paths['sensible'].name == 'sensible_1979-2026_grouped.npy'
     assert paths['latent'].name == 'latent_1979-2026_grouped.npy'
@@ -37,6 +39,7 @@ def test_data_layout_and_actual_last_date(tmp_path):
 
 
 def test_scalar_assembled_files(tmp_path):
+    """Verify that scalar assembled files."""
     parent = tmp_path / 'Coefficients' / '1979-2026' / '1d_bins_144' / 'sensible' / 'Semiparametric'
     _write_array(parent / 'A_2-8.npy', (7, 161, 181), 1.)
     _write_array(parent / 'B_2-8.npy', (7, 161, 181), 2.)
@@ -49,6 +52,7 @@ def test_scalar_assembled_files(tmp_path):
 def test_joint_canonical_layout_and_causality(tmp_path, monkeypatch):
     # The project's full Forecast_nn.data.py supplies these two constants.
     # A small stub makes this test self-contained and independent of its other deps.
+    """Verify that joint canonical layout and causality."""
     original = sys.modules.get('Forecast_nn.data')
     stub = types.ModuleType('Forecast_nn.data')
     stub.NATIVE_HEIGHT, stub.NATIVE_WIDTH = 161, 181
@@ -85,6 +89,7 @@ def test_joint_canonical_layout_and_causality(tmp_path, monkeypatch):
 
 
 def test_config_uses_actual_headers_and_assembled_files(tmp_path):
+    """Verify that config uses actual headers and assembled files."""
     paths = data_paths(tmp_path)
     for name in ('sensible','latent'):
         _write_array(paths[name], (161*181, 8))
@@ -101,6 +106,7 @@ def test_config_uses_actual_headers_and_assembled_files(tmp_path):
 
 
 def run():
+    """Run the test forecast paths 1979 2026 workflow using its configured options."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         test_data_layout_and_actual_last_date(root)
@@ -108,7 +114,10 @@ def run():
         test_scalar_assembled_files(Path(tmp))
     with tempfile.TemporaryDirectory() as tmp:
         class Monkey:
-            def setitem(self, obj, key, value): obj[key] = value
+            """Container for monkey state and associated operations."""
+            def setitem(self, obj, key, value):
+                """Compute setitem for Monkey from ``obj``, ``key``, ``value``."""
+                obj[key] = value
         test_joint_canonical_layout_and_causality(Path(tmp), Monkey())
     with tempfile.TemporaryDirectory() as tmp:
         test_config_uses_actual_headers_and_assembled_files(Path(tmp))

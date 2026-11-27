@@ -13,8 +13,10 @@ import numpy as np
 
 
 class TestScalarDispatcher(TestCase):
+    """Regression tests covering Test Scalar Dispatcher."""
     @classmethod
     def setUpClass(cls):
+        """Prepare the test fixtures before running the assertions."""
         cls.working = tempfile.TemporaryDirectory()
         cls.pkg = Path(cls.working.name)
         source = Path(__file__).resolve().parents[1] / 'Coefficients' / 'parallel.py'
@@ -34,6 +36,7 @@ class TestScalarDispatcher(TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Release the test fixtures and temporary resources."""
         sys.path.remove(str(cls.pkg))
         for key in list(sys.modules):
             if key == 'Coefficients' or key.startswith('Coefficients.'):
@@ -41,18 +44,22 @@ class TestScalarDispatcher(TestCase):
         cls.working.cleanup()
 
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
 
     def tearDown(self):
+        """Release the test fixtures and temporary resources."""
         self.temp.cleanup()
 
     def _input(self,name,n=6):
+        """Compute input for Test Scalar Dispatcher from ``name``, ``n``."""
         path=self.root/f'{name}.npy'
         np.save(path,np.arange(n*12,dtype=float).reshape(n,3,4)+len(name))
         return str(path)
 
     def _run(self, names, files, **kwargs):
+        """Run the test one dimensional workflow using its configured options."""
         args = dict(files_path_prefix=str(self.root),source_files=files,
                     mask=np.ones((3,4),dtype=bool),names=names,
                     start_year=1979,end_year=1989,start_index=1,
@@ -64,6 +71,7 @@ class TestScalarDispatcher(TestCase):
         return self.mod.run_parallel_period(**args)
 
     def test_two_scalar_variables_both_methods(self):
+        """Verify that two scalar variables both methods."""
         result=self._run(('sensible','latent'),(self._input('sensible'),self._input('latent')))
         self.assertEqual(set(result),{'1d/sensible/np','1d/sensible/sp','1d/latent/np','1d/latent/sp'})
         for name in ('sensible','latent'):
@@ -74,6 +82,7 @@ class TestScalarDispatcher(TestCase):
         self.assertEqual(len(list((self.root/'Coefficients'/'1979-1989').rglob('daily/*'))),0)
 
     def test_one_variable_twice_no_duplicate_collect(self):
+        """Verify that one variable twice no duplicate collect."""
         f=self._input('Flux',7)
         result=self._run(('Flux','Flux'),(f,f),methods=('sp',))
         self.assertEqual(set(result),{'1d/Flux/sp'})
@@ -81,21 +90,25 @@ class TestScalarDispatcher(TestCase):
         self.assertEqual(len(list(self.root.rglob('A_2-7.npy'))),1)
 
     def test_parallel_workers(self):
+        """Verify that parallel workers."""
         f=self._input('Flux',10)
         result=self._run(('Flux',),(f,),methods=('np',),parallel_workers=2)
         self.assertEqual(np.load(result['1d/Flux/np']['A']).shape,(9,3,4))
 
     def test_one_variable_once(self):
+        """Verify that one variable once."""
         f=self._input('Flux')
         result=self._run(('Flux',),(f,),methods=('np',))
         self.assertEqual(set(result),{'1d/Flux/np'})
 
     def test_scalar_lengths_independent(self):
+        """Verify that scalar lengths independent."""
         result=self._run(('Flux','SST'),(self._input('Flux',7),self._input('SST',5)),methods=('np',))
         self.assertEqual(np.load(result['1d/Flux/np']['A']).shape[0],6)
         self.assertEqual(np.load(result['1d/SST/np']['A']).shape[0],4)
 
     def test_resume_after_daily_cleanup(self):
+        """Verify that resume after daily cleanup."""
         f=self._input('Flux')
         first=self._run(('Flux',),(f,),methods=('sp',))
         a=first['1d/Flux/sp']['A']; stamp=a.stat().st_mtime_ns
@@ -104,6 +117,7 @@ class TestScalarDispatcher(TestCase):
         self.assertEqual(first,second)
 
     def test_preserve_existing_bivariate_results(self):
+        """Verify that preserve existing bivariate results."""
         p=self.root/'Coefficients'/'1979-1989'/'2d_bins_3'/'sensible_latent'/'Semiparametric_2d'
         p.mkdir(parents=True)
         x=p/'A_2-6.npy'
@@ -114,6 +128,7 @@ class TestScalarDispatcher(TestCase):
         np.testing.assert_allclose(np.load(x),1)
 
     def test_repair_corrupt_daily_file(self):
+        """Verify that repair corrupt daily file."""
         f = self._input('Flux')
         d = self.root/'Coefficients'/'1979-1989'/'1d_bins_5'/'Flux'/'Nonparametric'/'daily'
         d.mkdir(parents=True)
@@ -122,12 +137,14 @@ class TestScalarDispatcher(TestCase):
         self.assertEqual(np.load(result['1d/Flux/np']['A']).shape,(5,3,4))
 
     def test_mixed_mode_rejects_duplicate_names_before_writing(self):
+        """Verify that mixed mode rejects duplicate names before writing."""
         f = self._input('Flux')
         with self.assertRaisesRegex(ValueError,'two distinct'):
             self._run(('Flux','Flux'),(f,f),run_2d=True)
         self.assertFalse((self.root/'Coefficients').exists())
 
     def test_explicit_recompute(self):
+        """Verify that explicit recompute."""
         f=self._input('Flux')
         first=self._run(('Flux',),(f,),methods=('np',))
         a=first['1d/Flux/np']['A']; np.save(a,np.zeros((5,3,4)))

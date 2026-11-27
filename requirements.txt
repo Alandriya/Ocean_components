@@ -1,15 +1,28 @@
-matplotlib
-numpy
-pandas
-plotly
-plotter
-pymoo
-pyswarms
-scikit_learn
+# Common numerical and plotting dependencies.
+# NumPy 2 is required by the numerical workflows that use numpy.trapezoid.
+numpy>=2.0
 scipy
+pandas
+matplotlib
 seaborn
+scikit-learn
 scikit-image
 statsmodels
-symfit
+threadpoolctl
 tqdm
 xarray
+Pillow
+
+# GRIB input, TIGGE downloads and conversion.
+eccodes
+rasterio
+cdsapi>=0.7.7
+
+# Legacy fitting, interactive plots and video encoding.
+symfit
+plotly
+imageio-ffmpeg
+
+# PyTorch is installed separately for the local CPU/CUDA environment.
+# See https://pytorch.org/get-started/locally/ (both forecasting packages).
+# Tests: python -m pip install pytest

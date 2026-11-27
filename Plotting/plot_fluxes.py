@@ -1,3 +1,5 @@
+"""Draw maps and time series of observed flux, SST and pressure fields."""
+
 import datetime
 import os.path
 from copy import deepcopy
@@ -115,6 +117,7 @@ def plot_fluxes(files_path_prefix: str,
                 group: int = 4,
                 start_date: datetime.datetime = datetime.datetime(1979, 1, 1, 0, 0),
                 start_pic_num: int = 1):
+    """Plot fluxes for the plot fluxes workflow."""
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
     img_sens, img_lat = None, None
@@ -193,6 +196,7 @@ def plot_flux_sst_press(files_path_prefix: str,
                         start_pic_num: int = 1,
                         frequency: int = 1,
                         ):
+    """Plot flux SST press for the plot fluxes workflow."""
     sns.set_style("whitegrid")
 
     if not os.path.exists(files_path_prefix + f'videos/3D/flux-sst-press/hourly'):

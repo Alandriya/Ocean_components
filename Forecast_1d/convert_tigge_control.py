@@ -30,6 +30,7 @@ EXPECTED_HOURS = tuple(range(0, 361, 6))
 
 
 def _sha256(path: Path) -> str:
+    """Calculate a file SHA-256 checksum."""
     h = hashlib.sha256()
     with path.open("rb") as stream:
         while block := stream.read(4 * 1024 * 1024):
@@ -38,6 +39,7 @@ def _sha256(path: Path) -> str:
 
 
 def _as_k(value, unit: str, field: str):
+    """Compute as k for convert TIGGE control from ``value``, ``unit``, ``field``."""
     if field not in ("t2m", "d2m"):
         return value
     if unit == "[C]":
@@ -48,6 +50,7 @@ def _as_k(value, unit: str, field: str):
 
 
 def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = False, day_offset: int = 0):
+    """Convert the requested convert TIGGE control data using the supplied inputs."""
     if day_offset not in (0, 1):
         raise ValueError("day_offset must be 0 (issue day) or 1 (following day)")
     try:
@@ -213,6 +216,7 @@ def convert(grib: Path, points_json: Path, out_dir: Path, full_grid: bool = Fals
 
 
 def main():
+    """Run the convert TIGGE control workflow using its configured options."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--grib", required=True, type=Path, help="Input ECMWF TIGGE control GRIB file")
     p.add_argument("--points-json", required=True, type=Path, help="Existing dataset points.json with 15 ordered sites")

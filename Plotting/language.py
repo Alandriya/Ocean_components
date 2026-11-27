@@ -301,6 +301,7 @@ _TO_RU_ALIASES = {
 
 
 def _validate(language):
+    """Compute validate for language from ``language``."""
     if language not in ("en", "ru"):
         raise ValueError(f"plot_language must be 'en' or 'ru', got {language!r}")
     return language
@@ -337,6 +338,7 @@ def with_plot_language(function):
     """Honor a plotting function's explicit keyword-only language if supplied."""
     @wraps(function)
     def wrapped(*args, **kwargs):
+        """Compute wrapped for with plot language."""
         if kwargs.get("language") is None:
             kwargs["language"] = get_plot_language()
         with plot_language_context(kwargs["language"]):
@@ -345,6 +347,7 @@ def with_plot_language(function):
 
 
 def _dictionary(language):
+    """Compute dictionary for language from ``language``."""
     table = {}
     for line in _PAIRS.strip().splitlines():
         first, second = line.split("|", 1)
@@ -369,6 +372,7 @@ _EN_GEO = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*°?([WENS])\s*$", re.I)
 
 @lru_cache(maxsize=8192)
 def _translate(value, language):
+    """Compute translate for language from ``value``, ``language``."""
     if language == "en":
         if value.strip().casefold() in ("экватор", "экв."):
             return "EQ"
@@ -394,6 +398,7 @@ def _translate(value, language):
     table, regex = _TABLES[language]
 
     def replace(match):
+        """Compute replace for translate from ``match``."""
         raw = match.group(0)
         result = table[raw.casefold()]
         # English month names are proper names even inside a date label.
@@ -425,6 +430,7 @@ def _localized_text(artist):
     # includes colorbars, subfigures, legends, annotations and dynamic tick labels.
     # Matplotlib Text stores the source string in _text; do not use set_text()
     # here, since it marks parent Axes/Figure stale and may schedule another draw.
+    """Compute localized text for language from ``artist``."""
     original = artist.get_text()
     translated = translate_label(original)
     if original == translated:
@@ -449,8 +455,10 @@ def install_matplotlib_localization():
         return
 
     def localize(method):
+        """Compute localize for install matplotlib localization from ``method``."""
         @wraps(method)
         def wrapped(self, *args, **kwargs):
+            """Compute wrapped for localize."""
             with _localized_text(self):
                 return method(self, *args, **kwargs)
         return wrapped

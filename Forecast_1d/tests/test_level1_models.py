@@ -17,7 +17,9 @@ except ImportError:
 
 @unittest.skipIf(torch is None, "PyTorch is required for neural model tests")
 class NeuralArchitectureTests(unittest.TestCase):
+    """Regression tests covering Neural Architecture."""
     def test_all_architectures_return_direct_three_day_two_channel_forecasts(self):
+        """Verify that all architectures return direct three day two channel forecasts."""
         from Forecast_1d.models.neural import build_model, default_config
 
         x = torch.randn(8, 60, 2)
@@ -27,6 +29,7 @@ class NeuralArchitectureTests(unittest.TestCase):
             self.assertEqual(tuple(y.shape), (8, 3, 2))
 
     def test_tcn_is_causal(self):
+        """Verify that tcn is causal."""
         from Forecast_1d.models.neural import build_model, default_config
 
         torch.manual_seed(11)
@@ -47,7 +50,9 @@ class NeuralArchitectureTests(unittest.TestCase):
 
 @unittest.skipIf(torch is None, "PyTorch is required for neural model tests")
 class NeuralTrainingIntegrationTests(unittest.TestCase):
+    """Regression tests covering Neural Training Integration."""
     def test_one_point_train_and_test(self):
+        """Verify that one point train and test."""
         from Forecast_1d.train import run as train_run
         from Forecast_1d.test import run as test_run
         from Forecast_1d.data import PointDataset

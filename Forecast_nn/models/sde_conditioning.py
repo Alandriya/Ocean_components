@@ -13,6 +13,7 @@ class SDEFiLM2d(nn.Module):
     exactly the same hidden representation as its non-informed counterpart.
     """
     def __init__(self, sde_channels, feature_channels, scale=0.1):
+        """Initialize SDEFi LM2d with ``sde_channels``, ``feature_channels``, ``scale``."""
         super().__init__()
         hidden = max(int(feature_channels) // 2, 16)
         self.scale = float(scale)
@@ -26,6 +27,7 @@ class SDEFiLM2d(nn.Module):
         nn.init.zeros_(self.net[-1].bias)
 
     def forward(self, feature, sde_map, mask=None):
+        """Apply the SDEFi LM2d transformation to the input tensors."""
         sde_map = F.interpolate(sde_map.float(), size=feature.shape[-2:], mode='bilinear', align_corners=False)
         sde_map = sde_map.to(dtype=feature.dtype)
         if mask is not None:

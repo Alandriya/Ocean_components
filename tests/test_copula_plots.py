@@ -13,7 +13,9 @@ from Plotting.copula_plotting import plot_copula_results
 
 
 class TestRestoredCopulaPlots(unittest.TestCase):
+    """Regression tests covering Test Restored Copula Plots."""
     def test_saved_grids_legacy_palette_and_files(self):
+        """Verify that saved grids legacy palette and files."""
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             target=root/'Functional'/'Copulas'
@@ -22,6 +24,7 @@ class TestRestoredCopulaPlots(unittest.TestCase):
             check=(np.arange(50)+.5)/50
             bern=np.linspace(.005,.995,90)
             def copula(c,width):
+                """Compute copula for test copula plots from ``c``, ``width``."""
                 xx,yy=np.meshgrid(c,c)
                 return 1 + 3*np.exp(-((xx-yy)/width)**2)
             x=np.linspace(-2000,1500,150)
@@ -38,6 +41,7 @@ class TestRestoredCopulaPlots(unittest.TestCase):
             kwargs_seen=[]
             axes_seen=[]
             def record(ax,*args,**kwargs):
+                """Compute record for test copula plots from ``ax``."""
                 kwargs_seen.append(kwargs.copy())
                 if kwargs.get('cmap')=='YlOrRd':
                     axes_seen.append(ax)

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Launch the run era5 8ch workflow using the configured environment.
 # Eight historical input channels: sensible, latent, sst, sp, u10, v10, t2m, d2m.
 # Outputs remain the two future fluxes over 14 days.
 # Usage from the cluster code root:

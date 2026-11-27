@@ -3,6 +3,7 @@ import numpy as np
 
 
 def windows(values, origins, in_len):
+    """Construct history and target windows for the supplied forecast origins."""
     return np.stack([values[t-in_len+1:t+1] for t in origins]).astype(np.float64)
 
 
@@ -38,6 +39,7 @@ def fit_ridge(values, train_end, in_len, horizon, alpha=0.01):
 
 
 def forecast_ridge(values, origins, in_len, horizon, fitted):
+    """Forecast ridge for the ridge var workflow."""
     output=[]
     for p,(mean,scale,weights,bias) in enumerate(fitted):
         x=windows(values[:,p,:],origins,in_len)

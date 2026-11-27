@@ -11,15 +11,33 @@ import torch
 from Forecast_1d import train, test
 from Forecast_1d.registry import LEVEL2, NEW_BASELINES
 from Forecast_1d.models.neural import build_model, default_config
-from Forecast_1d.models.seasonal import calendar_index, fit_seasonal, forecast_seasonal
+from Forecast_1d.models.baselines import calendar_index, fit_seasonal, forecast_seasonal
 from Forecast_1d.models.ridge_var import fit_ridge, forecast_ridge
 
 
 class Level2Tests(unittest.TestCase):
+    """Regression tests covering Level2."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         torch.set_num_threads(1)
 
+    def test_audit_dispatch_preserves_arguments(self):
+        """Dispatch each audit to its own parser without altering its CLI options."""
+        from unittest.mock import patch
+        from Forecast_1d import audit
+        for mode, entry in (
+            ("future-weather", "main_future_weather"),
+            ("oracle-drivers", "main_oracle_drivers"),
+            ("predictability", "main_predictability"),
+            ("sst-vs-atmosphere", "main_sst_vs_atmosphere"),
+            ("training", "main_training"),
+        ):
+            with self.subTest(mode=mode), patch.object(audit, entry) as handler:
+                audit.main([mode, "--output", "report.json"])
+                handler.assert_called_once_with(["--output", "report.json"])
+
     def test_shapes_backward(self):
+        """Check output shape and finite gradients for every level-2 model."""
         for name in LEVEL2:
             with self.subTest(model=name):
                 model=build_model(name,60,14)
@@ -32,6 +50,7 @@ class Level2Tests(unittest.TestCase):
                 self.assertTrue(any(p.grad is not None for p in model.parameters()))
 
     def test_channel_independence(self):
+        """Ensure changes to one target channel cannot influence the other for channel-independent models."""
         x=torch.randn(2,60,2)
         altered=x.clone(); altered[:,:,1]+=100
         for name in ('patchtst','dlinear'):
@@ -39,10 +58,12 @@ class Level2Tests(unittest.TestCase):
             torch.testing.assert_close(model(x)[:,:,0], model(altered)[:,:,0])
 
     def test_calendar(self):
+        """Check calendar alignment around leap day and year-end."""
         dates=np.array(['2000-02-28','2000-02-29','2000-03-01','2001-02-28','2001-03-01','2000-12-31'],dtype='datetime64[D]')
         np.testing.assert_array_equal(calendar_index(dates),[58,59,60,58,60,365])
 
     def test_new_baseline_future_invariance(self):
+        """Ensure seasonal and ridge baselines do not use observations after the forecast origin."""
         rng=np.random.default_rng(1)
         values=rng.normal(size=(1000,4,2))
         dates=np.datetime64('2000-01-01')+np.arange(len(values)).astype('timedelta64[D]')
@@ -56,6 +77,7 @@ class Level2Tests(unittest.TestCase):
         np.testing.assert_array_equal(forecast_ridge(values,origins,60,14,fits),forecast_ridge(modified,origins,60,14,altered_fits))
 
     def test_all_models_incremental_evaluation_and_stdlib_collection(self):
+        """Exercise training, incremental evaluation, checkpoint preservation and standard-library result collection."""
         with tempfile.TemporaryDirectory() as tmp:
             base=Path(tmp); source=base/'data'; source.mkdir(); results=base/'results'
             rng=np.random.default_rng(33)
@@ -94,6 +116,7 @@ class Level2Tests(unittest.TestCase):
             args=test.build_parser().parse_args(common+['--device','cpu'])
             fp=dataset.fingerprint()
             def predict(name):
+                """Predict the requested test level2 data using the supplied inputs."""
                 return test._forecast_neural(name,'P3',2,dataset,origins,results/'h14',splits,args,torch.device('cpu'))
             original={name:predict(name) for name in LEVEL2}
             dataset.values=vals.copy()

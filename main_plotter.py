@@ -1,6 +1,5 @@
 """Render cached ocean-analysis results and stationary spatial diagnostics.
 
-Based on the current GitHub main_plotter.py (including FP2D/hybrid tasks).
 Visualization tasks use cached numerical results. No refitting is performed.
 """
 
@@ -19,13 +18,13 @@ from Plotting.map_workflows import (
 )
 from Plotting.stationary_plots import plot_stationary_distributions
 from Plotting.hybrid_stationary_plots import plot_hybrid_stationary_distributions
-from Plotting.hybrid_fp2d_marginal_overlay import plot_hybrid_fp2d_marginal_overlay
+from Plotting.hybrid_stationary_plots import plot_hybrid_fp2d_marginal_overlay
 from Plotting.functional_fit_plots import plot_functional_fits
 from Plotting.fokker_planck_2d_plots import (
     plot_fp2d_stationary_comparison,
     plot_fp2d_grid_convergence,
 )
-from Plotting.stationary_spatial_plots import plot_stationary_spatial
+from Plotting.stationary_plots import plot_stationary_spatial
 from Plotting.copula_plotting import plot_copula_results
 
 
@@ -292,7 +291,7 @@ def main():
             language=plot_language, dpi=components_dpi, progress=components_progress,
         )
     if task == "components_diagnostics":
-        from Plotting.component_diagnostics import plot_component_diagnostics
+        from Plotting.component_plots import plot_component_diagnostics
         return plot_component_diagnostics(
             files_path_prefix, start_year, end_year,
             variable=components_diag_variable,

@@ -64,14 +64,17 @@ def _as_hour(value):
 
 
 def _timestamp_key(value) -> int:
+    """Build the timestamp key used to index GRIB observations."""
     return int(_as_hour(value).astype(np.int64))
 
 
 def _day_hour_key(day: date, hour: int) -> int:
+    """Build the day/hour key for the selected observation."""
     return _timestamp_key(f"{day.isoformat()}T{hour:02d}:00")
 
 
 def _resolve_paths(root, paths):
+    """Resolve the required input and output paths."""
     if isinstance(paths, (str, Path)):
         paths = (paths,)
     resolved = []
@@ -90,6 +93,7 @@ def _resolve_paths(root, paths):
 
 
 def _infer_stride(source_shape, target_shape, requested):
+    """Infer the spatial sampling stride from the input grid."""
     if requested == "auto":
         if tuple(source_shape) == tuple(target_shape):
             return 1
@@ -120,6 +124,7 @@ class HourlySource:
     def __init__(self, *, root, paths, spatial_shape, stride="auto",
                  npy_start=None, npy_variable_names=None,
                  required_days=None, grib_cache_dir=None):
+        """Initialize Hourly Source with ``root``, ``paths``, ``spatial_shape``, ``stride``, ``npy_start``, ``npy_variable_names``, ``required_days`` and the remaining options."""
         self._stack = ExitStack()
         self.datasets = []
         self.lookups = {var: {} for var in VARIABLE_ALIASES}
@@ -214,16 +219,20 @@ class HourlySource:
             raise
 
     def close(self):
+        """Close the underlying resources."""
         self._stack.close()
 
     def __enter__(self):
+        """Return the open resource for use in a context manager."""
         return self
 
     def __exit__(self, *_):
+        """Close the resource when leaving the context manager."""
         self.close()
 
     @staticmethod
     def _select_variable(ds, aliases):
+        """Select the GRIB variable matching the configured field."""
         low = {name.lower(): name for name in ds.data_vars}
         for alias in aliases:
             if alias.lower() in low:
@@ -319,6 +328,7 @@ class HourlySource:
 
     def _register(self, var, field, timestamps, *, file_label, stride,
                   coords=None, selectors=None):
+        """Register an observation in the internal index."""
         shape = tuple(field.shape[-2:])
         step = _infer_stride(shape, self.grid_shape, stride)
         if self.source_shape is None:
@@ -352,6 +362,7 @@ class HourlySource:
             self.lookups[var][stamp] = (entry_id, idx)
 
     def has_complete_day(self, day):
+        """Check whether every required observation for the day is available."""
         return all(_day_hour_key(day, h) in self.lookups[var]
                    for var in VARIABLE_ALIASES for h in range(24))
 
@@ -556,6 +567,7 @@ def _stability_at_fixed_states(model, reference, states, *, min_size):
 
 
 def _pct(data, threshold):
+    """Compute a percentage for diagnostic reporting."""
     count = data.sum()
     return round(100.0 * data[data >= threshold].sum() / count, 5) if count else 0.0
 
@@ -564,11 +576,13 @@ class _SummaryAccumulator:
     """Streaming group summaries; retain percentiles only for coverage metrics."""
 
     def __init__(self, key_fields):
+        """Initialize Summary Accumulator with ``key_fields``."""
         self.key_fields = key_fields
         self.group = defaultdict(lambda: defaultdict(lambda: [0.0, 0, float("inf"), []]))
         self.days = defaultdict(int)
 
     def add(self, row):
+        """Add summary accumulator data using the supplied inputs."""
         key = tuple(row[field] for field in self.key_fields)
         self.days[key] += 1
         for field, value in row.items():
@@ -583,6 +597,7 @@ class _SummaryAccumulator:
                     item[3].append(float(value))
 
     def write(self, path):
+        """Write the supplied data to the configured destination."""
         result = []
         for key, metrics in sorted(self.group.items()):
             rec = dict(zip(self.key_fields, key))
@@ -626,6 +641,7 @@ def _recover_completed_days(daily_file, stability_file, *, columns,
     requested = {d.isoformat() for d in dates}
 
     def read(path, expected_fields):
+        """Read the requested quantile hourly data using the supplied inputs."""
         if not path.exists():
             return []
         with path.open("r", encoding="utf-8", newline="") as stream:

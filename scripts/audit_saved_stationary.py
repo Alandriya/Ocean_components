@@ -37,6 +37,7 @@ def integrate_between(x, y, low, high):
 
 
 def audit(root, names=("sensible", "latent")):
+    """Audit the requested audit saved stationary data using the supplied inputs."""
     folder = Path(root) / "Functional" / "Stationary"
     for start, end in PERIODS:
         stem = f"{'-'.join(names)}_{start}-{end}"
@@ -97,6 +98,7 @@ def audit(root, names=("sensible", "latent")):
 
 
 def main():
+    """Run the audit saved stationary workflow using its configured options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(DATA_ROOT))
     args = parser.parse_args()

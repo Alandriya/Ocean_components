@@ -27,6 +27,7 @@ from Data_processing.io import field_candidates, load_field, read_ocean_mask, st
 
 def component_run_parts(start_year, end_year, variable, n_bins, window_days, step_days,
                         first_date, last_date, spatial_stride=1):
+    """Construct path components identifying the spatial mixture experiment."""
     if variable not in ('sensible', 'latent', 'Flux', 'SST', 'Pressure'):
         raise ValueError(f'Unknown scalar variable: {variable}')
     for value in (n_bins, window_days, step_days, spatial_stride):
@@ -64,6 +65,7 @@ def match_components(means, stds, weights, previous=None):
 
 def _fit(y, k, n_init, reg_covar, seed):
     # EM as in semiparametric.py; k-means starts help avoid symmetric collapse.
+    """Fit the mixture or statistical model to the provided samples."""
     return GaussianMixture(n_components=k, covariance_type='full', tol=1e-4,
                            max_iter=1000, init_params='kmeans', n_init=n_init,
                            random_state=seed, reg_covar=reg_covar).fit(y)
@@ -171,6 +173,7 @@ def fit_component_window(grouped_days, water, *, n_bins=10, spatial_stride=1,
 
 
 def _atomic_npz(path, **data):
+    """Write an NPZ result atomically."""
     with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.npz', delete=False) as f:
         temp = Path(f.name)
     try:
@@ -181,6 +184,7 @@ def _atomic_npz(path, **data):
 
 
 def _atomic_text(path, content):
+    """Write text to a temporary file and atomically publish it."""
     with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.tmp', delete=False, mode='w', encoding='utf-8', newline='') as f:
         temp = Path(f.name)
         f.write(content)

@@ -18,16 +18,19 @@ _SCHEMA = 1
 
 
 def _stamp(path):
+    """Build a file metadata stamp for cache validation."""
     stat = Path(path).stat()
     return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
 def _source_stamp(path):
+    """Record the input source metadata used to validate derived outputs."""
     return {"path": str(Path(path).resolve()), **_stamp(path)}
 
 
 def _sync_dir(path):
     # POSIX directory fsync makes rename durable; Windows does not support it.
+    """Synchronize directory metadata after publishing an output file."""
     if os.name != "nt":
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
         try:
@@ -37,6 +40,7 @@ def _sync_dir(path):
 
 
 def _atomic_json(path, value):
+    """Write JSON to a temporary file and atomically publish it."""
     tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         with tmp.open("w", encoding="utf-8") as f:
@@ -81,6 +85,7 @@ def _exclusive_lock(path):
 
 
 def _duration(seconds):
+    """Format or report the elapsed calculation time."""
     if not np.isfinite(seconds):
         return "--"
     s = max(0, int(seconds))
@@ -91,6 +96,7 @@ def _duration(seconds):
 
 
 def _validate_array(path, shape, dtype):
+    """Validate the stored array against the expected layout."""
     arr = np.load(path, mmap_mode="r", allow_pickle=False)
     try:
         if arr.shape != tuple(shape) or arr.dtype != np.dtype(dtype):
@@ -100,12 +106,14 @@ def _validate_array(path, shape, dtype):
 
 
 def _flush(target, path):
+    """Flush pending array or file writes."""
     target.flush()
     with path.open("r+b") as f:
         os.fsync(f.fileno())
 
 
 def _progress(tag, key, n, total, start_label, initial, started, completed_before, grand_total):
+    """Compute progress for derived workflows from ``tag``, ``key``, ``n``, ``total``, ``start_label``."""
     elapsed = time.monotonic() - started
     rate = (n - initial) / elapsed if elapsed > 0 and n > initial else 0.0
     eta = (total - n) / rate if rate > 0 else float("nan")
@@ -118,6 +126,7 @@ def _progress(tag, key, n, total, start_label, initial, started, completed_befor
 
 def _calculate(key, a, b, width, step, mask):
     # Preserve exactly the previous window, missing-data rules and formulas.
+    """Calculate the requested derived coefficient field."""
     aw = np.asarray(a[step:step + width], dtype=float)
     bw = np.asarray(b[step:step + width], dtype=float)
     if key == "C":
@@ -134,6 +143,7 @@ def _calculate(key, a, b, width, step, mask):
 def _process_stage(*, key, width, a, b, mask, first_label, parent, input_identity,
                    overwrite, resume, checkpoint_every, progress_seconds,
                    tag, completed_before, grand_total, check_sources):
+    """Run one stage of the derived coefficient workflow."""
     first = first_label + width - 1
     last = first_label + len(a) - 1
     total = len(a) - width + 1
@@ -211,6 +221,7 @@ def _process_stage(*, key, width, a, b, mask, first_label, parent, input_identit
     committed = n
 
     def checkpoint():
+        """Persist the progress of the current calculation."""
         nonlocal committed, last_checkpoint
         _flush(target, partial)
         # If a process stops after a data flush but before the metadata rename,
@@ -304,6 +315,7 @@ def run_continuous_cf(files_path_prefix, names=("sensible", "latent"), *,
                 "source_shape_B": list(b.shape)}
 
     def check_sources():
+        """Validate the availability of required input sources."""
         if {"A": _source_stamp(pa), "B": _source_stamp(pb)} != source_stamps:
             raise RuntimeError("A/B changed during derived_cf; restart with resume=False after inputs stabilize")
 

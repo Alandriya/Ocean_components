@@ -19,6 +19,7 @@ from .registry import NEURAL_MODELS, model_level
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     p = argparse.ArgumentParser(description="Train Forecast_1d statistical or neural models")
     p.add_argument("--model", choices=["sarima", *NEURAL_MODELS], default="sarima")
     p.add_argument("--points", nargs="+", default=None,
@@ -65,6 +66,7 @@ def build_parser():
 
 
 def _run_sarima(args):
+    """Compute run SARIMA for train from ``args``."""
     if getattr(args, "points", None):
         raise ValueError("The SARIMA level-0 model is fitted independently at all loaded points; omit --points.")
     in_len = getattr(args, "in_len", None) or 30
@@ -121,6 +123,7 @@ def _run_sarima(args):
 
 
 def _make_windows(values, origins, point_index, in_len, out_len, mean):
+    """Construct windows for the train workflow."""
     xs, ys = [], []
     for origin in origins:
         x = np.asarray(
@@ -144,6 +147,7 @@ def _make_windows(values, origins, point_index, in_len, out_len, mean):
 
 
 def _resolve_device(torch, requested):
+    """Resolve the requested compute device."""
     if requested == "cpu":
         return torch.device("cpu")
     if requested == "cuda":
@@ -154,6 +158,7 @@ def _resolve_device(torch, requested):
 
 
 def _train_one_point(args, data, split, point_id, fingerprint):
+    """Train one point for the train workflow."""
     import torch
     from torch.utils.data import DataLoader, TensorDataset
     from .models.neural import build_model, default_config
@@ -183,7 +188,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
     else:
         climatology = None
         if target_mode == "anomaly":
-            from .models.seasonal import calendar_index, fit_seasonal
+            from Forecast_1d.models.baselines import calendar_index, fit_seasonal
             if not 0 <= radius < 183:
                 raise ValueError("climatology-radius must be in 0..182")
             # The fitted seasonal cycle sees only dates and observations in train.
@@ -263,7 +268,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
         if target_mode != "sar_residual":
             # The denominator is used ONLY for validation/checkpoint selection.
             # It is not propagated into the training objective.
-            from .models.seasonal import fit_seasonal, forecast_seasonal
+            from Forecast_1d.models.baselines import fit_seasonal, forecast_seasonal
             values = data.values[:, point_index:point_index+1, :]
             clim, phi = fit_seasonal(values, data.dates, split.train_end, radius=15)
             sar = forecast_seasonal(values, data.dates, val_origins, args.out_len, clim, phi)[:, 0].transpose(0, 2, 1)
@@ -273,7 +278,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
                 raise ValueError("SAR monitor requires complete validation windows and finite last observations; use normalized monitor otherwise")
             if target_mode == "anomaly":
                 # Convert the raw SAR forecast onto the anomaly training scale.
-                from .models.seasonal import calendar_index
+                from Forecast_1d.models.baselines import calendar_index
                 lead_dates = data.dates[val_origins[:, None] + np.arange(1, args.out_len+1)]
                 sar = sar - climatology[calendar_index(lead_dates)]
             normalized_sar = (sar - means[None, None, :]) / scales[None, None, :]
@@ -465,6 +470,7 @@ def _train_one_point(args, data, split, point_id, fingerprint):
 
 
 def _run_neural(args):
+    """Compute run neural for train from ``args``."""
     if args.in_len is None:
         args.in_len = 60
     if args.in_len < 2 or args.out_len < 1:
@@ -480,6 +486,7 @@ def _run_neural(args):
 
 
 def run(args):
+    """Run the train workflow using its configured options."""
     if args.model == "sarima":
         if getattr(args, "target_mode", "raw") == "sar_residual":
             raise ValueError("SAR-residual uses Seasonal AR(1) fitted internally; no sarima checkpoint is needed")
@@ -490,6 +497,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the train workflow using its configured options."""
     return run(build_parser().parse_args(argv))
 
 

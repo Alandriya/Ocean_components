@@ -22,6 +22,7 @@ from torch.nn import functional as F
 
 
 def _norm(channels):
+    """Compute norm for swin gru from ``channels``."""
     groups = min(8, channels)
     while channels % groups:
         groups -= 1
@@ -29,7 +30,9 @@ def _norm(channels):
 
 
 class ConvBlock(nn.Module):
+    """PyTorch module implementing the Conv Block architecture or layer."""
     def __init__(self, in_channels, out_channels, stride=1, dropout=0.0):
+        """Initialize Conv Block with ``in_channels``, ``out_channels``, ``stride``, ``dropout``."""
         super().__init__()
         self.shortcut = (nn.Identity() if in_channels == out_channels and stride == 1
                          else nn.Conv2d(in_channels, out_channels, 1, stride=stride))
@@ -42,6 +45,7 @@ class ConvBlock(nn.Module):
         self.drop = nn.Dropout2d(dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x):
+        """Transform the spatial feature tensor using the convolutional block."""
         return F.gelu(self.shortcut(x) + self.drop(self.main(x)))
 
 
@@ -52,6 +56,7 @@ class TemporalCompressor(nn.Module):
     Uses PyTorch scaled_dot_product_attention (Flash attention when supported).
     """
     def __init__(self, channels, in_len, tokens=8, heads=8):
+        """Initialize Temporal Compressor with ``channels``, ``in_len``, ``tokens``, ``heads``."""
         super().__init__()
         if channels % heads:
             raise ValueError('channels must be divisible by attention heads')
@@ -69,6 +74,7 @@ class TemporalCompressor(nn.Module):
 
     def forward(self, x):
         # [B,T,C,H,W] -> [B*H*W,T,C]
+        """Apply the Temporal Compressor transformation to the input tensors."""
         b, t, c, h, w = x.shape
         x = x.permute(0, 3, 4, 1, 2).reshape(b * h * w, t, c)
         kv = self.kv(self.kv_norm(x + self.positions)).reshape(b*h*w, t, 2, self.heads, c//self.heads)
@@ -84,11 +90,13 @@ class TemporalCompressor(nn.Module):
 
 def _partition(x, window):
     # x: [B,H,W,C] where H and W already multiples of window.
+    """Partition spatial features into attention windows."""
     b,h,w,c=x.shape
     return x.reshape(b,h//window,window,w//window,window,c).permute(0,1,3,2,4,5).reshape(-1, window*window,c)
 
 
 def _unpartition(x, window, b, h, w, c):
+    """Restore spatial features from the partitioned windows."""
     return x.reshape(b,h//window,w//window,window,window,c).permute(0,1,3,2,4,5).reshape(b,h,w,c)
 
 
@@ -108,7 +116,9 @@ def _shift_mask(h, w, window, shift, device):
 
 
 class ShiftedWindowAttention(nn.Module):
+    """PyTorch module implementing the Shifted Window Attention architecture or layer."""
     def __init__(self, channels, heads=8, window_size=4, shift=False, dropout=0.05):
+        """Initialize Shifted Window Attention with ``channels``, ``heads``, ``window_size``, ``shift``, ``dropout``."""
         super().__init__()
         if channels % heads:
             raise ValueError('channels must be divisible by heads')
@@ -135,6 +145,7 @@ class ShiftedWindowAttention(nn.Module):
         nn.init.trunc_normal_(self.bias,std=0.02)
 
     def forward(self, x):
+        """Apply attention within the configured spatial windows and restore the spatial layout."""
         b,c,h,w=x.shape
         win=self.window
         hp=math.ceil(h/win)*win
@@ -179,12 +190,15 @@ class ShiftedWindowAttention(nn.Module):
 
 
 class ConvGRUCell(nn.Module):
+    """PyTorch module implementing the Conv GRUCell architecture or layer."""
     def __init__(self, channels):
+        """Initialize Conv GRUCell with ``channels``."""
         super().__init__()
         self.gates=nn.Conv2d(channels*2,channels*2,3,padding=1)
         self.candidate=nn.Conv2d(channels*2,channels,3,padding=1)
 
     def forward(self, x, h):
+        """Update the convolutional GRU hidden state using the input and previous hidden state."""
         if h is None:
             h=torch.zeros_like(x)
         reset,update=self.gates(torch.cat([x,h],dim=1)).chunk(2,dim=1)
@@ -200,6 +214,7 @@ class SwinGRUForecaster(nn.Module):
                  temporal_tokens=8, attention_depth=2, heads=8,
                  window_size=4, dropout=0.05, residual=True,
                  use_mask_channel=True, use_coord_channels=True, mask_features=True):
+        """Initialize Swin GRUForecaster with ``in_len``, ``out_len``, ``in_channels``, ``base_channels``, ``temporal_tokens``, ``attention_depth``, ``heads`` and the remaining options."""
         super().__init__()
         if in_len<1 or out_len<1 or temporal_tokens<1 or attention_depth<1:
             raise ValueError('All time lengths and attention_depth must be positive')
@@ -238,6 +253,7 @@ class SwinGRUForecaster(nn.Module):
 
     @staticmethod
     def _mask(mask,b,h,w,x):
+        """Prepare the spatial mask for the model."""
         if mask is None:
             return None
         if mask.ndim==2:
@@ -251,11 +267,13 @@ class SwinGRUForecaster(nn.Module):
         return mask.to(device=x.device,dtype=x.dtype).expand(b,-1,-1,-1)
 
     def _mask_features(self,feat,mask):
+        """Apply the ocean mask to intermediate features."""
         if mask is None or not self.mask_features:
             return feat
         return feat*F.interpolate(mask,size=feat.shape[-2:],mode='nearest')
 
     def forward(self,x,mask=None):
+        """Apply the Swin GRUForecaster transformation to the input tensors."""
         if x.ndim!=5:
             raise ValueError('Input must be [B,T,C,H,W]')
         b,t,c,h,w=x.shape

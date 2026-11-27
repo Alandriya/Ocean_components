@@ -22,6 +22,7 @@ B_CHANNELS = ("00", "11", "01", "10")
 
 @dataclass(frozen=True)
 class Group:
+    """Store the observations and increments associated with a quantile group."""
     bin_id: int
     flat_indices: np.ndarray
     increments: np.ndarray  # (n,) for 1D; (n, 2) for 2D.
@@ -29,6 +30,7 @@ class Group:
 
 @dataclass(frozen=True)
 class GroupedTransition:
+    """Store the grouped observations for a one-step stochastic transition."""
     shape: Tuple[int, int]
     groups: Tuple[Group, ...]
     n_valid_pairs: int
@@ -122,6 +124,7 @@ def load_pair_series(data_0, data_1, grid_shape: Tuple[int, int] = GRID_SHAPE):
 
 
 def check_series(data_array, time_start: int, time_end: int) -> None:
+    """Validate the shape and temporal coverage of a scalar input series."""
     if data_array.ndim != 3:
         raise ValueError('Expected time series with shape (T,H,W)')
     if not 0 <= time_start < time_end <= data_array.shape[0] or time_end - time_start < 2:
@@ -129,6 +132,7 @@ def check_series(data_array, time_start: int, time_end: int) -> None:
 
 
 def check_pair_series(first, second, time_start, time_end) -> None:
+    """Validate compatible input series for a paired transition."""
     check_series(first, time_start, time_end)
     check_series(second, time_start, time_end)
     if first.shape != second.shape:
@@ -136,6 +140,7 @@ def check_pair_series(first, second, time_start, time_end) -> None:
 
 
 def _bin_ids(values: np.ndarray, n_bins: int):
+    """Map values to the corresponding quantile-bin indices."""
     if not isinstance(n_bins, (int, np.integer)) or isinstance(n_bins, (bool, np.bool_)) or n_bins < 1:
         raise ValueError('Number of quantile groups must be a positive integer')
     edges = np.quantile(values, np.linspace(0.0, 1.0, int(n_bins) + 1))
@@ -144,6 +149,7 @@ def _bin_ids(values: np.ndarray, n_bins: int):
 
 
 def _build_groups(ids, positions, increments, shape, requested, edges, dimension):
+    """Construct groups of observations and increments from bin assignments."""
     order = np.argsort(ids, kind='stable')
     unique, starts, counts = np.unique(ids[order], return_index=True, return_counts=True)
     groups = tuple(

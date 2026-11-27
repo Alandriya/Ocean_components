@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_module():
+    """Load module for the test fokker planck 2d workflow."""
     spec = importlib.util.spec_from_file_location(
         "fp2d_under_test",
         ROOT / "Functional" / "fokker_planck_2d.py",
@@ -26,6 +27,7 @@ def _load_module():
 
 
 def test_phase_eigenvalues_for_psd_matrix():
+    """Verify that phase eigenvalues for psd matrix."""
     module = _load_module()
     d = np.empty((4, 2, 3), dtype=float)
     d[0] = 4.0
@@ -39,6 +41,7 @@ def test_phase_eigenvalues_for_psd_matrix():
 
 
 def test_block_mean_uses_shared_valid_mask():
+    """Verify that block mean uses shared valid mask."""
     module = _load_module()
     values = np.arange(16.0).reshape(1, 4, 4)
     valid = np.ones_like(values, dtype=bool)
@@ -49,6 +52,7 @@ def test_block_mean_uses_shared_valid_mask():
 
 
 def test_end_to_end_phase_grid_and_time_alignment(monkeypatch):
+    """Verify that end to end phase grid and time alignment."""
     module = _load_module()
 
     with tempfile.TemporaryDirectory() as temp:

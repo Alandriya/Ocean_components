@@ -1,4 +1,5 @@
 #!/bin/bash
+# Launch the run features workflow using the configured environment.
 # Launched INSIDE the same NGC PyTorch Docker environment as legacy jobs.
 set -euo pipefail
 cd /home/aosipova/Ocean_Components

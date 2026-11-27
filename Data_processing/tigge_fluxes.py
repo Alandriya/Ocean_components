@@ -66,6 +66,7 @@ def cumulative_to_daily_mean(accumulated: np.ndarray, day_offset: int = 0) -> np
 
 
 def _sha256(path: Path) -> str:
+    """Calculate a file SHA-256 checksum."""
     h = hashlib.sha256()
     with path.open("rb") as inp:
         for part in iter(lambda: inp.read(4 * 1024 * 1024), b""):
@@ -74,6 +75,7 @@ def _sha256(path: Path) -> str:
 
 
 def _codes_get(codes: Any, message: Any, key: str, default=None):
+    """Retrieve an ecCodes metadata value."""
     try:
         return codes.codes_get(message, key)
     except Exception:
@@ -87,6 +89,7 @@ def _unit_ok(unit: str) -> bool:
 
 
 def _parse_reference_time(codes, msg) -> datetime:
+    """Parse the forecast reference time from GRIB metadata."""
     date_val = _codes_get(codes, msg, "dataDate")
     clock_val = _codes_get(codes, msg, "dataTime")
     if date_val is None or clock_val is None:
@@ -96,6 +99,7 @@ def _parse_reference_time(codes, msg) -> datetime:
 
 
 def _check_valid_time(codes, msg, ref: datetime, lead_h: int):
+    """Validate the consistency of forecast reference time, lead and valid time."""
     date_val = _codes_get(codes, msg, "validityDate")
     clock_val = _codes_get(codes, msg, "validityTime")
     if date_val is None or clock_val is None:
@@ -107,6 +111,7 @@ def _check_valid_time(codes, msg, ref: datetime, lead_h: int):
 
 
 def _grid_setup(codes, message, points: list[dict]):
+    """Prepare grid metadata and spatial indexing for the conversion."""
     if str(_codes_get(codes, message, "gridType", "")) != "regular_ll":
         raise ValueError("TIGGE flux processing requires regular_ll grid")
     ni = int(_codes_get(codes, message, "Ni", 0))
@@ -308,6 +313,7 @@ def convert_flux_grib(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the TIGGE fluxes workflow using its configured options."""
     p = argparse.ArgumentParser(description="TIGGE accumulated sshf/slhf -> daily mean W/m2 for Atlantic 15 points")
     group = p.add_mutually_exclusive_group(required=True)
     group.add_argument("--grib", type=Path, help="A single *_fluxes.grib file")

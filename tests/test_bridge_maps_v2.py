@@ -24,11 +24,13 @@ BASE_DATE = date(1979, 1, 1)
 
 
 def start_label(year):
+    """Compute start label for test bridge maps v2 from ``year``."""
     return (date(year, 1, 1) - BASE_DATE).days + 1
 
 
 def setup_modules():
     # Import the implementation without relying on the full, original repo.
+    """Compute setup modules for test bridge maps v2."""
     io = types.ModuleType("Data_processing.io")
     io.BASE_DATE = BASE_DATE
     io.start_label = start_label
@@ -37,6 +39,7 @@ def setup_modules():
     sys.modules["Data_processing.io"] = io
     paths = types.ModuleType("Plotting.paths")
     def plot_path(root, *parts):
+        """Plot path for the test bridge maps v2 workflow."""
         path = Path(root) / "Plots" / Path(*parts)
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
@@ -47,14 +50,17 @@ def setup_modules():
 
 
 class BridgeAndMapsTests(unittest.TestCase):
+    """Regression tests covering Bridge And Maps."""
     @classmethod
     def setUpClass(cls):
+        """Prepare the test fixtures before running the assertions."""
         cls.io = setup_modules()
         from Coefficients import bridges, collection
         from Plotting import map_workflows
         cls.bridges, cls.collection, cls.maps = bridges, collection, map_workflows
 
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -76,6 +82,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.load = lambda root, name, first, last: self.fields[name, (first,last)]
 
     def _make_bridges(self):
+        """Construct bridges for the test bridge maps v2 workflow."""
         for period in self.periods[1:]:
             index = start_label(period[0])
             for method in ("np", "sp"):
@@ -86,6 +93,7 @@ class BridgeAndMapsTests(unittest.TestCase):
                     np.save(directory / f"{field}_{index}.npy", np.full((nch,2,2), index+.1 if method=="sp" else index, dtype="float32"))
 
     def test_assembly_from_collected_periods_no_daily(self):
+        """Verify that assembly from collected periods no daily."""
         self._make_bridges()
         with patch.object(self.bridges,"load_field",side_effect=self.load):
             out = self.bridges.assemble_continuous_coefficients(self.root,self.periods)
@@ -106,6 +114,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertEqual(reused["count"],out["count"])
 
     def test_exact_1979_to_2026_naming_and_actual_last_day(self):
+        """Verify that exact 1979 to 2026 naming and actual last day."""
         periods = [(1979,1989),(1989,1999),(1999,2009),
                    (2009,2019),(2019,2026)]
         final = date(2026,10,29)
@@ -141,6 +150,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertEqual(float(data[-1,0,0,0]),start_label(2026)+(final-date(2026,1,1)).days)
 
     def test_missing_bridge_is_detected(self):
+        """Verify that missing bridge is detected."""
         self._make_bridges()
         missing = self.bridges.bridge_daily_dir(self.root, ("sensible","latent"),12,"np") / f"A_{start_label(2024)}.npy"
         missing.unlink()
@@ -149,6 +159,7 @@ class BridgeAndMapsTests(unittest.TestCase):
                 self.bridges.assemble_continuous_coefficients(self.root,self.periods)
 
     def test_incomplete_middle_period_rejected(self):
+        """Verify that incomplete middle period rejected."""
         self._make_bridges()
         self.fields["sensible",(2024,2025)] = self.fields["sensible",(2024,2025)][:-1]
         self.fields["latent",(2024,2025)] = self.fields["latent",(2024,2025)][:-1]
@@ -157,6 +168,7 @@ class BridgeAndMapsTests(unittest.TestCase):
                 self.bridges.assemble_continuous_coefficients(self.root,self.periods)
 
     def test_bridge_only_new_transition_calculated(self):
+        """Verify that bridge only new transition calculated."""
         self._make_bridges()
         directory = self.bridges.bridge_daily_dir(self.root, ("sensible", "latent"),12,"np")
         (directory / f"A_{start_label(2024)}.npy").unlink()
@@ -172,6 +184,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertEqual(np.load(directory/f"A_{start_label(2024)}.npy").shape,(2,2,2))
 
     def test_signed_zero_white_and_mask_lightgreen(self):
+        """Verify that signed zero white and mask lightgreen."""
         cmap, norm = self.maps._historical_palette("A",-30,20)
         self.assertAlmostEqual(norm(0),.5)
         self.assertTrue(np.allclose(cmap(norm(0))[:3],(1,1,1)))
@@ -182,6 +195,7 @@ class BridgeAndMapsTests(unittest.TestCase):
             self.assertTrue(np.allclose(cm.get_bad(),to_rgba("lightgreen")))
 
     def test_stable_palette_over_frame_interval(self):
+        """Verify that stable palette over frame interval."""
         data = np.array([[[1.,2.],[3.,4.]], [[50.,20.],[10.,-7.]], [[9.,4.],[2.,1.]]])
         water = np.array([[True,False],[True,True]])
         mn,mx=self.maps._extrema(data,0,3,water)
@@ -192,6 +206,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertEqual(norm(2),self.maps._historical_palette("Flux",mn,mx)[1](2))
 
     def test_full_boundary_workflow_produces_both_methods(self):
+        """Verify that full boundary workflow produces both methods."""
         common = types.ModuleType("Coefficients.common")
         common.prepare_pair_transition = lambda *_: object()
         npmod = types.ModuleType("Coefficients.nonparametric")
@@ -219,6 +234,7 @@ class BridgeAndMapsTests(unittest.TestCase):
                      ("sensible","latent"),12,method) / f"A_{label}.npy").is_file())
 
     def test_variables_draw_multiple_frames_at_fixed_scale(self):
+        """Verify that variables draw multiple frames at fixed scale."""
         series = {
             "sensible":np.array([[[0.,0.],[1.,-2.]],[[0.,0.],[10.,-20.]],[[0.,0.],[3.,-4.]]]),
             "latent":np.array([[[0.,0.],[3.,-2.]],[[0.,0.],[100.,-20.]],[[0.,0.],[3.,-4.]]]),
@@ -226,6 +242,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         scale_ids=[]
         original_draw=self.maps._draw_map
         def draw(ax,field,water,label,palette):
+            """Draw the requested test bridge maps v2 data using the supplied inputs."""
             scale_ids.append((label,id(palette[1]), palette[1](0)))
             return original_draw(ax,field,water,label,palette)
         with patch.object(self.maps,"load_field",side_effect=lambda root,name,a,b:series[name]),patch.object(self.maps,"_draw_map",side_effect=draw):
@@ -241,6 +258,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertTrue(all(item[2]==.5 for item in scale_ids))
 
     def test_coefficient_frames_from_flat_merged_file(self):
+        """Verify that coefficient frames from flat merged file."""
         folder=self.root / "Coefficients" / "2023-2026" / "sensible_latent"
         folder.mkdir(parents=True,exist_ok=True)
         stack=np.array([
@@ -253,6 +271,7 @@ class BridgeAndMapsTests(unittest.TestCase):
         self.assertTrue(all(path.is_file() for path in frames))
 
     def test_old_f_color_boundaries(self):
+        """Verify that old f color boundaries."""
         cmap,norm=self.maps._historical_palette("F",0,3)
         self.assertEqual(len(norm.boundaries),6)
         self.assertEqual(list(norm.boundaries[:5]),[0.,.25,.5,1.,1.5])

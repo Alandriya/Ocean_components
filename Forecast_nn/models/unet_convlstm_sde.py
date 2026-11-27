@@ -10,13 +10,16 @@ from Forecast_nn.models.sde_conditioning import SDEFiLM2d
 
 
 class SDEUNetConvLSTMForecaster(UNetConvLSTMForecaster):
+    """Container for sdeunet conv lstmforecaster state and associated operations."""
     def __init__(self, *args, sde_condition_scale=0.1, **kwargs):
+        """Initialize SDEUNet Conv LSTMForecaster with ``sde_condition_scale``."""
         super().__init__(*args, **kwargs)
         bottleneck_channels = self.temporal.hidden_channels
         self.sde_channels = 2 * self.in_channels
         self.sde_conditioner = SDEFiLM2d(self.sde_channels, bottleneck_channels, sde_condition_scale)
 
     def forward(self, x, mask=None, sde_features=None):
+        """Apply the SDEUNet Conv LSTMForecaster transformation to the input tensors."""
         batch, time, channels, height, width = x.shape
         if time != self.in_len or channels != self.in_channels:
             raise ValueError(f'SDEUNetConvLSTMForecaster expects T={self.in_len}, C={self.in_channels}; got {tuple(x.shape)}')

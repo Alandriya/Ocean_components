@@ -21,8 +21,10 @@ from Coefficients.quantile_diagnostics import (
 
 
 class QuantileDiagnosticTests(unittest.TestCase):
+    """Regression tests covering Quantile Diagnostic."""
     @staticmethod
     def make_inputs():
+        """Construct inputs for the test quantile diagnostics workflow."""
         rng = np.random.default_rng(2026)
         a = rng.normal(size=(5, 10, 12))
         b = 0.5 * a + rng.normal(size=(5, 10, 12))
@@ -32,6 +34,7 @@ class QuantileDiagnosticTests(unittest.TestCase):
         return a, b, mask
 
     def test_2d_unchanged(self):
+        """Verify that 2d unchanged."""
         a, b, mask = self.make_inputs()
         with tempfile.TemporaryDirectory() as tmp:
             result = diagnose_quantile_period(
@@ -51,6 +54,7 @@ class QuantileDiagnosticTests(unittest.TestCase):
                 self.assertLessEqual(int(row["valid"]), int(mask.sum()))
 
     def test_1d_group_accounting_matches_np_sp_groups(self):
+        """Verify that 1d group accounting matches np sp groups."""
         a, _, mask = self.make_inputs()
         with tempfile.TemporaryDirectory() as tmp:
             result = diagnose_quantile_period_1d(
@@ -88,6 +92,7 @@ class QuantileDiagnosticTests(unittest.TestCase):
             self.assertEqual(cfg["grouping"], "Coefficients.common.prepare_transition")
 
     def test_1d_tied_values_and_invalid_pairs(self):
+        """Verify that 1d tied values and invalid pairs."""
         a = np.ones((3, 8, 10))
         mask = np.ones((8, 10), dtype=bool)
         mask[0, :] = 0
@@ -109,6 +114,7 @@ class QuantileDiagnosticTests(unittest.TestCase):
                 self.assertEqual(int(row["valid"]), 69)
 
     def test_variable_names_have_separate_outputs(self):
+        """Verify that variable names have separate outputs."""
         a, b, mask = self.make_inputs()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -127,6 +133,7 @@ class QuantileDiagnosticTests(unittest.TestCase):
             self.assertTrue((out / "latent" / "all_periods_summary.csv").is_file())
 
     def test_invalid_corr_bins(self):
+        """Verify that invalid corr bins."""
         a, _, mask = self.make_inputs()
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):

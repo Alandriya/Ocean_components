@@ -18,7 +18,9 @@ from Forecast_nn import train_generative, test_generative, train
 
 
 class GenerativeSmoke(unittest.TestCase):
+    """Regression tests covering Generative Smoke."""
     def test_shapes_gradients_and_covariance(self):
+        """Verify that shapes gradients and covariance."""
         x=torch.randn(2,6,2,13,15)
         y=torch.randn(2,3,2,13,15)
         mask=torch.ones(13,15)
@@ -35,6 +37,7 @@ class GenerativeSmoke(unittest.TestCase):
                                                       torch.ones(2,2,2,13,15),mask)))
 
     def test_full_small_pipeline(self):
+        """Verify that full small pipeline."""
         old={k:getattr(cfg,k) for k in ('base_date','data_last_date','in_len','out_len','stats_root','results_root','data_files','mask_file')}
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)

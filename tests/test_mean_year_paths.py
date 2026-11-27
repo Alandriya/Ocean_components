@@ -13,7 +13,9 @@ from Plotting.map_workflows import plot_mean_year
 
 
 class MeanYearPathTests(unittest.TestCase):
+    """Regression tests covering Mean Year Path."""
     def test_isolation_and_render(self):
+        """Verify that isolation and render."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             years = (1979, 2026)
@@ -50,6 +52,7 @@ class MeanYearPathTests(unittest.TestCase):
             self.assertFalse((root/'Mean_year'/'Coefficients'/'A_1979-2026.npy').exists())
 
     def test_variables_derived_and_spectra(self):
+        """Verify that variables derived and spectra."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             years = (1979, 2026)
@@ -65,6 +68,7 @@ class MeanYearPathTests(unittest.TestCase):
                 self.assertEqual(p.parent, root/'Mean_year'/'Eigenvalues'/'-'.join(pair))
 
     def test_no_silent_fallback(self):
+        """Verify that no silent fallback."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             old = root/'Mean_year'/'Coefficients'/'B_1979-2026.npy'

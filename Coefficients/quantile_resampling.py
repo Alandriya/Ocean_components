@@ -42,6 +42,7 @@ OUTPUT_FIELDS = [
 
 
 def _positive_unique(values, name):
+    """Validate and deduplicate positive configuration values."""
     result = tuple(dict.fromkeys(int(x) for x in values))
     if not result or any(x <= 0 for x in result):
         raise ValueError(f"{name}: expected positive integers")
@@ -49,6 +50,7 @@ def _positive_unique(values, name):
 
 
 def _days(first, last, stride, limit):
+    """Enumerate the days included in the requested period."""
     if isinstance(first, str):
         first = date.fromisoformat(first)
     if isinstance(last, str):
@@ -154,6 +156,7 @@ def _pairs(before, after, hours, pixels, dimension, variable):
 def _signature(*, paths, first, last, stride, seed, reps, hour_counts,
                spatial_steps, bins_1d, bins_2d, min_group, shape, source_stride,
                npy_start, npy_variable_names, water):
+    """Build a signature for validating cached inputs or results."""
     return {
         "version": 1,
         "sources": [{"path": str(p), "size": p.stat().st_size,
@@ -202,6 +205,7 @@ def _cache_matches(cache_dir, paths, required_days, shape, stride):
 class _ExistingDayCache:
     """Read-only source from a previously completed, provenance-checked cache."""
     def __init__(self, path, paths, grid_shape):
+        """Initialize Existing Day Cache with ``path``, ``paths``, ``grid_shape``."""
         self.path = Path(path)
         self.source_files = [str(p) for p in paths]
         self.grid_shape = grid_shape
@@ -211,9 +215,11 @@ class _ExistingDayCache:
         self.available = {var: set(meta["complete_days"][var]) for var in VARIABLE_ALIASES}
 
     def has_complete_day(self, day):
+        """Check whether every required observation for the day is available."""
         return all(day.isoformat() in self.available[var] for var in VARIABLE_ALIASES)
 
     def day(self, day):
+        """Compute day for Existing Day Cache from ``day``."""
         result = {}
         for var in VARIABLE_ALIASES:
             path = self.path / var / f"{day.isoformat()}.npy"
@@ -224,18 +230,22 @@ class _ExistingDayCache:
         return result
 
     def close(self):
+        """Close the underlying resources."""
         pass
 
     def __enter__(self):
+        """Return the open resource for use in a context manager."""
         return self
 
     def __exit__(self, *_):
+        """Close the resource when leaving the context manager."""
         self.close()
 
 
 @contextmanager
 def _open_source(root, paths, required_days, grid_shape, stride, cache_dir,
                  npy_start=None, npy_variable_names=None):
+    """Open the configured data source for the workflow."""
     paths = _resolve_paths(root, paths)
     gribs = [p for p in paths if p.suffix.lower() in GRIB_SUFFIXES]
     if gribs and len(gribs) == len(paths):
@@ -260,6 +270,7 @@ def _open_source(root, paths, required_days, grid_shape, stride, cache_dir,
 
 
 def _summarize(rows, group_fields):
+    """Compute summarize for quantile resampling from ``rows``, ``group_fields``."""
     group = defaultdict(list)
     for r in rows:
         group[tuple(r[k] for k in group_fields)].append(r)
@@ -284,6 +295,7 @@ def _summarize(rows, group_fields):
 
 
 def _save_rows(path, rows, fields):
+    """Serialize diagnostic table rows to disk."""
     path = Path(path)
     with path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)

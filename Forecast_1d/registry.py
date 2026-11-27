@@ -9,6 +9,7 @@ ALL_MODELS = (*LEVEL0, *NEURAL_MODELS)
 
 
 def model_level(name):
+    """Return the experimental level associated with the model name."""
     for level, names in enumerate((LEVEL0, LEVEL1, LEVEL2)):
         if name in names:
             return level

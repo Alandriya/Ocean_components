@@ -42,6 +42,7 @@ EXPECTED_FIELDS = {"met": len(MET_VARIABLES) * len(MET_HOURS),
 
 
 def default_outdir() -> Path:
+    """Compute default outdir for download TIGGE ECDS."""
     if os.name == "nt":
         return Path(r"D:\Nastya\Data\OceanFull\DATA\Forecast_1d\TIGGE\raw")
     return Path.cwd() / "tigge_raw"
@@ -53,6 +54,7 @@ def make_request(
     grid: str,
     group: str = "met",
 ) -> dict:
+    """Construct request for the download TIGGE ECDS workflow."""
     north, west, south, east = area
     if not (-90 <= south < north <= 90 and -180 <= west < east <= 360):
         raise ValueError("Area must be [NORTH, WEST, SOUTH, EAST] in degrees")
@@ -77,6 +79,7 @@ def make_request(
 
 
 def issue_dates(start: date, end: date, stride: int = 1) -> Iterator[date]:
+    """Compute issue dates for download TIGGE ECDS from ``start``, ``end``, ``stride``."""
     if end < start or stride < 1:
         raise ValueError("End date must be >= start date and --every must be >= 1")
     current = start
@@ -86,6 +89,7 @@ def issue_dates(start: date, end: date, stride: int = 1) -> Iterator[date]:
 
 
 def filename_for(issued: date, root: Path, group: str = "met") -> Path:
+    """Compute filename for for download TIGGE ECDS from ``issued``, ``root``, ``group``."""
     if group not in EXPECTED_FIELDS:
         raise ValueError(f"Unknown group {group!r}")
     stem = f"tigge_ecmwf_control_{issued:%Y%m%d}_0000"
@@ -122,6 +126,7 @@ def validate_grib2(path: Path, expected_fields: int = EXPECTED_FIELDS["met"]) ->
 
 
 def append_log(root: Path, item: dict) -> None:
+    """Compute append log for download TIGGE ECDS from ``root``, ``item``."""
     root.mkdir(parents=True, exist_ok=True)
     record = dict(item)
     record["at_utc"] = datetime.now(timezone.utc).isoformat()
@@ -130,6 +135,7 @@ def append_log(root: Path, item: dict) -> None:
 
 
 def make_client():
+    """Construct client for the download TIGGE ECDS workflow."""
     try:
         import cdsapi
     except ImportError as exc:
@@ -141,6 +147,7 @@ def make_client():
 
 
 def run(argv: list[str] | None = None) -> int:
+    """Run the download TIGGE ECDS workflow using its configured options."""
     p = argparse.ArgumentParser(description="Resumable ECDS TIGGE ECMWF control + heat flux download")
     p.add_argument("--start", default="2025-10-31", help="First forecast issue date YYYY-MM-DD")
     p.add_argument("--end", default="2026-10-16", help="Last forecast issue date YYYY-MM-DD")

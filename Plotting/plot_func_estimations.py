@@ -1,3 +1,5 @@
+"""Plot functional fits of drift and diffusion, residual diagnostics and stationary probability densities."""
+
 import os.path
 
 import numpy as np
@@ -29,6 +31,7 @@ matplotlib.rc('font', **font)
 
 
 def plot_estimate_residuals(files_path_prefix, month, sens_res, lat_res, t, postfix='sin'):
+    """Plot estimate residuals for the plot func estimations workflow."""
     part = len(sens_res) // 3 * 2
     sens_res = sens_res[np.isfinite(sens_res)]
     lat_res = lat_res[np.isfinite(lat_res)]
@@ -251,6 +254,7 @@ def plot_estimate_a_flux(files_path_prefix: str,
 
 
 def func_sin(x, a, b, c, ):
+    """Compute func sin for plot func estimations from ``x``, ``a``, ``b``, ``c``."""
     return a * np.sin(b * x + c)
 
 
@@ -263,6 +267,7 @@ def plot_ab_functional(files_path_prefix: str,
                        a_full: list,
                        b_full: list,
                        ):
+    """Plot ab functional for the plot func estimations workflow."""
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(2, 1, figsize=(15, 15))
     x = np.linspace(min(quantiles), max(quantiles), 500)
@@ -304,12 +309,15 @@ def plot_ab_functional(files_path_prefix: str,
 
 
 def fit_exp_left(x, c1):
+    """Fit exp left for the plot func estimations workflow."""
     return c1 * np.abs(x)
 
 def fit_exp_center(x, c2, c3):
+    """Fit exp center for the plot func estimations workflow."""
     return c2 * np.sqrt(np.abs(x)) + c3
 
 def fit_exp_right(x, c4):
+    """Fit exp right for the plot func estimations workflow."""
     return c4 * np.sqrt(np.abs(x))
 
 
@@ -320,6 +328,7 @@ def plot_ab_functional_2d(files_path_prefix: str,
                           season: str,
                           year: int,
                           ):
+    """Plot ab functional 2d for the plot func estimations workflow."""
     quantiles1, quantiles2, a_grouped, b_grouped = data
     sns.set_style('whitegrid')
     fig, axs = plt.subplots(2, 2, figsize=(20, 15))
@@ -577,6 +586,7 @@ def plot_heatmap(files_path_prefix: str,
                  quantiles1: np.ndarray,
                  quantiles2: np.ndarray,
         b_hist: np.array,):
+    """Plot heatmap for the plot func estimations workflow."""
     fig, axs = plt.subplots(1, 1, figsize=(15, 15))
     sns.heatmap(b_hist, xticklabels=quantiles1, yticklabels=quantiles2)
     fig.tight_layout()
@@ -589,6 +599,7 @@ def plot_prob_1d(files_path_prefix: str,
                  x,
                  year: int,
                  postfix: str,):
+    """Plot prob 1d for the plot func estimations workflow."""
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     if data_name == 'sensible':
@@ -596,7 +607,7 @@ def plot_prob_1d(files_path_prefix: str,
     else:
         plt.xlabel(f'Значения скрытого потока', fontsize=14)
     plt.ylabel('Плотность стационарного распределения', fontsize=14)
-    # plt.ylabel('Логарифм от плотности стационарного распределения', fontsize=14)
+    # Y axis: log stationary probability density.
     y = [prob(t) for t in x]
     axs.plot(x, y)
     # axs.legend()
@@ -610,6 +621,7 @@ def plot_prob_1d(files_path_prefix: str,
 def plot_hist(files_path_prefix: str,
               data_name: str,
               x:np.ndarray):
+    """Plot hist for the plot func estimations workflow."""
     data = x[np.logical_not(np.isnan(x))].flatten()
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(10, 5))
@@ -632,15 +644,16 @@ def plot_prob_and_hist(files_path_prefix: str,
                     start_year: int,
                        data: np.ndarray,
                        ):
+    """Plot prob and hist for the plot func estimations workflow."""
     data_hist = data[np.logical_not(np.isnan(data))].flatten()
     sns.set_style("whitegrid")
     fig, axs = plt.subplots(1, 1, figsize=(12, 7))
     if data_name == 'sensible':
-        # plt.xlabel(f'Значения явного потока', fontsize=14)
+        # X axis: sensible heat flux values.
         plt.xlabel(f'Sensible flux values', fontsize=14)
         hist_range = [-500, 500]
     else:
-        # plt.xlabel(f'Значения скрытого потока', fontsize=14)
+        # X axis: latent heat flux values.
         plt.xlabel(f'Latent flux values', fontsize=14)
         hist_range = [-800, 300]
     data_hist = sorted(data_hist)

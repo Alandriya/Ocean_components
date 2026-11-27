@@ -19,12 +19,13 @@ from Forecast_nn.evaluation import (
     save_metrics_json, save_plot_samples,
 )
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
-from Forecast_nn.logging_utils import tee_output, log_file_path, run_tag_from_args
+from Forecast_nn.runtime import tee_output, log_file_path, run_tag_from_args
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs, load_checkpoint
 from Forecast_nn.sde import SDEFieldReader, SDEOceanSequenceDataset
 
 
 def parse_args():
+    """Parse the command-line configuration."""
     p = argparse.ArgumentParser()
     p.add_argument('--model', choices=available_models(), default=cfg.model_name)
     # Only used by the new heavy hybrid; explicit flags also identify run folders.
@@ -53,10 +54,12 @@ def parse_args():
 
 
 def parse_ids(text):
+    """Parse ids for the test workflow."""
     return sorted({int(v.strip()) for v in text.split(',') if v.strip()}) if text else []
 
 
 def _run(args):
+    """Run the test workflow using its configured options."""
     configure_runtime(cfg.seed, cfg.fast_cuda)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     use_amp = bool(args.amp and device.type == 'cuda')

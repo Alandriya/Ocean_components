@@ -31,8 +31,10 @@ class BridgeTests(unittest.TestCase):
         new = np.ones((2, 2, 2), dtype=float)
         calls = []
         def load_field(_, name, first, last):
+            """Load field for the test bridges workflow."""
             return old if first == 2023 else new
         def prepare(first0, last0, first1, last1, bins, mask):
+            """Prepare the requested test bridges data using the supplied inputs."""
             calls.append((first0.copy(), last0.copy(), first1.copy(), last1.copy(), bins))
             return object()
         common = types.ModuleType('Coefficients.common')

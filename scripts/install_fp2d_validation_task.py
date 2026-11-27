@@ -53,6 +53,7 @@ CONFIG = '''    # task = "fp2d_validate"    # Select below in main(): task = "fp
 
 
 def install(main_file: Path, dry_run=False):
+    """Install the requested install 2D Fokker-Planck validation task data using the supplied inputs."""
     main_file = Path(main_file)
     if not main_file.is_file():
         raise FileNotFoundError(f"No main.py found: {main_file}")

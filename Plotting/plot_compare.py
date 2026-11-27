@@ -1,3 +1,5 @@
+"""Compare coefficient estimation methods, quantile resolutions and representative spatial points."""
+
 import datetime
 import math
 import os
@@ -21,6 +23,7 @@ def plot_Kor_Bel_histograms(files_path_prefix: str,
                             flux_type: str,
                             point: tuple,
                             ):
+    """Plot Kor Bel histograms for the plot compare workflow."""
     date_start = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_start)
     date_end = datetime.datetime(2019, 1, 1, 0, 0) + datetime.timedelta(days=time_end)
     fig, axs = plt.subplots(figsize=(15, 15))
@@ -43,6 +46,7 @@ def plot_typical_points_difference(files_path_prefix: str,
                                    coeff_type: str,
                                    height: int = 100,
                                    width: int = 100, ):
+    """Plot typical points difference for the plot compare workflow."""
     mask_map = np.array(mask, dtype=float).reshape((height, width))
     mask_map[mask_map == 0] = np.nan
     mask_map[mask_map == 1] = 0
@@ -534,6 +538,7 @@ def plot_quantiles_amount_compare(files_path_prefix:str,
                                   coeff_type: str,
                                   quantiles: np.array,
                                   list_types: list):
+    """Plot quantiles amount compare for the plot compare workflow."""
     if not os.path.exists(files_path_prefix + f'Synthetic/Plots'):
         os.mkdir(files_path_prefix + f'Synthetic/Plots')
     if not os.path.exists(files_path_prefix + f'Synthetic/Plots/Quantiles'):
@@ -572,6 +577,7 @@ def plot_map_compare(files_path_prefix: str,
                      coeff_type: str,
                      radius: int,
                      start_pic_num: int = 0):
+    """Plot map compare for the plot compare workflow."""
     fig, axs = plt.subplots(1, 2, figsize=(20, 10))
     img_values, img_difference = None, None
 

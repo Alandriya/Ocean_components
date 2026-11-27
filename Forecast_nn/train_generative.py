@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from Forecast_nn.config import cfg
 from Forecast_nn.runtime import configure_runtime, make_loader_kwargs
-from Forecast_nn.logging_utils import tee_output
+from Forecast_nn.runtime import tee_output
 from Forecast_nn.generative_utils import prepare_data, metadata, run_tag, save_json
 from Forecast_nn.models.generative import ConditionalDDPM, ConditionalGAN
 from Forecast_nn.models.eof_var import EOFVAR
@@ -27,6 +27,7 @@ from Forecast_nn.joint_sde import JointSDEReader, JointSDEDataset, joint_ensembl
 
 
 def arguments():
+    """Parse command-line options for the experiment."""
     p = argparse.ArgumentParser(description='Conditional generative ocean forecast models')
     p.add_argument('--model', choices=('ddpm','gan','var'), required=True)
     p.add_argument('--variable', choices=('sensible','latent','joint'), default='joint')
@@ -65,6 +66,7 @@ def arguments():
 
 
 def run(args):
+    """Run the train generative workflow using its configured options."""
     configure_runtime(args.seed, cfg.fast_cuda)
     if args.sde_moment_weight > 0 and (args.model != 'gan' or args.variable != 'joint'):
         raise ValueError('Joint SDE ensemble moment penalty currently implemented only for joint GAN')
@@ -228,6 +230,7 @@ def run(args):
 
 
 def main():
+    """Run the train generative workflow using its configured options."""
     args=arguments()
     tag=run_tag(args)
     logfile=Path(cfg.results_root).parent/'logs'/f'train_{args.model}_{tag}_{args.variable}.txt'

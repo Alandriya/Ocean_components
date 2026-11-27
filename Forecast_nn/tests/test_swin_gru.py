@@ -14,6 +14,7 @@ from Forecast_nn.tests.test_pipeline_integration import fixture
 
 
 def _small_model(in_len=5, out_len=3, channels=2):
+    """Compute small model for test swin gru from ``in_len``, ``out_len``, ``channels``."""
     return build_model('swin_gru', in_len, out_len, channels, {
         'base_channels': 8, 'temporal_tokens': 3, 'attention_depth': 2,
         'heads': 4, 'window_size': 4, 'dropout': 0.0,
@@ -23,6 +24,7 @@ def _small_model(in_len=5, out_len=3, channels=2):
 
 
 def test_swin_gru_odd_shapes_mask_and_gradients():
+    """Verify that swin gru odd shapes mask and gradients."""
     assert 'swin_gru' in available_models()
     torch.manual_seed(0)
     model = _small_model()
@@ -48,6 +50,7 @@ def test_swin_gru_odd_shapes_mask_and_gradients():
 
 
 def test_joint_reader_and_pipeline():
+    """Verify that joint reader and pipeline."""
     from Forecast_nn import train as trainmod, test as testmod
     from Forecast_nn.runtime import load_checkpoint
 

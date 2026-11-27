@@ -22,7 +22,9 @@ spec.loader.exec_module(plots)
 
 
 class CacheTest(unittest.TestCase):
+    """Regression tests covering Cache."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.original = {key: sys.modules.get(key) for key in
@@ -38,6 +40,7 @@ class CacheTest(unittest.TestCase):
             AssertionError('Heavy regrouping must not run in normal plotting')
         )
         def fit(x, y, name):
+            """Fit the requested test functional cache data using the supplied inputs."""
             return {'x0': -3., 'x1': -50. if name=='sensible' else -40.,
                     'c1': .1, 'c2': .2, 'c3': 6., 'c4': .25, 'rmse_log_b': .04}
         stationary._fit_log_diffusion = fit
@@ -62,6 +65,7 @@ class CacheTest(unittest.TestCase):
         np.savez_compressed(self.cache, **store)
 
     def tearDown(self):
+        """Release the test fixtures and temporary resources."""
         for key, old in self.original.items():
             if old is None:
                 sys.modules.pop(key, None)
@@ -70,6 +74,7 @@ class CacheTest(unittest.TestCase):
         self.temp.cleanup()
 
     def read(self, **overrides):
+        """Read cache test data using the supplied inputs."""
         kw = {**self.args, **overrides}
         return plots._historical_grouped_inputs(
             self.root, ('sensible','latent'), 1979, 2026, 'sp', 'simple',
@@ -79,20 +84,24 @@ class CacheTest(unittest.TestCase):
         )
 
     def test_loads_small_cache_without_large_data(self):
+        """Verify that loads small cache without large data."""
         loaded = self.read()
         self.assertEqual(len(loaded['sensible'][0]),24)
         self.assertEqual(len(loaded['latent'][0]),24)
 
     def test_wrong_settings_fail_fast(self):
+        """Verify that wrong settings fail fast."""
         with self.assertRaisesRegex(ValueError, 'bins: saved=260, requested=100'):
             self.read(quantile_bins=100)
 
     def test_missing_cache_fails_fast(self):
+        """Verify that missing cache fails fast."""
         self.cache.unlink()
         with self.assertRaisesRegex(FileNotFoundError, "task='stationary'"):
             self.read()
 
     def test_consistency_verification_success(self):
+        """Verify that consistency verification success."""
         target = self.root / 'Functional' / 'Stationary'
         target.mkdir()
         expected = {}
@@ -110,6 +119,7 @@ class CacheTest(unittest.TestCase):
             self.root, ('sensible','latent'), 1979,2026,'sp',actual))
 
     def test_old_density_triggers_warning(self):
+        """Verify that old density triggers warning."""
         target = self.root / 'Functional' / 'Stationary'
         target.mkdir()
         expected = {}
@@ -130,6 +140,7 @@ class CacheTest(unittest.TestCase):
 
     def test_plot_draws_using_saved_cache(self):
         # No stationary JSON => informative note, not an expensive scan.
+        """Verify that plot draws using saved cache."""
         import matplotlib
         matplotlib.use('Agg')
         result=plots.plot_functional_fits(self.root,1979,2026,**{
@@ -139,6 +150,7 @@ class CacheTest(unittest.TestCase):
         self.assertTrue(result.exists())
 
     def test_plotter_passes_all_settings(self):
+        """Verify that plotter passes all settings."""
         source=(ROOT / 'main_plotter.py').read_text()
         tree=ast.parse(source)
         fns=[x for x in ast.walk(tree) if isinstance(x,ast.Call)

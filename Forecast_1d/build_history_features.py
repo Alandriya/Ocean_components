@@ -48,6 +48,7 @@ assert len(FEATURE_NAMES) == 20
 
 
 def _daily_dates(raw, label: str) -> np.ndarray:
+    """Compute daily dates for build history features from ``raw``, ``label``."""
     a = np.asarray(raw)
     if a.dtype.kind != "M" or a.ndim != 1:
         raise ValueError(f"{label}: expected 1-D datetime64 array, got {a.dtype}, shape {a.shape}")
@@ -74,6 +75,7 @@ def _source_layout(path: Path) -> tuple[np.ndarray, str, int]:
 
 
 def _center_values(src: np.ndarray, layout: str, pixel_indices: np.ndarray) -> np.ndarray:
+    """Compute center values for build history features from ``src``, ``layout``, ``pixel_indices``."""
     if layout == "space_time":
         a = src[pixel_indices, :].T
     elif layout == "time_space":
@@ -88,6 +90,7 @@ def _center_values(src: np.ndarray, layout: str, pixel_indices: np.ndarray) -> n
 
 
 def _manifest_for_array(metadata_root: Path, path: Path, variable: str):
+    """Compute manifest for array for build history features from ``metadata_root``, ``path``, ``variable``."""
     matches = []
     for mdfile in sorted(metadata_root.glob("ERA5_*_metadata.json")):
         md = json.loads(mdfile.read_text(encoding="utf-8"))
@@ -118,6 +121,7 @@ def _manifest_for_array(metadata_root: Path, path: Path, variable: str):
 
 
 def _check_coordinates(metadata_root: Path, label: str, points: list[dict]):
+    """Check coordinates for the build history features workflow."""
     lat = np.load(metadata_root / f"ERA5_{label}_latitudes.npy", mmap_mode="r", allow_pickle=False)
     lon = np.load(metadata_root / f"ERA5_{label}_longitudes.npy", mmap_mode="r", allow_pickle=False)
     if lat.shape != GRID or lon.shape != GRID:
@@ -171,6 +175,7 @@ CANONICAL_PERIODS = (
 
 
 def _choose_source_paths(directory: Path, prefix: str, variable: str) -> list[Path]:
+    """Compute choose source paths for build history features from ``directory``, ``prefix``, ``variable``."""
     available = sorted(directory.glob(f"{prefix}_*_grouped.npy"))
     if not available:
         raise FileNotFoundError(f"No arrays for {variable} under {directory}")
@@ -197,6 +202,7 @@ def _choose_source_paths(directory: Path, prefix: str, variable: str) -> list[Pa
 
 
 def _find_sources(root: Path, variable: str, points: list[dict]):
+    """Find sources for the build history features workflow."""
     folder, prefix = VARIABLES[variable]
     paths = _choose_source_paths(root / "DATA" / folder, prefix, variable)
     metadata_root = root / "DATA" / "ERA5_metadata"
@@ -231,6 +237,7 @@ def _find_sources(root: Path, variable: str, points: list[dict]):
 
 
 def _combine_sources(sources, target_dates: np.ndarray, variable: str) -> tuple[np.ndarray, np.ndarray, list[dict]]:
+    """Compute combine sources for build history features from ``sources``, ``target_dates``, ``variable``."""
     ntime = len(target_dates)
     npoints = len(sources[0][4])
     values = np.full((ntime, npoints), np.nan, dtype=np.float32)
@@ -263,6 +270,7 @@ def _combine_sources(sources, target_dates: np.ndarray, variable: str) -> tuple[
 
 
 def _flux_data(dataset: Path):
+    """Compute flux data for build history features from ``dataset``."""
     centers = np.load(dataset / "centers.npy", mmap_mode="r", allow_pickle=False)
     dates = _daily_dates(np.load(dataset / "dates.npy", allow_pickle=False), str(dataset / "dates.npy"))
     if centers.ndim != 3 or centers.shape[0] != len(dates) or centers.shape[2] != 2:
@@ -275,6 +283,7 @@ def _flux_data(dataset: Path):
 
 
 def _stats(dataset: Path, n: int, p: int):
+    """Compute stats for build history features from ``dataset``, ``n``, ``p``."""
     results = []
     for width in STAT_WIDTHS:
         for kind in ("mean", "std"):
@@ -399,6 +408,7 @@ def build(data_root: Path, dataset: Path | None = None, output: Path | None = No
 
 
 def main(argv=None):
+    """Run the build history features workflow using its configured options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=None)
     parser.add_argument("--dataset-dir", type=Path, default=None)

@@ -46,6 +46,7 @@ class TailContinuationTests(unittest.TestCase):
     """Compare the clipped drift integral with the old, unstable extension."""
 
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.grid = np.linspace(-2000.0, 1500.0, 3501)
 
     def test_latent_left_tail_continues_to_zero(self):

@@ -1,3 +1,5 @@
+"""Generate synthetic stochastic-process data for coefficient-estimation experiments."""
+
 import math
 import numpy as np
 import matplotlib.pyplot as plt

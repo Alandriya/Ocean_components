@@ -1,4 +1,5 @@
 #!/bin/bash
+# Submit the test workflow to Slurm.
 #SBATCH --job-name=forecast_1d_test
 #SBATCH --partition=intel-a100-pci5
 #SBATCH --nodes=1

@@ -30,6 +30,7 @@ from Data_processing.io import load_field
 
 
 def _positive_unique(values: Iterable[int], label: str) -> tuple[int, ...]:
+    """Validate and deduplicate positive configuration values."""
     result = tuple(dict.fromkeys(int(v) for v in values))
     if not result or any(v < 1 for v in result):
         raise ValueError(f"{label} must contain positive integers")
@@ -37,6 +38,7 @@ def _positive_unique(values: Iterable[int], label: str) -> tuple[int, ...]:
 
 
 def _mean_finite(values):
+    """Average finite entries, excluding missing or non-finite values."""
     arr = np.asarray(values, dtype=float)
     arr = arr[np.isfinite(arr)]
     return round(float(arr.mean()), 6) if arr.size else None
@@ -52,6 +54,7 @@ def _weighted_p10_group_size(sizes: np.ndarray) -> int:
 
 
 def _spatial_correlation(residual: np.ndarray, lag: int, axis: int, component: int) -> float:
+    """Calculate correlation between aligned finite spatial samples."""
     if lag >= residual.shape[axis]:
         return float("nan")
     if axis == 0:

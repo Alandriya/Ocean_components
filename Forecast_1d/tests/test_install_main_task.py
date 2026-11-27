@@ -30,7 +30,9 @@ if __name__ == "__main__":
 
 
 class MainTaskInstallerTest(unittest.TestCase):
+    """Regression tests covering Main Task Installer."""
     def test_patch_is_idempotent_and_preserves_old_task(self):
+        """Verify that patch is idempotent and preserves old task."""
         amended = patch_source(CURRENT_MAIN_SKELETON)
         self.assertEqual(amended, patch_source(amended))
         ast.parse(amended)
@@ -41,6 +43,7 @@ class MainTaskInstallerTest(unittest.TestCase):
         self.assertIn('files_path_prefix = "D:/Nastya/Data/OceanFull/"', amended)
 
     def test_installer_creates_backup_and_does_not_repeat(self):
+        """Verify that installer creates backup and does not repeat."""
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / 'main.py'
             target.write_text(CURRENT_MAIN_SKELETON, encoding='utf-8')
@@ -52,11 +55,13 @@ class MainTaskInstallerTest(unittest.TestCase):
             self.assertIsNone(backup)
 
     def test_keep_current_task(self):
+        """Verify that keep current task."""
         amended = patch_source(CURRENT_MAIN_SKELETON, select_task=False)
         self.assertIn('    task = "sde_conditions"', amended)
         self.assertIn('    if task == "extract_1d_series":', amended)
 
     def test_fails_on_unrecognized_dispatcher(self):
+        """Verify that fails on unrecognized dispatcher."""
         unknown = CURRENT_MAIN_SKELETON.replace('    root = settings["files_path_prefix"]',
                                                 '    root = settings.get("files_path_prefix")')
         with self.assertRaisesRegex(RuntimeError, 'root anchor'):

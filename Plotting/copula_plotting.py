@@ -47,26 +47,27 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
     display_ranges = {"sensible": (-100.0, 100.0), "latent": (-250.0, 50.0)}
     rank_models = (
         ("empirical", "centers", "Empirical copula", "copula_empirical_eng.png"),
-        # RU: "Эмпирическая копула"
+        # Label: empirical copula.
         ("gaussian", "centers", "Gaussian copula", "copula_gaussian_eng.png"),
-        # RU: "Гауссовская копула"
+        # Label: Gaussian copula.
         ("student_t", "centers", "Student t copula", "copula_student_t_eng.png"),
-        # RU: "Копула Стьюдента"
+        # Label: Student-t copula.
         ("checkerboard", "checkerboard_centers", "Checkerboard copula", "copula_checkerboard_eng.png"),
-        # RU: "Шахматная копула"
+        # Label: checkerboard copula.
         ("bernstein", "bernstein_grid", "Bernstein copula", "copula_bernstein_eng.png"),
-        # RU: "Копула Бернштейна"
+        # Label: Bernstein copula.
     )
     joint_models = (
         ("joint_gaussian", "Gaussian copula stationary density", "gaussian_stationary_density_eng.png"),
-        # RU: "Совместная стационарная плотность гауссовской копулы"
+        # Label: Gaussian-copula joint stationary density.
         ("joint_checkerboard", "Checkerboard copula stationary density", "checkerboard_stationary_density_eng.png"),
-        # RU: "Совместная стационарная плотность шахматной копулы"
+        # Label: checkerboard-copula joint stationary density.
         ("joint_bernstein", "Bernstein copula stationary density", "bernstein_stationary_density_eng.png"),
-        # RU: "Совместная стационарная плотность копулы Бернштейна"
+        # Label: Bernstein-copula joint stationary density.
     )
 
     def _cap(data_arrays, percentile):
+        """Compute cap for plot copula results from ``data_arrays``, ``percentile``."""
         finite_caps = []
         for values in data_arrays:
             a = np.asarray(values, dtype=float)
@@ -77,6 +78,7 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
         return cap if np.isfinite(cap) and cap > 0 else 1.0
 
     def _write_one(fig, name):
+        """Write one for the copula plotting workflow."""
         destination = folder / name.replace("_eng.png", f"_{suffix}.png")
         destination.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(destination, dpi=dpi)
@@ -84,15 +86,17 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
         print(f"[copula plot] Saved: {destination}", flush=True)
 
     def _rank_labels(ax):
+        """Compute rank labels for plot copula results from ``ax``."""
         ax.set_xlabel("U = F1(X1)")
-        # ax.set_xlabel("U = F1(X1), ранг первой переменной")
+        # U = F1(X1): rank of the first variable.
         ax.set_ylabel("V = F2(X2)")
-        # ax.set_ylabel("V = F2(X2), ранг второй переменной")
+        # V = F2(X2): rank of the second variable.
         ax.set_xlim(0.01, 0.99)
         ax.set_ylim(0.01, 0.99)
         ax.set_aspect("equal", adjustable="box")
 
     def _bounds(coordinate, density, variable):
+        """Determine the relevant interval bounds."""
         if variable in display_ranges:
             # Keep the requested physical limits even for a narrower/coarser grid.
             return display_ranges[variable]
@@ -145,13 +149,13 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
                                       shading="auto", cmap=cmap,
                                       vmin=0, vmax=rank_vmax)
                 ax.set_title(title)
-                # ax.set_title("Эмпирическая / гауссовская / Стьюдента / шахматная / Бернштейна копула")
+                # Compare empirical, Gaussian, Student-t, checkerboard and Bernstein copulas.
                 _rank_labels(ax)
                 if key == "checkerboard":
                     ax.set_xlim(0.02, 0.98)
                     ax.set_ylim(0.02, 0.98)
                 fig.colorbar(image, ax=ax, label="Copula density")
-                # fig.colorbar(image, ax=ax, label="Плотность копулы")
+                # Color scale: copula density.
                 _write_one(fig, filename)
             finally:
                 plt.close(fig)
@@ -159,6 +163,7 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
         # Old-style normalized-level overlays: the models need not have
         # identical absolute peaks for their shapes to be comparable.
         def _plot_contours(models, title, filename):
+            """Plot contours for the copula plotting workflow."""
             fig, ax = plt.subplots(figsize=(7, 6), constrained_layout=True)
             try:
                 for key, colour, linestyle, legend in models:
@@ -173,7 +178,7 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
                             linewidth=1.7, label=legend)
                 _rank_labels(ax)
                 ax.set_title(title)
-                # ax.set_title("Сравнение контуров плотности копул")
+                # Compare copula density contours.
                 ax.legend(loc="upper left", fontsize=10)
                 _write_one(fig, filename)
             finally:
@@ -183,14 +188,14 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
             (("empirical", "black", "-", "Empirical"),
              ("gaussian", "darkorange", "--", "Gaussian"),
              ("student_t", "forestgreen", ":", "Student t")),
-            # RU legend: "Эмпирическая", "Гауссовская", "Стьюдента"
+            # Legend: empirical, Gaussian and Student-t.
             "Empirical vs Gaussian vs Student t copula",
             "copula_models_contours_eng.png",
         )
         _plot_contours(
             (("checkerboard", "black", "-", "Checkerboard"),
              ("bernstein", "red", "--", "Bernstein")),
-            # RU legend: "Шахматная", "Бернштейна"
+            # Legend: checkerboard and Bernstein.
             "Checkerboard vs Bernstein copula",
             "checkerboard_bernstein_contours_eng.png",
         )
@@ -224,13 +229,13 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
                 ax.set_xlim(*bounds_x)
                 ax.set_ylim(*bounds_y)
                 ax.set_title(title)
-                # ax.set_title("Стационарная совместная плотность копулы")
+                # Joint stationary copula density.
                 ax.set_xlabel(NAMES_EN.get(names[0], names[0]))
                 # ax.set_xlabel(NAMES_RU.get(names[0], names[0]))
                 ax.set_ylabel(NAMES_EN.get(names[1], names[1]))
                 # ax.set_ylabel(NAMES_RU.get(names[1], names[1]))
                 fig.colorbar(image, ax=ax, label="Stationary joint density")
-                # fig.colorbar(image, ax=ax, label="Совместная стационарная плотность")
+                # Color scale: joint stationary density.
                 _write_one(fig, filename)
             finally:
                 plt.close(fig)
@@ -257,17 +262,17 @@ def plot_copula_results(files_path_prefix, names, start_year, end_year, *, langu
                 try:
                     ax.plot(x, reference, color="tab:blue", lw=2,
                             label="1D stationary")
-                    # label="Одномерная стационарная плотность"
+                    # Label: one-dimensional stationary density.
                     ax.plot(x, reconstructed, color="tab:orange", ls="--", lw=2,
                             label="Bernstein 2D marginal")
-                    # label="Маргинал двумерной копулы Бернштейна"
+                    # Label: marginal of the two-dimensional Bernstein copula.
                     ax.set_xlim(*(bounds_x if index == 1 else bounds_y))
                     ax.set_xlabel(NAMES_EN.get(names[index - 1], names[index - 1]))
                     # ax.set_xlabel(NAMES_RU.get(names[index - 1], names[index - 1]))
                     ax.set_ylabel("Probability density")
-                    # ax.set_ylabel("Плотность вероятности")
+                    # Probability density.
                     ax.set_title(f"Bernstein copula: marginal of {names[index - 1]}")
-                    # ax.set_title(f"Копула Бернштейна: маргинал {names[index - 1]}")
+                    # Bernstein copula: marginal of the selected variable.
                     ax.legend()
                     _write_one(fig, f"bernstein_marginal_x{index}_eng.png")
                 finally:
@@ -345,6 +350,7 @@ def plot_copula_contours(root, pair, start_year, end_year, *, language="en", dpi
 # Additional diagnostics with distinct inputs/outputs, retained from the old module.
 # These are not generated by the standard cached copula workflow.
 def plot_copula_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, marginal_x2):
+    """Plot copula marginals for the copula plotting workflow."""
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.plot(x1, p1, label="1D stationary")
     ax.plot(x1, marginal_x1, "--", label="2D copula marginal")
@@ -365,6 +371,7 @@ def plot_copula_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, margin
 
 
 def plot_joint_contours(files_path_prefix, x1, x2, joint_density, levels=15, title="Gaussian copula stationary density", xlim=None, ylim=None):
+    """Plot joint contours for the copula plotting workflow."""
     fig, ax = plt.subplots(figsize=(7, 5.5), constrained_layout=True)
     contour = ax.contour(x1, x2, joint_density, levels=levels)
     ax.clabel(contour, inline=True, fontsize=8)
@@ -380,6 +387,7 @@ def plot_joint_contours(files_path_prefix, x1, x2, joint_density, levels=15, tit
 
 
 def plot_empirical_copula_comparison(files_path_prefix, x1, x2, empirical_density, copula_density, xlim=None, ylim=None, same_scale=True):
+    """Plot empirical copula comparison for the copula plotting workflow."""
     vmax = max(np.nanmax(empirical_density), np.nanmax(copula_density)) if same_scale else None
 
     fig, ax = plt.subplots(figsize=(7, 5.5), constrained_layout=True)
@@ -410,6 +418,7 @@ def plot_empirical_copula_comparison(files_path_prefix, x1, x2, empirical_densit
 
 
 def plot_empirical_copula_contours(files_path_prefix, x1, x2, empirical_density, copula_density, levels=12, xlim=None, ylim=None):
+    """Plot empirical copula contours for the copula plotting workflow."""
     empirical_scaled = empirical_density / np.nanmax(empirical_density)
     copula_scaled = copula_density / np.nanmax(copula_density)
     contour_levels = np.linspace(0.05, 0.95, levels)
@@ -429,6 +438,7 @@ def plot_empirical_copula_contours(files_path_prefix, x1, x2, empirical_density,
 
 
 def plot_copula_space_contours(files_path_prefix, centers, empirical_density, gaussian_density, levels=12):
+    """Plot copula space contours for the copula plotting workflow."""
     empirical_scaled = empirical_density / np.nanmax(empirical_density)
     gaussian_scaled = gaussian_density / np.nanmax(gaussian_density)
     contour_levels = np.linspace(0.05, 0.95, levels)
@@ -447,12 +457,14 @@ def plot_copula_space_contours(files_path_prefix, centers, empirical_density, ga
 
 
 def save_figure(files_path_prefix, fig, filename):
+    """Save figure for the copula plotting workflow."""
     os.makedirs(files_path_prefix + "videos/Functional/", exist_ok=True)
     fig.savefig(files_path_prefix + f"videos/Functional/{filename}", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
 def plot_checkerboard_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, marginal_x2):
+    """Plot checkerboard marginals for the copula plotting workflow."""
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.plot(x1, p1, label="1D stationary")
     ax.plot(x1, marginal_x1, "--", label="Checkerboard 2D marginal")
@@ -471,6 +483,7 @@ def plot_checkerboard_marginals(files_path_prefix, x1, p1, marginal_x1, x2, p2, 
 
 
 def plot_empirical_checkerboard_contours(files_path_prefix, x1, x2, empirical_density, checkerboard_density, levels=10, xlim=None, ylim=None):
+    """Plot empirical checkerboard contours for the copula plotting workflow."""
     empirical_scaled = empirical_density / np.nanmax(empirical_density)
     checkerboard_scaled = checkerboard_density / np.nanmax(checkerboard_density)
     contour_levels = np.linspace(0.05, 0.9, levels)
@@ -495,6 +508,7 @@ def plot_empirical_checkerboard_contours(files_path_prefix, x1, x2, empirical_de
 
 
 def plot_bernstein_m_sensitivity(files_path_prefix):
+    """Plot bernstein m sensitivity for the copula plotting workflow."""
     m_values = np.array([30, 40, 50, 60, 70])
 
     correlation = np.array([

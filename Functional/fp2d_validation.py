@@ -40,6 +40,7 @@ from Functional.fokker_planck_2d_solver import (
 
 
 def _jsonable(value):
+    """Compute jsonable for 2D Fokker-Planck validation from ``value``."""
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -56,11 +57,13 @@ def _jsonable(value):
 
 
 def _write_json(path: Path, obj):
+    """Write JSON for the 2D Fokker-Planck validation workflow."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_jsonable(obj), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _write_csv(path: Path, rows: list[dict]):
+    """Write the supplied records to a CSV file."""
     if not rows:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +74,7 @@ def _write_csv(path: Path, rows: list[dict]):
 
 
 def _safe_weights(mass, domain):
+    """Compute safe weights for 2D Fokker-Planck validation from ``mass``, ``domain``."""
     weights = np.asarray(mass, dtype=float)[domain]
     if not np.all(np.isfinite(weights)) or np.any(weights < 0) or weights.sum() <= 0:
         raise ValueError("Invalid stationary weights")
@@ -78,6 +82,7 @@ def _safe_weights(mass, domain):
 
 
 def _mass_metrics(a: np.ndarray, b: np.ndarray) -> dict:
+    """Compute mass metrics for 2D Fokker-Planck validation from ``a``, ``b``."""
     a = np.asarray(a, dtype=float).ravel()
     b = np.asarray(b, dtype=float).ravel()
     if np.any(a < -1e-11) or np.any(b < -1e-11):
@@ -94,6 +99,7 @@ def _mass_metrics(a: np.ndarray, b: np.ndarray) -> dict:
 
 
 def _moments(mass, xx, yy):
+    """Compute the moments used in the current diagnostic."""
     p = np.asarray(mass, dtype=float)
     p = p / p.sum()
     x, y = np.meshgrid(xx, yy, indexing="ij")
@@ -128,6 +134,7 @@ def _exact_ou_bin_mass(x_edges, y_edges, mu, sigma, quad_order=5):
 
 
 def _sparse_map(rows, cols, data, shape):
+    """Compute sparse map for 2D Fokker-Planck validation from ``rows``, ``cols``, ``data``, ``shape``."""
     return sparse.csr_matrix((np.asarray(data, dtype=float), (rows, cols)), shape=shape)
 
 
@@ -151,6 +158,7 @@ def centered_full_tensor_fv_generator(a0, a1, d00, d11, d01, hx, hy):
         raise ValueError("Need >=3 cells per direction and positive widths")
     N = nx * ny
     def idx(i, j):
+        """Compute idx for centered full tensor fv generator from ``i``, ``j``."""
         return i * ny + j
 
     # Cell-centre gradients including one-sided derivatives at rectangle edges.
@@ -250,6 +258,7 @@ def solve_fv_stationary(op, positivity_tol=1e-10):
 
 
 def run_synthetic(out_dir, sizes=(40, 48, 56), radius=9, rho_cross=0.36):
+    """Compute run synthetic for 2D Fokker-Planck validation from ``out_dir``, ``sizes``, ``radius``, ``rho_cross``."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if not (-0.95 < rho_cross < 0.95):
@@ -352,12 +361,15 @@ def run_synthetic(out_dir, sizes=(40, 48, 56), radius=9, rho_cross=0.36):
 
 
 def _write_latex_synthetic(path, rows):
+    """Write latex synthetic for the 2D Fokker-Planck validation workflow."""
     out = [r"% Automatically generated. Synthetic OU results, not ERA5.",
            r"\begin{table}[H]", r"\centering", r"\caption{Synthetic correlated Ornstein--Uhlenbeck benchmark on a fixed rectangle.}",
            r"\label{tab:fp2d_ou_validation}", r"\begin{tabular}{rrrrr}",
            r"\toprule", r"Grid & CTMC TV & FV TV & CTMC $D_{\rm H}$ & FV $D_{\rm H}$ \\", r"\midrule"]
     for z in rows:
-        def fmt(v): return f"{v:.4g}" if v is not None else "--"
+        def fmt(v):
+            """Format the supplied value for diagnostic output."""
+            return f"{v:.4g}" if v is not None else "--"
         out.append(f"${z['grid']}\\times{z['grid']}$ & {fmt(z['markov_TV_vs_exact'])} & {fmt(z['fv_TV_vs_exact'])} & {fmt(z['markov_Hellinger_vs_exact'])} & {fmt(z['fv_Hellinger_vs_exact'])}" + r" \\")
     out.extend([r"\bottomrule", r"\end{tabular}", r"\end{table}"])
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
@@ -445,8 +457,12 @@ def diagnose_saved_era5(stationary_npz, out_dir, radius=9, tol=1e-10):
             "third_order_remainder_coefficient": float(third),
             "stencil_radius": int(max(choice["m"], choice["n"])),
         })
-    def maxof(key): return max(r[key] for r in rows)
-    def meanof(key, w): return float(np.dot([r[key] for r in rows], w))
+    def maxof(key):
+        """Compute maxof for diagnose saved ERA5 from ``key``."""
+        return max(r[key] for r in rows)
+    def meanof(key, w):
+        """Compute meanof for diagnose saved ERA5 from ``key``, ``w``."""
+        return float(np.dot([r[key] for r in rows], w))
     summary = {
         "source": str(stationary_npz.resolve()), "grid_shape": list(domain.shape),
         "retained_cells": ncell, "h1": hx, "h2": hy,
@@ -570,6 +586,7 @@ def compare_era5_on_retained_rectangle(stationary_npz, out_dir,
 
 
 def _write_era5_latex(path, rows):
+    """Write ERA5 latex for the 2D Fokker-Planck validation workflow."""
     out = [r"% Automatically generated from the saved ERA5 stationary NPZ files.",
            r"% Audit of local moments before and after censoring. Not a convergence theorem.",
            r"\begin{table}[H]", r"\centering", r"\caption{Local moment reconstruction errors before and after boundary censoring.}",

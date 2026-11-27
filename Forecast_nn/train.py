@@ -24,7 +24,7 @@ from Forecast_nn.data import (make_field_reader, resolve_flux_source, source_exi
                               load_or_create_normalization, load_or_create_psnr_ranges)
 from Forecast_nn.evaluation import build_run_tag, append_sde_run_tag, add_run_id, OnlineErrorMetrics
 from Forecast_nn.losses import forecast_loss
-from Forecast_nn.logging_utils import tee_output, log_file_path, run_tag_from_args
+from Forecast_nn.runtime import tee_output, log_file_path, run_tag_from_args
 from Forecast_nn.splits import resolve_splits
 from Forecast_nn.models import build_model, available_models, model_uses_sde_conditioning
 from Forecast_nn.plotting.training_curve import plot_training_curve
@@ -36,6 +36,7 @@ from Forecast_nn.sde import (
 
 
 def parse_args():
+    """Parse the command-line configuration."""
     p = argparse.ArgumentParser()
     p.add_argument('--model', choices=available_models(), default=cfg.model_name)
     # Only used by the new heavy hybrid; explicit flags also identify run folders.
@@ -83,6 +84,7 @@ def parse_args():
 
 
 def _sde_source(variable, a_override=None, b_override=None, time_offset=None):
+    """Compute SDE source for train from ``variable``, ``a_override``, ``b_override``, ``time_offset``."""
     source = dict(cfg.sde_sources[variable])
     if a_override:
         source['a_file'] = Path(a_override)
@@ -94,6 +96,7 @@ def _sde_source(variable, a_override=None, b_override=None, time_offset=None):
 
 
 def save_checkpoint(path, model, optimizer, scaler, epoch, history, metadata):
+    """Save model parameters and experiment metadata to the checkpoint."""
     payload = dict(metadata)
     payload.update({
         'model_state': model.state_dict(),
@@ -108,6 +111,7 @@ def save_checkpoint(path, model, optimizer, scaler, epoch, history, metadata):
 
 
 def _run(args):
+    """Run the train workflow using its configured options."""
     if args.grad_accum < 1 or args.grad_clip < 0:
         raise ValueError('Require grad-accum >= 1 and grad-clip >= 0.')
     if args.epochs < 1 or args.patience < 0 or args.min_delta < 0:

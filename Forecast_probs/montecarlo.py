@@ -1,3 +1,5 @@
+"""Monte Carlo prediction using estimated drift and diffusion coefficients."""
+
 import numpy as np
 
 from Data_processing.data_processing import scale_to_bins
@@ -13,17 +15,20 @@ b_args = [c1, c2, c3, c4, x0, x1, k, const1, const2, const3, const4]
 
 
 def a(x):
+    """Compute a for montecarlo from ``x``."""
     tmp = np.zeros_like(x)
     for i in range(5):
         tmp += a_coefs[i] * x**i
     return tmp
 
 def b(x):
+    """Compute b for montecarlo from ``x``."""
     tmp = [log_b2(x_i, b_args) for x_i in x]
     return np.sqrt(np.exp(np.array(tmp)))
 
 def predict_step(amount: int,
                   x_start):
+    """Simulate one stochastic forecast step."""
     prev = np.full(amount, x_start)
     eps = np.random.normal(0, 1, amount)
     ensemble = a(prev) + b(prev) * eps
@@ -37,6 +42,7 @@ def make_prediction(x_array: np.ndarray,
                     n_steps: int,
                     amount_ensemble: int,
                     ):
+    """Generate the requested stochastic forecast trajectory."""
     x_array_grouped, quantiles = scale_to_bins(x_array, n_bins)
     prediction = np.zeros((t_end - t_start, mask.shape[0], mask.shape[1]))
     prediction_q05 = np.zeros((t_end - t_start, mask.shape[0], mask.shape[1]))

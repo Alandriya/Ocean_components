@@ -10,7 +10,9 @@ from Functional.fp2d_validation import (
 
 
 class TestFiniteVolumeOperator(unittest.TestCase):
+    """Regression tests covering Test Finite Volume Operator."""
     def test_constant_state_zero_current_and_conservation(self):
+        """Verify that constant state zero current and conservation."""
         n = 7
         zeros = np.zeros((n, n))
         ones = np.ones((n, n))
@@ -21,6 +23,7 @@ class TestFiniteVolumeOperator(unittest.TestCase):
         self.assertLess(np.max(np.abs(np.asarray(op.sum(axis=0)).ravel())), 1e-10)
 
     def test_uncorrelated_diffusion_gives_nonnegative_off_diagonal_fv(self):
+        """Verify that uncorrelated diffusion gives nonnegative off diagonal fv."""
         n = 7
         zeros = np.zeros((n, n))
         ones = np.ones((n, n))
@@ -34,6 +37,7 @@ class TestFiniteVolumeOperator(unittest.TestCase):
         self.assertTrue(np.all(off.data >= -1e-12))
 
     def test_correlated_ou_benchmark(self):
+        """Verify that correlated ou benchmark."""
         with tempfile.TemporaryDirectory() as tmp:
             rows = run_synthetic(tmp, sizes=(40, 48), radius=9)
         self.assertEqual(len(rows), 2)

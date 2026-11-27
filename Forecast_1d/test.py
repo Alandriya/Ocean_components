@@ -16,11 +16,12 @@ from .models.sarima import forecast_ar1, forecast_sarimax
 
 ALL_POINTS = DEFAULT_POINTS
 from .registry import BASELINES, NEW_BASELINES, LEVEL0, LEVEL1, LEVEL2, NEURAL_MODELS, ALL_MODELS
-from .models.seasonal import fit_seasonal, forecast_seasonal
+from Forecast_1d.models.baselines import fit_seasonal, forecast_seasonal
 from .models.ridge_var import fit_ridge, forecast_ridge
 
 
 def point_key(point_ids):
+    """Construct the identifier for a configured forecasting point."""
     return "_".join(point_ids)
 
 
@@ -31,6 +32,7 @@ def evaluation_dir(root, split, point_ids):
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     p = argparse.ArgumentParser(description="Evaluate Forecast_1d models")
     p.add_argument(
         "--model",
@@ -58,6 +60,7 @@ def build_parser():
 
 
 def _selected_models(model):
+    """Compute selected models for test from ``model``."""
     if model == "level0":
         return list(LEVEL0)
     if model == "level1":
@@ -76,6 +79,7 @@ def _selected_models(model):
 
 
 def _load_trained_sarima(model_root, data, split):
+    """Load trained SARIMA for the test workflow."""
     meta_path = model_root / "sarima" / "train_metadata.json"
     param_path = model_root / "sarima" / "params.npz"
     if not meta_path.is_file() or not param_path.is_file():
@@ -96,6 +100,7 @@ def _load_trained_sarima(model_root, data, split):
 
 
 def _resolve_device(torch, requested):
+    """Resolve the requested compute device."""
     if requested == "cpu":
         return torch.device("cpu")
     if requested == "cuda":
@@ -107,6 +112,7 @@ def _resolve_device(torch, requested):
 
 def _forecast_neural(model_name, point_id, point_index, data, origins,
                      model_root, split, args, device):
+    """Forecast neural for the test workflow."""
     import torch
     from .models.neural import build_model
 
@@ -156,7 +162,7 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
     scale = np.asarray(normalization["scale"], dtype=np.float32)
     in_len = args.in_len
     if target_mode == "anomaly":
-        from .models.seasonal import calendar_index, fit_seasonal
+        from Forecast_1d.models.baselines import calendar_index, fit_seasonal
         radius = meta["anomaly_climatology"]["radius_days"]
         climatology, _ = fit_seasonal(
             data.values[:, point_index:point_index+1, :],
@@ -165,7 +171,7 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
         climatology = climatology[:, 0, :]
         series = np.asarray(data.values[:, point_index, :], dtype=np.float64) - climatology[calendar_index(data.dates)]
     elif target_mode == "sar_residual":
-        from .models.seasonal import calendar_index, fit_seasonal
+        from Forecast_1d.models.baselines import calendar_index, fit_seasonal
         radius = meta["sar_residual"]["climatology_radius_days"]
         climate, phi = fit_seasonal(
             data.values[:, point_index:point_index+1, :],
@@ -219,6 +225,7 @@ def _forecast_neural(model_name, point_id, point_index, data, origins,
 
 
 def run(args):
+    """Run the test workflow using its configured options."""
     data = PointDataset(dataset_dir(args.dataset_dir))
     requested_points = getattr(args, "points", None)
     point_ids = select_points(data.point_ids, requested_points)
@@ -423,6 +430,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the test workflow using its configured options."""
     return run(build_parser().parse_args(argv))
 
 

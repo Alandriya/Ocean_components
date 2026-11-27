@@ -1,3 +1,5 @@
+"""Multi-scale PredRNN cells and recurrent spatiotemporal forecasting architecture."""
+
 import sys
 
 import torch
@@ -8,7 +10,9 @@ from Forecast_nn.config import cfg
 
 
 class PredRNN_Cell(nn.Module):
+    """PyTorch module implementing the Pred RNN Cell architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size, stride, padding):
+        """Initialize Pred RNN Cell with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``."""
         super().__init__()
         self._batch_size, self._state_height, self._state_width = b_h_w
         self._conv_x2h = cfg.LSTM_conv(in_channels=input_channel, out_channels=output_channel * 4,
@@ -32,6 +36,7 @@ class PredRNN_Cell(nn.Module):
         self._output_channel = output_channel
 
     def forward(self, x, m, hiddens):
+        """Apply the Pred RNN Cell transformation to the input tensors."""
         if hiddens is None:
             c = torch.zeros((x.shape[0], self._input_channel, self._state_height, self._state_width),
                             dtype=torch.float).cuda()
@@ -67,7 +72,9 @@ class PredRNN_Cell(nn.Module):
 
 
 class MS_PredRNN(nn.Module):
+    """PyTorch module implementing the MS Pred RNN architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size, stride, padding):
+        """Initialize MS Pred RNN with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``."""
         super().__init__()
         self.n_layers = cfg.LSTM_layers
         B, H, W = b_h_w
@@ -88,6 +95,7 @@ class MS_PredRNN(nn.Module):
         print('This is MS-PredRNN!')
 
     def forward(self, x, m, layer_hiddens, embed, fc):
+        """Apply the MS Pred RNN transformation to the input tensors."""
         x = embed(x)
         next_layer_hiddens = []
         out = []

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Submit the train workflow to Slurm.
 #SBATCH --job-name=forecast_1d_train
 #SBATCH --partition=intel-a100-pci5
 #SBATCH --nodes=1

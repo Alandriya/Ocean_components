@@ -26,6 +26,7 @@ RU = {'max': 'макс.', 'min': 'мин.', 'mean': 'среднее', 'max - min
 
 
 def _load(path, window):
+    """Compute load for trend plots from ``path``, ``window``."""
     if not path.is_file():
         raise FileNotFoundError(f'Missing calculated trends {path}; run main.py with task="trends" first')
     with np.load(path, allow_pickle=False) as z:
@@ -38,6 +39,7 @@ def _load(path, window):
 
 def _plot_series(ax, record, channel, title, units, plot_kind, language, window,
                  *, color='b', equations=True):
+    """Plot series for the trend plots workflow."""
     tr=lambda s: RU.get(s,s) if language=='ru' else s
     days=[BASE_DATE+timedelta(days=int(l)-1) for l in record['labels']]
     x=record['labels'].astype(float)-1
@@ -46,6 +48,7 @@ def _plot_series(ax, record, channel, title, units, plot_kind, language, window,
         ax.text(.5,.5,'No complete windows' if language=='en' else 'Нет полных интервалов',
                 ha='center',va='center',transform=ax.transAxes)
     def line(j, label, c, *, fit=None, fit_label=None):
+        """Line the requested trend plots data using the supplied inputs."""
         ax.plot(days,values[:,j],color=c,alpha=.75 if j!=2 else 1,
                 lw=1,label=tr(label))
         if fit is not None and np.isfinite(fits[j,:2]).all():
@@ -74,6 +77,7 @@ def _plot_series(ax, record, channel, title, units, plot_kind, language, window,
 
 
 def _render(rows, path, kind, language, window, *, dpi, equations=True, title=None):
+    """Compute render for trend plots from ``rows``, ``path``, ``kind``, ``language``, ``window``."""
     if not rows: return None
     try:
         # seaborn whitegrid look retained from plot_extreme.py without changing globals.
@@ -96,6 +100,7 @@ def _render(rows, path, kind, language, window, *, dpi, equations=True, title=No
 
 
 def _units(key,pair,j):
+    """Compute units for trend plots from ``key``, ``pair``, ``j``."""
     if key=='A': return UNIT.get(pair[j],'')+r' / day'
     # B is the stored estimator, not silently squared or re-scaled.
     # Off-diagonal diffusion factors may have method-dependent meanings.
@@ -108,12 +113,15 @@ def plot_trends(root,start_year,end_year,*, sources=('Variables','Coefficients',
                 coefficients=('A','B'), derived_pair=('sensible','latent'), derived=('C','F'),
                 spectral_pairs=SPECTRAL_PAIRS, method='sp', n_bins_2d=12,
                 mode_extrema=True, windows=(30,365), language='en', dpi=300):
+    """Plot trends for the trend plots workflow."""
     if language not in ('en','ru'): raise ValueError('language must be en or ru')
     root=Path(root); period=f'{start_year}-{end_year}'; outputs=[]
     base=root/'Plots'/'Trends'/period
     def load(cat,ident,w):
+        """Load the requested trend plots data using the supplied inputs."""
         return _load(result_path(root,cat,ident,start_year,end_year,method=method,n_bins=n_bins_2d),w)
     def render(rows,cat,name,w,kind,**kw):
+        """Render the requested trend plots data using the supplied inputs."""
         dest=base/cat
         if cat in ('Coefficients','Derived'): dest=dest/f'{n_bins_2d}_bins'/method
         p=_render(rows,dest/f'{name}_{w}d_{language}.png',kind,language,w,dpi=dpi,**kw)

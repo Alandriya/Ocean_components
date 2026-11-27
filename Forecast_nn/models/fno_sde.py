@@ -12,7 +12,9 @@ from Forecast_nn.models.fno import FNOForecaster
 
 
 class SDEFNOForecaster(FNOForecaster):
+    """Container for sdefnoforecaster state and associated operations."""
     def __init__(self, *args, sde_history=True, **kwargs):
+        """Initialize SDEFNOForecaster with ``sde_history``."""
         in_len = int(kwargs.get('in_len', args[0] if len(args) > 0 else 0))
         in_channels = int(kwargs.get('in_channels', 1))
         width = int(kwargs.get('width', 48))
@@ -26,6 +28,7 @@ class SDEFNOForecaster(FNOForecaster):
         self.lift = nn.Conv2d(total_input_channels, width, kernel_size=1)
 
     def forward(self, x, mask=None, sde_features=None):
+        """Apply the SDEFNOForecaster transformation to the input tensors."""
         if x.ndim != 5:
             raise ValueError(f'x must be [B,T,C,H,W], got shape {tuple(x.shape)}.')
         batch, time, channels, height, width = x.shape

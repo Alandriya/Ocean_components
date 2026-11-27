@@ -13,7 +13,9 @@ from Plotting.trend_plots import plot_trends
 
 
 class TrendsTests(unittest.TestCase):
+    """Regression tests covering Trends."""
     def test_mask_windows_slope(self):
+        """Verify that mask windows slope."""
         water=np.array([[1,1],[0,1]],bool)
         field=np.array([[1,4],[999,np.nan]])
         np.testing.assert_allclose(spatial_statistics(field,water), [[4,1,2.5,3]])
@@ -27,6 +29,7 @@ class TrendsTests(unittest.TestCase):
         np.testing.assert_allclose(linear_fit(np.arange(1,11),2*np.arange(10)+5),[2,5,18,1,10])
 
     def test_cached_workflow(self):
+        """Verify that cached workflow."""
         with tempfile.TemporaryDirectory() as t:
             root=Path(t); water=np.ones((3,4),bool); water[0,0]=False
             start=day_label(date(2019,1,1)); n=65

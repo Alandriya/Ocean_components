@@ -15,6 +15,7 @@ from Forecast_nn.evaluation import (OnlineErrorMetrics, MetricAccumulator, psnr_
 
 
 def test_splits_and_metrics():
+    """Verify that splits and metrics."""
     s = resolve_splits(16436, '1979-01-01', '2023-12-31', 730, 365, 30, 3)
     assert (s.train_end, s.test_start, s.data_end) == (15341, 16071, 16436)
     assert s.dataset_bounds('val', 30) == (15311, 16071)
@@ -36,6 +37,7 @@ def test_splits_and_metrics():
 
 
 def test_compact_run_names():
+    """Verify that compact run names."""
     base = dict(base_channels=16, depth=3, dropout=0.05, residual=True,
                 use_mask_channel=True, use_coord_channels=True, mask_features=True,
                 lstm_kernel=3)
@@ -62,6 +64,7 @@ def test_compact_run_names():
 
 
 def fixture(root):
+    """Compute fixture for test pipeline integration from ``root``."""
     root = Path(root)
     n = 75
     h, w = 21, 23
@@ -100,6 +103,7 @@ def fixture(root):
 
 
 def run(model='unet'):
+    """Run the test pipeline integration workflow using its configured options."""
     from Forecast_nn import train as trainmod
     from Forecast_nn import test as testmod
     sys.argv = ['train', '--model', model, '--variable', 'sensible', '--end-date', cfg.data_last_date,
@@ -114,6 +118,7 @@ def run(model='unet'):
 
 
 def test_end_to_end_train_eval():
+    """Verify that end to end train eval."""
     with tempfile.TemporaryDirectory() as temp:
         fixture(temp)
         run('unet')

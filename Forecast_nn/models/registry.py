@@ -24,14 +24,17 @@ _SDE_CONDITIONED_MODELS = {'unet_convlstm_sde', 'simvp_sde', 'fno_sde'}
 
 
 def available_models():
+    """Return the supported model identifiers."""
     return tuple(sorted(_MODEL_REGISTRY))
 
 
 def model_uses_sde_conditioning(name):
+    """Check whether the model requires SDE conditioning features."""
     return str(name).lower() in _SDE_CONDITIONED_MODELS
 
 
 def build_model(name, in_len, out_len, in_channels, model_params):
+    """Instantiate the model selected by its registered identifier and configuration."""
     key = str(name).lower()
     if key not in _MODEL_REGISTRY:
         known = ', '.join(available_models())

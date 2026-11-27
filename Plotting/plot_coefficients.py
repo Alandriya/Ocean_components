@@ -1,3 +1,5 @@
+"""Render drift and diffusion coefficient distributions, maps and derived-field diagnostics."""
+
 import datetime
 import gc
 import os.path
@@ -420,6 +422,7 @@ def plot_estimate_ab_distributions(files_path_prefix: str,
                           time_start:int,
                           time_end:int,
                           point: tuple):
+    """Plot estimate ab distributions for the plot coefficients workflow."""
     a_sens_sample = list()
     a_lat_sample = list()
     for t in tqdm.tqdm(range(0, time_end-time_start)):
@@ -506,6 +509,7 @@ def plot_scalar_map(
     time_start: int,
     time_end: int,
 ):
+    """Plot scalar map for the plot coefficients workflow."""
     fig, ax = plt.subplots(figsize=(8, 8))
     arr_min = np.nanmin(arr_mesh)
     arr_max = np.nanmax(arr_mesh)
@@ -938,6 +942,7 @@ def plot_velocity(files_path_prefix: str,
                   time_start: int,
                   time_end: int,
                   ):
+    """Plot velocity for the plot coefficients workflow."""
     x1 = fp_system["x_centers"]
     x2 = fp_system["y_centers"]
 
@@ -992,6 +997,7 @@ def check_C_positivity(files_path_prefix: str,
                         data2_name: str,
 
                        ):
+    """Check C positivity for the plot coefficients workflow."""
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(

@@ -42,6 +42,7 @@ def write_csv(path, headers, rows):
 
 
 def _csv_value(value):
+    """Convert a value to its CSV-compatible representation."""
     value = to_jsonable(value)
     if isinstance(value, (list, dict)):
         return json.dumps(value, ensure_ascii=False, allow_nan=False)
@@ -155,6 +156,7 @@ def add_run_id(run_tag, run_id=None):
 
 
 def _gaussian_kernel(size=11, sigma=1.5):
+    """Construct a Gaussian kernel for local image similarity calculations."""
     size = int(size)
     if size < 3 or size % 2 == 0:
         raise ValueError('SSIM window must be an odd integer >= 3.')
@@ -254,6 +256,7 @@ class OnlineErrorMetrics:
     and mask is always applied. Aggregation occurs *before* logarithms.
     """
     def __init__(self, out_len, std, psnr_ranges):
+        """Initialize Online Error Metrics with ``out_len``, ``std``, ``psnr_ranges``."""
         self.std = np.asarray(std, dtype=np.float64).reshape(-1)
         self.ranges = np.asarray(psnr_ranges, dtype=np.float64).reshape(-1)
         self.sq_sum = np.zeros((int(out_len), len(self.std)), dtype=np.float64)
@@ -261,6 +264,7 @@ class OnlineErrorMetrics:
 
     @staticmethod
     def _valid(mask, x):
+        """Compute valid for Online Error Metrics from ``mask``, ``x``."""
         if mask.ndim == 2:
             mask = mask[None, None, None]
         elif mask.ndim == 3:
@@ -270,6 +274,7 @@ class OnlineErrorMetrics:
         return mask.to(device=x.device, dtype=torch.bool).expand_as(x)
 
     def update(self, pred, target, mask):
+        """Update the internal state using the supplied observations or values."""
         valid = self._valid(mask, pred)
         errors = (pred.detach().float() - target.detach().float()).square()
         total = (errors * valid).sum(dim=(0, 3, 4)).cpu().numpy()
@@ -278,6 +283,7 @@ class OnlineErrorMetrics:
         self.count += count
 
     def summary(self):
+        """Return a summary of the accumulated results."""
         mse_hc = self.sq_sum / np.maximum(self.count, 1)
         psnr_hc = psnr_from_mse(mse_hc, self.ranges[None, :])
         overall_mse = float(self.sq_sum.sum() / max(self.count.sum(), 1))
@@ -296,6 +302,7 @@ class OnlineErrorMetrics:
 class MetricAccumulator:
     """Masked value errors, SSIM and temporal-change diagnostics in physical units."""
     def __init__(self, out_len, ssim_window=11, ssim_sigma=1.5, psnr_ranges=None):
+        """Initialize Metric Accumulator with ``out_len``, ``ssim_window``, ``ssim_sigma``, ``psnr_ranges``."""
         self.out_len = int(out_len)
         self.ssim_window = int(ssim_window)
         self.ssim_sigma = float(ssim_sigma)
@@ -317,6 +324,7 @@ class MetricAccumulator:
         self.dx_sum = self.dy_sum = self.dxx_sum = self.dyy_sum = self.dxy_sum = 0.0
 
     def update(self, pred, truth, last_input, mask, sample_offset):
+        """Update the internal state using the supplied observations or values."""
         valid = mask.astype(bool)
         error = pred - truth
         for b in range(error.shape[0]):
@@ -355,6 +363,7 @@ class MetricAccumulator:
         self.dxx_sum += np.square(dp).sum(); self.dyy_sum += np.square(dt).sum(); self.dxy_sum += (dp * dt).sum()
 
     def summary(self):
+        """Return a summary of the accumulated results."""
         mse = self.sq_sum / np.maximum(self.count, 1)
         mae = self.abs_sum / np.maximum(self.count, 1)
         ssim = self.ssim_sum / np.maximum(self.ssim_count, 1)
@@ -460,6 +469,7 @@ def save_metrics_json(path, method, variable, run_tag, metrics, checkpoint, samp
 
 
 def save_plot_samples(path, records, metadata):
+    """Save selected forecast samples for subsequent plotting."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {key: np.asarray(value) for key, value in records.items()}

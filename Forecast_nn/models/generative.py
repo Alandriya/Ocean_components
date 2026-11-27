@@ -11,11 +11,14 @@ from torch.nn import functional as F
 
 
 def _group(c):
+    """Compute group for generative from ``c``."""
     return max(g for g in (8, 4, 2, 1) if c % g == 0)
 
 
 class ResBlock(nn.Module):
+    """PyTorch module implementing the Res Block architecture or layer."""
     def __init__(self, inc, outc):
+        """Initialize Res Block with ``inc``, ``outc``."""
         super().__init__()
         self.a = nn.Conv2d(inc, outc, 3, padding=1)
         self.b = nn.Conv2d(outc, outc, 3, padding=1)
@@ -24,6 +27,7 @@ class ResBlock(nn.Module):
         self.shortcut = nn.Conv2d(inc, outc, 1) if inc != outc else nn.Identity()
 
     def forward(self, x):
+        """Apply the Res Block transformation to the input tensors."""
         h = F.silu(self.norm1(self.a(x)))
         h = self.norm2(self.b(h))
         return F.silu(h + self.shortcut(x))
@@ -32,6 +36,7 @@ class ResBlock(nn.Module):
 class HistoryEncoder(nn.Module):
     """Compress all T historical maps, retaining spatiotemporal information."""
     def __init__(self, channels, width=32):
+        """Initialize History Encoder with ``channels``, ``width``."""
         super().__init__()
         self.temporal = nn.Sequential(
             nn.Conv3d(channels, width, (3, 3, 3), stride=(2, 2, 2), padding=1),
@@ -42,6 +47,7 @@ class HistoryEncoder(nn.Module):
         self.fuse = ResBlock(width + 3 * channels + 3, width)
 
     def forward(self, history, mask):
+        """Apply the History Encoder transformation to the input tensors."""
         b, t, c, h, w = history.shape
         m = mask.to(device=history.device, dtype=history.dtype).reshape(1, 1, h, w)
         z = self.temporal(history.permute(0, 2, 1, 3, 4)).mean(dim=2)
@@ -58,7 +64,9 @@ class HistoryEncoder(nn.Module):
 
 
 class SpatialUNet(nn.Module):
+    """PyTorch module implementing the Spatial UNet architecture or layer."""
     def __init__(self, future_channels, width=32, condition_width=32, with_time=True):
+        """Initialize Spatial UNet with ``future_channels``, ``width``, ``condition_width``, ``with_time``."""
         super().__init__()
         self.with_time = with_time
         self.enc0 = ResBlock(future_channels + condition_width, width)
@@ -72,6 +80,7 @@ class SpatialUNet(nn.Module):
             self.time_mlp = nn.Sequential(nn.Linear(width * 4, width * 4), nn.SiLU(), nn.Linear(width * 4, width * 4))
 
     def forward(self, noisy, condition, steps=None):
+        """Apply the Spatial UNet transformation to the input tensors."""
         h0 = self.enc0(torch.cat([noisy, condition], 1))
         h1 = self.enc1(F.avg_pool2d(h0, 2, ceil_mode=True))
         h2 = self.enc2(F.avg_pool2d(h1, 2, ceil_mode=True))
@@ -92,7 +101,9 @@ class SpatialUNet(nn.Module):
 
 
 class ConditionalDDPM(nn.Module):
+    """PyTorch module implementing the Conditional DDPM architecture or layer."""
     def __init__(self, channels, in_len=30, out_len=3, width=32, diffusion_steps=100):
+        """Initialize Conditional DDPM with ``channels``, ``in_len``, ``out_len``, ``width``, ``diffusion_steps``."""
         super().__init__()
         if diffusion_steps < 2:
             raise ValueError('diffusion_steps must be >= 2')
@@ -110,6 +121,7 @@ class ConditionalDDPM(nn.Module):
         self.register_buffer('alpha_cumprod', alphas.cumprod(0))
 
     def training_loss(self, history, target, mask):
+        """Calculate the model training objective for the supplied batch."""
         b, k, c, h, w = target.shape
         m = mask.to(history.device, history.dtype).reshape(1, 1, h, w)
         residual = (target - history[:, -1:]).reshape(b, k*c, h, w) * m
@@ -122,6 +134,7 @@ class ConditionalDDPM(nn.Module):
 
     @torch.no_grad()
     def sample(self, history, mask, members=1):
+        """Draw predictions or samples from the fitted model."""
         self.eval()
         b, _, c, h, w = history.shape
         m = mask.to(history.device, history.dtype).reshape(1, 1, h, w)
@@ -154,14 +167,17 @@ class ConditionalDDPM(nn.Module):
 class PatchCritic(nn.Module):
     """Conditional patch discriminator on future residual and recent observations."""
     def __init__(self, channels, out_len, width=32):
+        """Initialize Patch Critic with ``channels``, ``out_len``, ``width``."""
         super().__init__()
         count = channels * (out_len + 3) + 1
         def block(a, b):
+            """Block the requested generative data using the supplied inputs."""
             return nn.Sequential(nn.utils.spectral_norm(nn.Conv2d(a, b, 4, stride=2, padding=1)), nn.LeakyReLU(.2))
         self.net = nn.Sequential(block(count, width), block(width, width*2),
                                  block(width*2, width*4), nn.Conv2d(width*4, 1, 3, padding=1))
 
     def forward(self, history, future, mask):
+        """Apply the Patch Critic transformation to the input tensors."""
         b, k, c, h, w = future.shape
         m = mask.to(history.device, history.dtype).reshape(1, 1, h, w)
         context = [history[:, -1], history.mean(1), history[:, -1] - history[:, -2]]
@@ -170,7 +186,9 @@ class PatchCritic(nn.Module):
 
 
 class ConditionalGAN(nn.Module):
+    """PyTorch module implementing the Conditional GAN architecture or layer."""
     def __init__(self, channels, in_len=30, out_len=3, width=32):
+        """Initialize Conditional GAN with ``channels``, ``in_len``, ``out_len``, ``width``."""
         super().__init__()
         self.channels, self.out_len = channels, out_len
         self.condition = HistoryEncoder(channels, width)
@@ -178,6 +196,7 @@ class ConditionalGAN(nn.Module):
         self.critic = PatchCritic(channels, out_len, width)
 
     def generate(self, history, mask):
+        """Generate forecast samples from the conditional model."""
         b, _, c, h, w = history.shape
         m = mask.to(history.device, history.dtype).reshape(1, 1, h, w)
         noise = torch.randn((b, c*self.out_len, h, w), device=history.device, dtype=history.dtype) * m
@@ -186,5 +205,6 @@ class ConditionalGAN(nn.Module):
 
     @torch.no_grad()
     def sample(self, history, mask, members=1):
+        """Draw predictions or samples from the fitted model."""
         self.eval()
         return torch.stack([self.generate(history, mask) for _ in range(int(members))], 1)

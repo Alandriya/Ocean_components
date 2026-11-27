@@ -3,6 +3,7 @@ import torch
 
 
 def _valid_mask(mask, tensor):
+    """Construct the mask of valid elements for the loss calculation."""
     if mask.ndim == 2:
         mask = mask[None, None, None]
     elif mask.ndim == 3:
@@ -13,11 +14,13 @@ def _valid_mask(mask, tensor):
 
 
 def masked_mse(pred, target, mask):
+    """Calculate mean squared error over valid masked elements."""
     valid = _valid_mask(mask, pred)
     return (pred - target).square().masked_select(valid).mean()
 
 
 def masked_dynamic_mse(pred, target, last_input, mask):
+    """Calculate the masked dynamic forecast error."""
     pred_full = torch.cat([last_input[:, None], pred], dim=1)
     target_full = torch.cat([last_input[:, None], target], dim=1)
     pred_delta = pred_full[:, 1:] - pred_full[:, :-1]
@@ -26,6 +29,7 @@ def masked_dynamic_mse(pred, target, last_input, mask):
 
 
 def _split_sde_coefficients(sde_last_coefficients, channels):
+    """Split the conditioning tensor into drift and diffusion components."""
     if sde_last_coefficients is None:
         raise ValueError('sde_last_coefficients are required for time-aligned SDE loss.')
     if sde_last_coefficients.ndim != 4:
@@ -106,6 +110,7 @@ def forecast_loss(pred, target, last_input, mask, dynamic_weight=0.0,
                   sde_last_coefficients=None, sde_weight=0.0,
                   sde_b_kind='diffusion', sde_loss_mode='first_step',
                   sde_dt=1.0, sde_eps=1e-6):
+    """Calculate the configured forecast training loss."""
     pred32 = pred.float()
     target32 = target.float()
     last32 = last_input.float()

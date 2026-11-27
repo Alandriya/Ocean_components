@@ -25,6 +25,7 @@ from .extract_points import (
 
 @contextmanager
 def _open_array(path: Path):
+    """Open array for the recover staging workflow."""
     data = np.load(path, mmap_mode='r', allow_pickle=False)
     try:
         yield data
@@ -103,6 +104,7 @@ def validate_staging(staging: Path) -> tuple[bool, str]:
 
 
 def recover(*, destination: Path, staging: Path | None = None, publish: bool = False):
+    """Recover the requested recover staging data using the supplied inputs."""
     destination = Path(destination)
     if destination.exists():
         raise FileExistsError(f'Finished destination already exists: {destination}')
@@ -132,6 +134,7 @@ def recover(*, destination: Path, staging: Path | None = None, publish: bool = F
 
 
 def main(argv=None):
+    """Run the recover staging workflow using its configured options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=None,
                         help='Final output folder (default: DATA_ROOT/DATA/Forecast_1d/...)')

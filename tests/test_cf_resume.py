@@ -15,7 +15,9 @@ from Coefficients.coefficients_cf import compute_c, compute_f, compute_fs
 
 
 class ResumeTests(unittest.TestCase):
+    """Regression tests covering Resume."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -39,11 +41,13 @@ class ResumeTests(unittest.TestCase):
                        mean_width=3, overwrite=True, checkpoint_every=2)
 
     def execute(self, **kwargs):
+        """Compute execute for Resume Tests."""
         with contextlib.redirect_stdout(io.StringIO()) as log:
             result = dw.run_continuous_cf(self.root, **dict(self.kw, **kwargs))
         return result, log.getvalue()
 
     def assert_original(self, result):
+        """Assert original for the test cf resume workflow."""
         for key, width in [('C', 4), ('F', 3), ('FS', 3)]:
             expected = []
             for step in range(len(self.a)-width+1):
@@ -62,6 +66,7 @@ class ResumeTests(unittest.TestCase):
             self.assertEqual(result[key]['last_label'], 13)
 
     def test_original_numerics_and_cache(self):
+        """Verify that original numerics and cache."""
         r, log = self.execute()
         self.assert_original(r)
         self.assertIn('ETA(stage)=', log)
@@ -69,8 +74,10 @@ class ResumeTests(unittest.TestCase):
             self.assertIn('SKIP verified complete', self.execute()[1])
 
     def test_interrupt_f_after_three_windows(self):
+        """Verify that interrupt f after three windows."""
         original = dw._calculate
         def interrupt(key, a, b, width, step, mask):
+            """Compute interrupt for test interrupt f after three windows from ``key``, ``a``, ``b``, ``width``, ``step``."""
             if key == 'F' and step == 3:
                 raise KeyboardInterrupt()
             return original(key, a, b, width, step, mask)
@@ -86,6 +93,7 @@ class ResumeTests(unittest.TestCase):
         self.assert_original(r)
 
     def test_legacy_output_rebuilt(self):
+        """Verify that legacy output rebuilt."""
         self.parent.mkdir(parents=True)
         legacy = self.parent / 'C_5-13.npy'
         np.save(legacy, np.zeros((9,2,3,4)))
@@ -96,6 +104,7 @@ class ResumeTests(unittest.TestCase):
         self.assert_original(r)
 
     def test_restart_if_source_changes(self):
+        """Verify that restart if source changes."""
         self.execute()
         self.a[0] += 10
         np.save(self.pa, self.a)
@@ -105,8 +114,10 @@ class ResumeTests(unittest.TestCase):
         self.assert_original(r)
 
     def test_recover_publication_after_atomic_rename(self):
+        """Verify that recover publication after atomic rename."""
         orig = dw._atomic_json
         def break_complete(path, value):
+            """Compute break complete for test recover publication after atomic rename from ``path``, ``value``."""
             if value.get('status') == 'complete' and 'C_' in path.name:
                 raise OSError('simulated publication interruption')
             return orig(path, value)
@@ -118,6 +129,7 @@ class ResumeTests(unittest.TestCase):
         self.assert_original(r)
 
     def test_hard_exit_restarts_last_committed_window(self):
+        """Verify that hard exit restarts last committed window."""
         script = r"""
 import os, sys
 import numpy as np
@@ -148,6 +160,7 @@ dw.run_continuous_cf(sys.argv[1], method='sp', mask=water,
         self.assert_original(result)
 
     def test_lock(self):
+        """Verify that lock."""
         self.parent.mkdir(parents=True)
         with dw._exclusive_lock(self.parent / '.derived_cf.lock'):
             with self.assertRaises(RuntimeError):

@@ -11,7 +11,9 @@ from Forecast_nn.models.sde_conditioning import SDEFiLM2d
 
 
 class SDESimVPForecaster(SimVPForecaster):
+    """Container for sdesim vpforecaster state and associated operations."""
     def __init__(self, *args, sde_condition_scale=0.1, **kwargs):
+        """Initialize SDESim VPForecaster with ``sde_condition_scale``."""
         base_channels = int(kwargs.get('base_channels', 16))
         depth = int(kwargs.get('depth', 3))
         in_channels = int(kwargs.get('in_channels', 1))
@@ -21,6 +23,7 @@ class SDESimVPForecaster(SimVPForecaster):
         self.sde_conditioner = SDEFiLM2d(self.sde_channels, bottleneck_channels, sde_condition_scale)
 
     def forward(self, x, mask=None, sde_features=None):
+        """Apply the SDESim VPForecaster transformation to the input tensors."""
         if x.ndim != 5:
             raise ValueError(f'x must be [B,T,C,H,W], got shape {tuple(x.shape)}.')
         batch, time, channels, height, width = x.shape

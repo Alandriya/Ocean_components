@@ -26,6 +26,7 @@ DATA_LAYOUT = {
 
 
 def data_paths(root, period=PERIOD):
+    """Build paths to the grouped ERA5 variables."""
     root = Path(root)
     return {
         key: root / 'DATA' / folder / f'{stem}_{period}_grouped.npy'
@@ -71,6 +72,7 @@ def last_available_date(files, *, variables=('sensible', 'latent'),
 
 
 def _scalar_dir(root, name, bins=144, method='sp', period=PERIOD):
+    """Compute scalar dir for source paths from ``root``, ``name``, ``bins``, ``method``, ``period``."""
     if name not in DATA_LAYOUT:
         raise KeyError(f'Unsupported forecast variable: {name}')
     folder = {'sp': 'Semiparametric', 'np': 'Nonparametric'}[method]

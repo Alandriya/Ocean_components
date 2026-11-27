@@ -34,15 +34,18 @@ from .experiment import DEFAULT_SUBDIR
 
 
 def _read_project_data_root() -> Path:
+    """Read project data root for the extract points workflow."""
     from project_paths import DATA_ROOT
     return Path(DATA_ROOT).expanduser()
 
 
 def _source_path(root: Path, channel: str) -> Path:
+    """Compute source path for extract points from ``root``, ``channel``."""
     return root / 'DATA' / 'Fluxes' / f'{channel}_{PERIOD}_grouped.npy'
 
 
 def _inspect_source(path: Path) -> tuple[np.ndarray, str, int]:
+    """Compute inspect source for extract points from ``path``."""
     if not path.is_file():
         raise FileNotFoundError(f'Missing {path}')
     source = np.load(path, mmap_mode='r', allow_pickle=False)
@@ -66,6 +69,7 @@ def _inspect_source(path: Path) -> tuple[np.ndarray, str, int]:
 
 
 def _mask_from_bytes(path: Path) -> tuple[np.ndarray, str]:
+    """Compute mask from bytes for extract points from ``path``."""
     if not path.is_file():
         raise FileNotFoundError(f'Missing ocean mask: {path}')
     content = path.read_bytes()
@@ -78,6 +82,7 @@ def _mask_from_bytes(path: Path) -> tuple[np.ndarray, str]:
 
 
 def _validate_points(path: Path, water: np.ndarray):
+    """Validate points for the extract points workflow."""
     payload = json.loads(path.read_text(encoding='utf-8'))
     if tuple(payload.get('grid_shape', ())) != GRID:
         raise ValueError(f'Point manifest expected native GRID={GRID}: {path}')
@@ -107,6 +112,7 @@ def _validate_points(path: Path, water: np.ndarray):
 
 
 def _unique_pixels(points):
+    """Compute unique pixels for extract points from ``points``."""
     radius = PATCH_WIDTH // 2
     rows, cols = np.mgrid[-radius:radius+1, -radius:radius+1]
     flat = np.stack([
@@ -145,6 +151,7 @@ def _nanmean_std(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _write_points_csv(path: Path, points):
+    """Write points CSV for the extract points workflow."""
     with path.open('w', newline='', encoding='utf-8') as fh:
         writer = csv.writer(fh)
         writer.writerow(['id','region','grid_y','grid_x','lat_deg','lon_deg','water_cells_21x21'])
@@ -189,6 +196,7 @@ def _rename_with_retry(source: Path, destination: Path, *, attempts: int = 6):
 
 def extract(data_root: Path, points_file: Path, destination: Path, *,
             chunk_days: int = 64, overwrite: bool = False, dry_run: bool = False):
+    """Extract the requested extract points data using the supplied inputs."""
     root = Path(data_root).expanduser()
     destination = Path(destination).expanduser()
     if not root.is_dir():
@@ -234,6 +242,7 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
         writers = []
 
         def create_writer(filename, array_shape):
+            """Create writer for the extract points workflow."""
             array = np.lib.format.open_memmap(staging / filename, mode='w+',
                                                dtype=np.float32, shape=array_shape)
             writers.append(array)
@@ -342,6 +351,7 @@ def extract(data_root: Path, points_file: Path, destination: Path, *,
 
 
 def main(argv=None):
+    """Run the extract points workflow using its configured options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-root', type=Path, default=None,
                         help='Optional explicit data root (default: project_paths.DATA_ROOT)')

@@ -23,6 +23,7 @@ files_path_prefix = str(DATA_ROOT).rstrip("/\\") + "/"
 
 
 def main(argv=None):
+    """Run the project paths workflow using its configured options."""
     p = argparse.ArgumentParser(description="Print or validate the configured paths")
     p.add_argument("--data-root", action="store_true", help="Print only the data directory")
     p.add_argument("--code-root", action="store_true", help="Print only the Git code directory")

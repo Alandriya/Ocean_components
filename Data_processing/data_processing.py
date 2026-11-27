@@ -1,3 +1,5 @@
+"""Read and transform gridded ocean-atmosphere data, discretize values into quantile bins and collect daily estimates."""
+
 import datetime
 import math
 import os
@@ -49,6 +51,7 @@ def sort_by_means(files_path_prefix, flux_type):
 
 
 def binary_to_array(files_path_prefix, input_filename, output_filename, date_start, date_end):
+    """Decode a binary input file into a NumPy array."""
     days_delta = (date_start - datetime.datetime(1979, 1, 1)).days
     # length_1 = 62396 - days_delta * 4
     length = (date_end - date_start).days * 4
@@ -70,6 +73,7 @@ def binary_to_array(files_path_prefix, input_filename, output_filename, date_sta
 
 
 def EM_dataframes_to_grids(files_path_prefix, flux_type, mask, components_amount, timesteps):
+    """Map saved EM estimation tables back to spatial grids."""
     dataframes = list()
     indexes = list()
     print('Loading DataFrames\n')
@@ -270,6 +274,7 @@ def load_prepare_fluxes(sensible_filename: str,
                         latent_filename: str,
                         files_path_prefix: str = 'D://Data/OceanFull/',
                         prepare=True):
+    """Load and prepare flux observations for coefficient estimation."""
     maskfile = open(files_path_prefix + "DATA/mask", "rb")
     binary_values = maskfile.read(29141)
     maskfile.close()
@@ -298,6 +303,7 @@ def load_prepare_fluxes(sensible_filename: str,
 
 
 def find_lost_pictures(files_path_prefix, type_prefix):
+    """Identify missing figure frames within the requested interval."""
     num_lost = []
     for i in range(15598):
         if not os.path.exists(files_path_prefix + f'videos/tmp-coeff/{type_prefix}_{i:05d}.png'):
@@ -330,6 +336,7 @@ def collect_estimates(files_path_prefix: str,
                       coeff_types: list,
                       time_start: int,
                       time_end: int,):
+    """Collect separately saved estimates into an aggregated array."""
     for coeff_type in coeff_types:
         print(f'Collecting {coeff_type}')
         first = np.load(files_path_prefix + path_local + f'Daily/{coeff_type}_{time_start}.npy')
@@ -349,6 +356,7 @@ def collect_estimates(files_path_prefix: str,
 def mean_blocks(data:np.ndarray,
                 mask: np.ndarray,
                 block_size: int = 5):
+    """Average values over contiguous spatial blocks."""
     if len(data.shape) == 3:
         data_small = np.zeros((data.shape[0], data.shape[1] // block_size, data.shape[2] // block_size))
     else:

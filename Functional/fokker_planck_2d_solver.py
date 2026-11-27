@@ -579,6 +579,7 @@ def _comparison_metrics(stationary, empirical, domain):
     midpoint = 0.5 * (p + q)
 
     def kl(left, right):
+        """Calculate the Kullback-Leibler divergence used in validation."""
         keep = left > 0
         return float(np.sum(left[keep] * np.log(left[keep] / right[keep])))
 

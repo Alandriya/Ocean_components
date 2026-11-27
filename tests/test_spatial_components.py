@@ -14,6 +14,7 @@ from Plotting.component_plots import plot_components
 
 
 def _sample():
+    """Compute sample for test spatial components."""
     rng = np.random.default_rng(413)
     shape = (20, 20)
     water = np.ones(shape, dtype=bool)
@@ -29,6 +30,7 @@ def _sample():
 
 
 def test_mixture_moments_and_posteriors():
+    """Verify that mixture moments and posteriors."""
     rng = np.random.default_rng(10)
     shape = (20,20)
     water = np.ones(shape,dtype=bool)
@@ -57,6 +59,7 @@ def test_mixture_moments_and_posteriors():
 
 
 def test_matching_independent_of_em_order():
+    """Verify that matching independent of EM order."""
     old = np.array([[-4.,.5],[6.,1.]])
     order,status,cost,margin = match_components(np.array([6.1,-3.9]),np.array([1.,.5]),np.array([.4,.6]),old)
     assert order.tolist()==[1,0] and status==2 and margin>0
@@ -65,6 +68,7 @@ def test_matching_independent_of_em_order():
 
 
 def test_constant_and_missing_data():
+    """Verify that constant and missing data."""
     prev = np.ones((6,6))
     water = np.ones(prev.shape,dtype=bool)
     groups = [prepare_transition(prev,prev+2,2,water)]
@@ -76,6 +80,7 @@ def test_constant_and_missing_data():
 
 def test_disk_workflow_resume_and_plots(tmp_path):
     # Real project layout, including mask; small synthetic temporal slice of full grid.
+    """Verify that disk workflow resume and plots."""
     rng=np.random.default_rng(122)
     shape=(161,181)
     water=np.ones(shape,dtype=bool); water[:20,:30]=False
@@ -113,5 +118,6 @@ def test_disk_workflow_resume_and_plots(tmp_path):
 
 
 def test_invalid_window():
+    """Verify that invalid window."""
     with pytest.raises(ValueError):
         component_run_parts(2019,2026,'sensible',10,30,7,'2019-01-01','2019-01-15')

@@ -25,6 +25,7 @@ class FullPeriodTests(unittest.TestCase):
     """Validate data/coeff endpoint alignment and streaming group statistics."""
 
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -68,6 +69,7 @@ class FullPeriodTests(unittest.TestCase):
         self.addCleanup(self.module_patch.stop)
 
     def test_B_channel_order_yields_correct_marginal_variances(self):
+        """Verify that B channel order yields correct marginal variances."""
         inputs, data = stationary._group_full_period(
             self.root, self.names, 1979, 2026, "sp", bins=30,
             trim_bins=3, chunk_days=7, block_size=1,
@@ -79,6 +81,7 @@ class FullPeriodTests(unittest.TestCase):
             np.testing.assert_allclose(inputs[name][2], np.log(variance), atol=1e-12)
 
     def test_BBT_preferred_over_B_and_cache_reused(self):
+        """Verify that BBT preferred over B and cache reused."""
         bbt = np.zeros((self.n, 4, self.h, self.w), dtype=float)
         bbt[:, 0] = 17.0
         bbt[:, 1] = 29.0
@@ -97,6 +100,7 @@ class FullPeriodTests(unittest.TestCase):
         self.assertTrue(Path(meta["cache"]).exists())
 
     def test_stale_BBT_falls_back_to_B(self):
+        """Verify that stale BBT falls back to B."""
         bbt_path = self.parent / "BBT_1979-2026_sp.npy"
         bbt = np.zeros((self.n, 4, self.h, self.w), dtype=float)
         bbt[:, 0] = 1700.0
@@ -110,6 +114,7 @@ class FullPeriodTests(unittest.TestCase):
         self.assertEqual(details["diffusion_kind"], "B")
 
     def test_nonparametric_output_uses_separate_cache(self):
+        """Verify that nonparametric output uses separate cache."""
         for key in ("A", "B"):
             original = self.parent / f"{key}_1979-2026_sp.npy"
             np.save(self.parent / f"{key}_1979-2026_np.npy", np.load(original))
@@ -121,6 +126,7 @@ class FullPeriodTests(unittest.TestCase):
         np.testing.assert_allclose(inputs["latent"][2], np.log(41.0), atol=1e-12)
 
     def test_legacy_decade_groups_are_unchanged(self):
+        """Verify that legacy decade groups are unchanged."""
         prefix = self.root / "Functional" / "sensible-latent"
         prefix.mkdir(parents=True)
         q = np.arange(10, dtype=float)
@@ -134,6 +140,7 @@ class FullPeriodTests(unittest.TestCase):
         np.testing.assert_array_equal(saved["latent"][1], q * 2)
 
     def test_first_flux_day_is_endpoint_observation(self):
+        """Verify that first flux day is endpoint observation."""
         fields, a, d, details = stationary._assembled_sources(
             self.root, self.names, 1979, 2026, "sp")
         chunks = stationary._stream_stationary_chunks(
@@ -144,6 +151,7 @@ class FullPeriodTests(unittest.TestCase):
         np.testing.assert_allclose(result[1][0][:25], self.obs[1][1].ravel() + 1.0)
 
     def test_spatial_block_averaging_rejects_land(self):
+        """Verify that spatial block averaging rejects land."""
         arr = np.array([[[1., 3.], [10., 11.]]])
         valid = np.array([[[True, True], [False, False]]])
         got = stationary._mean_in_spatial_blocks(arr, valid, 2)
@@ -151,12 +159,14 @@ class FullPeriodTests(unittest.TestCase):
         self.assertAlmostEqual(float(got[0, 0, 0]), 2.0)
 
     def test_incomplete_field_is_rejected(self):
+        """Verify that incomplete field is rejected."""
         file = self.root / "DATA" / "Fluxes" / "latent_1979-2026_grouped.npy"
         np.save(file, self.obs[1][:-3])
         with self.assertRaisesRegex(ValueError, "Time alignment failed"):
             stationary._assembled_sources(self.root, self.names, 1979, 2026, "sp")
 
     def test_stationary_saves_historical_filename_and_prints(self):
+        """Verify that stationary saves historical filename and prints."""
         with patch.object(stationary, "_fit_log_diffusion", return_value={
             "x0": -15.0, "x1": -40.0, "c1": 0.1, "c2": 0.2,
             "c3": 0.3, "c4": 0.4, "rmse_log_b": 0.1,

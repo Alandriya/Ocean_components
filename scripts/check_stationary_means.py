@@ -86,6 +86,7 @@ def report(root, names=("sensible", "latent"), *, read_raw=False, chunk_days=64)
 
 
 def main():
+    """Run the check stationary means workflow using its configured options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(DATA_ROOT),
                         help="OceanFull data root")

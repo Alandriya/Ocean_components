@@ -8,7 +8,9 @@ from Forecast_nn.fp_markov_baselines import (
 
 
 class FPBaselineTests(unittest.TestCase):
+    """Regression tests covering FPBaseline."""
     def test_trailing_means_use_no_future(self):
+        """Verify that trailing means use no future."""
         blocks = np.arange(40., dtype=float).reshape(40, 1, 1, 1)
         blocks = np.repeat(blocks, 2, axis=-1)
         origins = np.array([29, 30])
@@ -21,6 +23,7 @@ class FPBaselineTests(unittest.TestCase):
         np.testing.assert_array_equal(before30, trailing_mean(blocks, origins, 30))
 
     def test_ar1_predict_uses_recursion(self):
+        """Verify that AR(1) predict uses recursion."""
         x = np.array([[[3., 4.]]])
         intercept = np.array([1., -2.])
         phi = np.array([.5, -.25])
@@ -31,6 +34,7 @@ class FPBaselineTests(unittest.TestCase):
         np.testing.assert_allclose(result, correct)
 
     def test_ar1_fit_local_and_fallback(self):
+        """Verify that AR(1) fit local and fallback."""
         rng = np.random.default_rng(23)
         blocks = np.zeros((140, 2, 2, 2))
         blocks[0] = rng.normal(size=(2, 2, 2))
@@ -45,6 +49,7 @@ class FPBaselineTests(unittest.TestCase):
         np.testing.assert_allclose(fitted['local_intercept'][0, 0], fitted['global_intercept'])
 
     def test_equal_mask_for_all_candidates(self):
+        """Verify that equal mask for all candidates."""
         lookup = {
             'domain_mask': np.array([[True]]),
             'x_edges': np.array([-2., 2.]),

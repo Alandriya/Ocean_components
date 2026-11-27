@@ -28,7 +28,9 @@ from Coefficients.common import _bin_ids
 
 
 class HourlyQuantileTests(unittest.TestCase):
+    """Regression tests covering Hourly Quantile."""
     def test_no_shift_and_exact_four_snapshots(self):
+        """Verify that no shift and exact four snapshots."""
         vals = np.arange(24, dtype=float)[:, None, None] * np.ones((1, 2, 3))
         vals[0] = 10.0
         avg = _daily_average(vals)
@@ -38,6 +40,7 @@ class HourlyQuantileTests(unittest.TestCase):
             _as_hour("1979-01-01T00:30")
 
     def test_exact_quantile_group_assignment_with_repeated_values(self):
+        """Verify that exact quantile group assignment with repeated values."""
         state = np.array([0, 0, 0, 2, 2, 5, 6, 7, 8, 9, 10, 11], dtype=float).reshape(1, 3, 4)
         nxt = state + 1
         row, sizes, residual, groups = _group_for_mode(
@@ -50,6 +53,7 @@ class HourlyQuantileTests(unittest.TestCase):
         self.assertEqual(groups.shape, (1, 3, 4))
 
     def test_2d_group_accounting_and_missing_values(self):
+        """Verify that 2d group accounting and missing values."""
         prev = np.stack((np.arange(50).reshape(1, 5, 10),
                          np.arange(50)[::-1].reshape(1, 5, 10)), axis=-1).astype(float)
         curr = prev + (1.0, 2.0)
@@ -63,6 +67,7 @@ class HourlyQuantileTests(unittest.TestCase):
         self.assertEqual(len(sizes), 16)
 
     def test_same_group_correlations_use_only_matched_cells(self):
+        """Verify that same group correlations use only matched cells."""
         residual = np.arange(4*8*9, dtype=float).reshape(4, 8, 9, 1)
         ids = np.zeros((4, 8, 9), dtype=int)
         corr, pairs = _same_group_corr(residual, ids, axis=0, lag=1, component=0)
@@ -73,6 +78,7 @@ class HourlyQuantileTests(unittest.TestCase):
         self.assertLess(restricted, pairs)
 
     def _make_npy_sources(self, root, days=3, shape=(9, 10), bad_hour=None):
+        """Construct NPY sources for the test quantile hourly workflow."""
         dates = 24 * days
         hours = np.arange(dates, dtype=np.float64)[:, None, None]
         yy, xx = np.indices(shape)
@@ -86,6 +92,7 @@ class HourlyQuantileTests(unittest.TestCase):
         return ["sensible_hourly.npy", "latent_hourly.npy"]
 
     def _run_small_npy(self, root, *, bad_hour=None, max_days=2):
+        """Compute run small NPY for Hourly Quantile Tests from ``root``, ``bad_hour``, ``max_days``."""
         files = self._make_npy_sources(root, bad_hour=bad_hour)
         return run_hourly_quantile_diagnostics(
             files_path_prefix=root, hourly_files=files,
@@ -100,6 +107,7 @@ class HourlyQuantileTests(unittest.TestCase):
         )
 
     def test_1d_2d_all_modes_and_24hour_lag(self):
+        """Verify that 1d 2d all modes and 24hour lag."""
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             result = self._run_small_npy(root)
@@ -132,6 +140,7 @@ class HourlyQuantileTests(unittest.TestCase):
             self.assertLess(max(float(r["rms_mean_vs_hourly24"]) for r in compared), 1e-11)
 
     def test_missing_clock_hour_skips_pair(self):
+        """Verify that missing clock hour skips pair."""
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             result = self._run_small_npy(root, bad_hour=25)
@@ -145,6 +154,7 @@ class HourlyQuantileTests(unittest.TestCase):
             self.assertEqual(int(row["valid"]), 23 * 90)
 
     def test_netcdf_time_coordinate_and_grid_stride(self):
+        """Verify that netcdf time coordinate and grid stride."""
         try:
             import xarray as xr
         except ImportError:
@@ -167,6 +177,7 @@ class HourlyQuantileTests(unittest.TestCase):
                 np.testing.assert_allclose(day["sensible"][0], data[0, ::2, ::2])
 
     def test_main_contains_full_new_route_and_existing_routes(self):
+        """Verify that main contains full new route and existing routes."""
         tree = ast.parse((REPO / "main.py").read_text(encoding="utf-8"))
         all_strings = set()
         for node in ast.walk(tree):
@@ -180,6 +191,7 @@ class HourlyQuantileTests(unittest.TestCase):
             self.assertIn(name, all_strings)
 
     def test_bad_stride_rejected(self):
+        """Verify that bad stride rejected."""
         self.assertEqual(_infer_stride((161, 181), (161, 181), "auto"), 1)
         self.assertEqual(_infer_stride((321, 361), (161, 181), "auto"), 2)
         with self.assertRaises(ValueError):

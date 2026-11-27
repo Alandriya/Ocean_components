@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_stationary():
+    """Load stationary for the test stationary regression workflow."""
     spec = importlib.util.spec_from_file_location(
         "stationary_under_test",
         ROOT / "Functional" / "stationary.py",
@@ -22,6 +23,7 @@ def _load_stationary():
 
 
 def test_sensible_right_branch_has_minimum_at_x0():
+    """Verify that sensible right branch has minimum at x0."""
     stationary = _load_stationary()
     x = np.linspace(-125.0, 30.0, 251)
     expected = {
@@ -46,6 +48,7 @@ def test_sensible_right_branch_has_minimum_at_x0():
 
 
 def test_stationary_density_is_normalized_from_fitted_dependencies():
+    """Verify that stationary density is normalized from fitted dependencies."""
     stationary = _load_stationary()
     x = np.linspace(-125.0, 30.0, 251)
     diffusion = {
@@ -74,6 +77,7 @@ def test_stationary_density_is_normalized_from_fitted_dependencies():
 
 
 def test_saved_dependencies_roundtrip(tmp_path):
+    """Verify that saved dependencies roundtrip."""
     stationary = _load_stationary()
     names = ("sensible", "latent")
     inputs = {

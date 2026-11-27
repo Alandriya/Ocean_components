@@ -574,6 +574,7 @@ def run_2d_coefficients(
 
 
 def _write_csv(path: Path, records: list[dict]) -> None:
+    """Write the supplied records to a CSV file."""
     if not records:
         raise ValueError(f"No results to write to {path}")
     with path.open("w", newline="", encoding="utf-8-sig") as stream:
@@ -583,6 +584,7 @@ def _write_csv(path: Path, records: list[dict]) -> None:
 
 
 def _plot_occupancy(count_matrix: np.ndarray, output: Path, title: str) -> None:
+    """Plot the number of observations assigned to each bin."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

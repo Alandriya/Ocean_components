@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from Forecast_nn.logging_utils import log_file_path, run_tag_from_args, tee_output
+from Forecast_nn.runtime import log_file_path, run_tag_from_args, tee_output
 
 
 def test_log_names(monkeypatch):
+    """Verify that log names."""
     from Forecast_nn.config import cfg
     monkeypatch.setattr(cfg, 'in_len', 30)
     monkeypatch.setattr(cfg, 'out_len', 3)
@@ -30,6 +31,7 @@ def test_log_names(monkeypatch):
 
 
 def test_stdout_stderr_append(tmp_path, capsys):
+    """Verify that stdout stderr append."""
     path = tmp_path / 'logs' / 'train_example.txt'
     with tee_output(path):
         print('epoch 1, RMSE=1.23')
@@ -54,6 +56,7 @@ def test_stdout_stderr_append(tmp_path, capsys):
 
 
 def test_traceback_saved(tmp_path):
+    """Verify that traceback saved."""
     path = tmp_path / 'logs' / 'test_error.txt'
     with pytest.raises(RuntimeError, match='synthetic error'):
         with tee_output(path):

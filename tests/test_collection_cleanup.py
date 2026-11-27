@@ -23,6 +23,7 @@ class CollectionCleanupTests(unittest.TestCase):
     """Exercise both coefficient methods without expensive numeric estimators."""
 
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -33,6 +34,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.first, self.last = 20, 23
 
     def create_daily(self, method, start=None, stop=None):
+        """Create daily for the test collection cleanup workflow."""
         start = self.first if start is None else start
         stop = self.last if stop is None else stop
         daily = self.branch / method / "daily"
@@ -47,6 +49,7 @@ class CollectionCleanupTests(unittest.TestCase):
         return daily
 
     def collect(self, **kwargs):
+        """Collect collection cleanup tests data using the supplied inputs."""
         return collect_period_coefficients(
             str(self.root), names=self.names, start_year=2023, end_year=2024,
             start_label=self.first, end_label=self.last, n_bins_2d=3,
@@ -55,6 +58,7 @@ class CollectionCleanupTests(unittest.TestCase):
         )
 
     def test_both_methods_saved_then_daily_deleted(self):
+        """Verify that both methods saved then daily deleted."""
         np_daily = self.create_daily("Nonparametric_2d")
         sp_daily = self.create_daily("Semiparametric_2d")
         result = self.collect(delete_daily=True)
@@ -71,6 +75,7 @@ class CollectionCleanupTests(unittest.TestCase):
                                               np.arange(self.first, self.last + 1) + shift)
 
     def test_idempotent_after_cleanup(self):
+        """Verify that idempotent after cleanup."""
         self.create_daily("Nonparametric_2d")
         self.create_daily("Semiparametric_2d")
         initial = self.collect(delete_daily=True)
@@ -79,6 +84,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertFalse((self.branch / "Nonparametric_2d" / "daily").exists())
 
     def test_no_deletion_if_sp_missing_daily_file(self):
+        """Verify that no deletion if sp missing daily file."""
         np_daily = self.create_daily("Nonparametric_2d")
         sp_daily = self.create_daily("Semiparametric_2d")
         (sp_daily / f"B_{self.last}.npy").unlink()
@@ -88,6 +94,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertTrue((sp_daily / f"A_{self.first}.npy").is_file())
 
     def test_existing_merged_shape_mismatch_prevents_cleanup(self):
+        """Verify that existing merged shape mismatch prevents cleanup."""
         np_daily = self.create_daily("Nonparametric_2d")
         sp_daily = self.create_daily("Semiparametric_2d")
         self.collect(delete_daily=False)
@@ -98,6 +105,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertTrue((sp_daily / f"B_{self.first}.npy").exists())
 
     def test_period_specs_recognize_aggregates_after_cleanup(self):
+        """Verify that period specs recognize aggregates after cleanup."""
         self.create_daily("Nonparametric_2d")
         self.create_daily("Semiparametric_2d")
         self.collect(delete_daily=True)
@@ -111,6 +119,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertFalse(period_collections_complete(specs, self.first, self.last + 1))
 
     def test_collected_source_fallback_after_cleanup(self):
+        """Verify that collected source fallback after cleanup."""
         self.create_daily("Nonparametric_2d")
         self.create_daily("Semiparametric_2d")
         self.collect(delete_daily=True)
@@ -124,6 +133,7 @@ class CollectionCleanupTests(unittest.TestCase):
             self.assertEqual(float(load_daily_or_collected(removed_daily)[0, 0, 0]), self.first + 2 + shift)
 
     def test_extra_daily_data_is_kept(self):
+        """Verify that extra daily data is kept."""
         np_daily = self.create_daily("Nonparametric_2d", start=self.first - 1)
         self.create_daily("Semiparametric_2d")
         self.collect(delete_daily=True)
@@ -132,6 +142,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertFalse((np_daily / f"A_{self.first}.npy").exists())
 
     def test_migrates_legacy_directory(self):
+        """Verify that migrates legacy directory."""
         old = self.root / "Coefficients" / "aligned_2023-2024"
         old.mkdir(parents=True)
         (old / "probe.txt").write_text("historic", encoding="utf-8")
@@ -141,6 +152,7 @@ class CollectionCleanupTests(unittest.TestCase):
         self.assertFalse(old.exists())
 
     def test_does_not_merge_ambiguous_period_directories(self):
+        """Verify that does not merge ambiguous period directories."""
         old = self.root / "Coefficients" / "aligned_2023-2024"
         new = self.root / "Coefficients" / "2023-2024"
         old.mkdir(parents=True)
@@ -195,6 +207,7 @@ class CollectionCleanupTests(unittest.TestCase):
                                            boundary + 1, boundary + 2])
 
     def test_standalone_nonparametric_1d_collection(self):
+        """Verify that standalone nonparametric 1d collection."""
         daily = self.root / "scalar" / "Nonparametric" / "daily"
         daily.mkdir(parents=True)
         for field in ("A", "B"):

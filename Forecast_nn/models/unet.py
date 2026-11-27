@@ -18,6 +18,7 @@ import torch.nn.functional as F
 
 
 def _groups(channels):
+    """Compute groups for unet from ``channels``."""
     for groups in (8, 4, 2, 1):
         if channels % groups == 0:
             return groups
@@ -25,13 +26,16 @@ def _groups(channels):
 
 
 def _resize_mask(mask, size, dtype):
+    """Resize the spatial mask to the required feature resolution."""
     if mask is None:
         return None
     return F.interpolate(mask.to(dtype=dtype), size=size, mode='nearest')
 
 
 class DoubleConv(nn.Module):
+    """PyTorch module implementing the Double Conv architecture or layer."""
     def __init__(self, in_channels, out_channels, dropout=0.0):
+        """Initialize Double Conv with ``in_channels``, ``out_channels``, ``dropout``."""
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False),
@@ -44,26 +48,33 @@ class DoubleConv(nn.Module):
         )
 
     def forward(self, x):
+        """Apply the paired convolutional feature transforms."""
         return self.block(x)
 
 
 class DownBlock(nn.Module):
+    """PyTorch module implementing the Down Block architecture or layer."""
     def __init__(self, in_channels, out_channels, dropout=0.0):
+        """Initialize Down Block with ``in_channels``, ``out_channels``, ``dropout``."""
         super().__init__()
         self.pool = nn.MaxPool2d(2)
         self.conv = DoubleConv(in_channels, out_channels, dropout)
 
     def forward(self, x):
+        """Downsample and transform the input spatial features."""
         return self.conv(self.pool(x))
 
 
 class UpBlock(nn.Module):
+    """PyTorch module implementing the Up Block architecture or layer."""
     def __init__(self, in_channels, skip_channels, out_channels, dropout=0.0):
+        """Initialize Up Block with ``in_channels``, ``skip_channels``, ``out_channels``, ``dropout``."""
         super().__init__()
         self.conv = DoubleConv(in_channels + skip_channels, out_channels, dropout)
 
     def forward(self, x, skip):
         # Explicit interpolation makes odd grids such as 81x91 safe at every level.
+        """Upsample and combine features with the encoder skip connection."""
         x = F.interpolate(x, size=skip.shape[-2:], mode='bilinear', align_corners=False)
         return self.conv(torch.cat([skip, x], dim=1))
 
@@ -80,6 +91,7 @@ class UNetForecaster(nn.Module):
     def __init__(self, in_len, out_len, in_channels=1, base_channels=16, depth=3,
                  dropout=0.05, residual=True, use_mask_channel=True,
                  use_coord_channels=True, mask_features=True):
+        """Initialize UNet Forecaster with ``in_len``, ``out_len``, ``in_channels``, ``base_channels``, ``depth``, ``dropout``, ``residual`` and the remaining options."""
         super().__init__()
         self.in_len = int(in_len)
         self.out_len = int(out_len)
@@ -118,6 +130,7 @@ class UNetForecaster(nn.Module):
 
     @staticmethod
     def _coords(batch, height, width, device, dtype):
+        """Build normalized spatial coordinate channels for the model grid."""
         y = torch.linspace(-1.0, 1.0, height, device=device, dtype=dtype)
         x = torch.linspace(-1.0, 1.0, width, device=device, dtype=dtype)
         yy, xx = torch.meshgrid(y, x, indexing='ij')
@@ -125,12 +138,14 @@ class UNetForecaster(nn.Module):
         return coords.expand(batch, -1, -1, -1)
 
     def _apply_feature_mask(self, feature, mask):
+        """Mask intermediate spatial features at the matching resolution."""
         if not self.mask_features or mask is None:
             return feature
         resized = _resize_mask(mask, feature.shape[-2:], feature.dtype)
         return feature * resized
 
     def forward(self, x, mask=None):
+        """Apply the UNet Forecaster transformation to the input tensors."""
         batch, time, channels, height, width = x.shape
         if time != self.in_len or channels != self.in_channels:
             raise ValueError(f'UNetForecaster expects T={self.in_len}, C={self.in_channels}; got {tuple(x.shape)}')

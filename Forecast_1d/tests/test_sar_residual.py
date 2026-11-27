@@ -18,7 +18,9 @@ from Forecast_1d.sar_residual import (
 
 
 class SarResidualTests(unittest.TestCase):
+    """Regression tests covering Sar Residual."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -43,6 +45,7 @@ class SarResidualTests(unittest.TestCase):
         self.train_end = n - 40 - 40
 
     def training_args(self, model, extra=None):
+        """Compute training args for Sar Residual Tests from ``model``, ``extra``."""
         return train.build_parser().parse_args([
             '--model',model,'--target-mode','sar_residual',
             '--dataset-dir',str(self.dataset),'--results-dir',str(self.results),
@@ -54,6 +57,7 @@ class SarResidualTests(unittest.TestCase):
         ])
 
     def test_oof_fit_is_past_only_and_ignores_val_test(self):
+        """Verify that oof fit is past only and ignores val test."""
         values = np.asarray(self.data.values[:,2,:]).copy()
         dates = self.data.dates
         edges = fold_edges(self.train_end,20,14,4)
@@ -86,6 +90,7 @@ class SarResidualTests(unittest.TestCase):
         self.assertTrue(np.isfinite(prepared1.y_val).all())
 
     def test_zero_head_starts_at_exact_sar_and_epoch_zero_is_candidate(self):
+        """Verify that zero head starts at exact sar and epoch zero is candidate."""
         import torch
         from Forecast_1d.models.neural import build_model, default_config
         for name in ('mlp','tcn','gru'):
@@ -111,6 +116,7 @@ class SarResidualTests(unittest.TestCase):
             self.assertIn(meta['best_epoch'],range(0,3))
 
     def test_reconstruct_base_and_integrate_with_baseline(self):
+        """Verify that reconstruct base and integrate with baseline."""
         import torch
         train.run(self.training_args('mlp'))
         checkpoint = self.results/'h14'/'sar_residual'/'mlp'/'P3'/'best.pt'
@@ -152,6 +158,7 @@ class SarResidualTests(unittest.TestCase):
     def test_zero_lr_retains_validation_baseline_checkpoint(self):
         # No gradient update can change a zero-head model: the epoch-0 SAR
         # candidate must remain the selected checkpoint, never epoch 1.
+        """Verify that zero lr retains validation baseline checkpoint."""
         train.run(self.training_args('mlp', [
             '--learning-rate','0', '--epochs','1'
         ]))
@@ -162,6 +169,7 @@ class SarResidualTests(unittest.TestCase):
         self.assertAlmostEqual(metadata['best_selection_loss'],1.0,places=7)
 
     def test_checkpoint_radius_and_dataset_mismatch_blocked(self):
+        """Verify that checkpoint radius and dataset mismatch blocked."""
         train.run(self.training_args('gru'))
         args = test.build_parser().parse_args([
             '--model','gru','--target-mode','sar_residual',
@@ -182,6 +190,7 @@ class SarResidualTests(unittest.TestCase):
             test.run(args)
 
     def test_default_all_fifteen_points_end_to_end(self):
+        """Verify that default all fifteen points end to end."""
         args = train.build_parser().parse_args([
             '--model','mlp','--target-mode','sar_residual','--monitor','sar',
             '--dataset-dir',str(self.dataset),'--results-dir',str(self.results),
@@ -215,6 +224,7 @@ class SarResidualTests(unittest.TestCase):
         self.assertTrue(any(summary.glob('*_ranking.csv')))
 
     def test_isolated_paths_and_folds_validation(self):
+        """Verify that isolated paths and folds validation."""
         base = Path('/tmp/atlantic')
         self.assertEqual(target_root(base,14,'raw'), base/'h14')
         self.assertEqual(target_root(base,14,'anomaly'), base/'h14'/'anomaly')

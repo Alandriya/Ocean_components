@@ -1,3 +1,5 @@
+"""Visualize Gaussian mixture components, density fits and interactive coefficient distributions."""
+
 import datetime
 import os
 from copy import deepcopy
@@ -13,9 +15,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from Plotting.video import truncate_colormap
 
 def phi(x: float):
+    """Compute phi for plot EM from ``x``."""
     return exp(-x ** 2 / 2) / sqrt(2 * pi)
 
 def mixture_density(x, means, sigmas, weights):
+    """Compute mixture density for plot EM from ``x``, ``means``, ``sigmas``, ``weights``."""
     return sum([weights[i] * phi((x - means[i]) / sigmas[i]) for i in range(len(means))])
 
 def draw_4D(files_path_prefix,
@@ -313,6 +317,7 @@ def draw_frames(files_path_prefix, flux_type, mask, components_amount, timesteps
 
 
 def plot_hist(window, step=1, detected_params = None, means=None, sigmas=None, weights=None):
+    """Plot hist for the plot EM workflow."""
     files_path_prefix = 'D://Data/OceanFull/'
     fig, axes = plt.subplots(1,1, figsize=(10, 8))
     bins = 15

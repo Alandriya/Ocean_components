@@ -24,12 +24,13 @@ from Forecast_nn.ddm_utils import (prepare, name, experiment_root, info_metadata
 from Forecast_nn.evaluation import OnlineErrorMetrics
 from Forecast_nn.generative_utils import save_json
 from Forecast_nn.joint_sde import joint_drift_loss
-from Forecast_nn.logging_utils import tee_output
+from Forecast_nn.runtime import tee_output
 from Forecast_nn.models.ddm import DDMSimVP, EOFProjector, LatentSDERNN, aux_moment_losses
 from Forecast_nn.runtime import configure_runtime
 
 
 def arguments(argv=None):
+    """Parse command-line options for the experiment."""
     p=argparse.ArgumentParser(description='SDE-informed joint ocean forecasts (DDM-inspired)')
     p.add_argument('--model',choices=('simvp_ddm','latent_sde_rnn'),required=True)
     p.add_argument('--variable',choices=('joint',),default='joint')
@@ -85,18 +86,21 @@ def arguments(argv=None):
 
 
 def simvp_params(args):
+    """Compute simvp params for train ddm from ``args``."""
     params=dict(cfg.model_params['simvp'])
     params.update(base_channels=args.base_channels,depth=args.depth,temporal_blocks=args.temporal_blocks)
     return params
 
 
 def init_model(args,projector,device):
+    """Initialize the configured forecasting model."""
     if args.model=='simvp_ddm':
         return DDMSimVP(cfg.in_len,cfg.out_len,simvp_params(args)).to(device)
     return LatentSDERNN(args.rank,args.hidden,dt=1.).to(device)
 
 
 def run(args):
+    """Run the train ddm workflow using its configured options."""
     configure_runtime(args.seed, cfg.fast_cuda)
     if args.lambda_a==0 and args.lambda_d==0 and args.lambda_forecast_drift==0:
         print('[ablation] no SDE coefficient supervision; only observations are used.',flush=True)
@@ -243,6 +247,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the train ddm workflow using its configured options."""
     args=arguments(argv)
     tag=name(args)
     logfile=Path(cfg.results_root).parent/'logs'/f'train_{args.model}_{tag}_joint.txt'

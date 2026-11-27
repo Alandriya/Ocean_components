@@ -6,11 +6,13 @@ import numpy as np
 
 
 def load_history(path):
+    """Load recorded training history for plotting."""
     with np.load(path) as f:
         return {key: np.asarray(f[key]) for key in f.files}
 
 
 def plot_training_curve(input_path, output_path=None, title=None):
+    """Plot saved training and validation loss histories."""
     history = load_history(input_path)
     epochs = history.get('epoch', np.arange(1, len(history['total_loss']) + 1))
     total = history['total_loss']
@@ -52,6 +54,7 @@ def plot_training_curve(input_path, output_path=None, title=None):
 
 
 def main():
+    """Run the training curve workflow using its configured options."""
     p = argparse.ArgumentParser()
     p.add_argument('--input', required=True)
     p.add_argument('--output', default=None)

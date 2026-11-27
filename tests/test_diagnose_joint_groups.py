@@ -18,7 +18,9 @@ from Coefficients.runner import diagnose_joint_groups
 
 
 class JointGroupDiagnosticsTests(unittest.TestCase):
+    """Regression tests covering Joint Group Diagnostics."""
     def test_group_accounting_matches_estimator(self):
+        """Verify that group accounting matches estimator."""
         rng = np.random.default_rng(2026)
         series0 = rng.normal(size=(5, 9, 10))
         series1 = rng.normal(size=(5, 9, 10))
@@ -56,6 +58,7 @@ class JointGroupDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(entry["output_day_index"], t + 1)
 
     def test_identical_variables_occupy_diagonal_only(self):
+        """Verify that identical variables occupy diagonal only."""
         rng = np.random.default_rng(17)
         series = rng.normal(size=(4, 20, 25))
         with tempfile.TemporaryDirectory() as folder:
@@ -73,6 +76,7 @@ class JointGroupDiagnosticsTests(unittest.TestCase):
                         self.assertEqual(int(item['group_size']), 0)
 
     def test_flattened_first_series_and_normal_second_series(self):
+        """Verify that flattened first series and normal second series."""
         rng = np.random.default_rng(7)
         s0 = rng.normal(size=(4, 161, 181))
         s1 = rng.normal(size=(4, 161, 181))
@@ -89,6 +93,7 @@ class JointGroupDiagnosticsTests(unittest.TestCase):
             self.assertEqual(daily[1]["possible_groups"], 36)
 
     def test_input_guards(self):
+        """Verify that input guards."""
         with tempfile.TemporaryDirectory() as folder:
             s = np.zeros((2, 3, 4))
             with self.assertRaises(ValueError):

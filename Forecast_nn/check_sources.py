@@ -14,6 +14,7 @@ from Forecast_nn.source_paths import grouped_length
 
 
 def main():
+    """Run the check sources workflow using its configured options."""
     print(f'Forecast dataset: {cfg.period}, base={cfg.base_date}, '
           f'last observed day={cfg.data_last_date}', flush=True)
     print(f'Root: {cfg.root_path}', flush=True)

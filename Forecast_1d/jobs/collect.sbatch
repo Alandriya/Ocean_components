@@ -1,4 +1,5 @@
 #!/bin/bash
+# Submit the collect workflow to Slurm.
 #SBATCH --job-name=forecast_1d_collect
 #SBATCH --partition=intel
 #SBATCH --nodes=1

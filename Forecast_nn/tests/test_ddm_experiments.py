@@ -15,8 +15,10 @@ from Forecast_nn.test_ddm import arguments as eval_args, run as evaluate
 
 
 class TestDDM(unittest.TestCase):
+    """Regression tests covering Test DDM."""
     @classmethod
     def setUpClass(cls):
+        """Prepare the test fixtures before running the assertions."""
         torch.set_num_threads(2)
         cls.temp=tempfile.TemporaryDirectory()
         d=Path(cls.temp.name)
@@ -54,10 +56,12 @@ class TestDDM(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Release the test fixtures and temporary resources."""
         for k,v in cls.orig.items():setattr(cfg,k,v)
         cls.temp.cleanup()
 
     def test_simvp_compat_and_auxariance(self):
+        """Verify that simvp compat and auxariance."""
         params=dict(base_channels=4,depth=2,dropout=0.05,residual=True,
                     use_mask_channel=True,use_coord_channels=True,mask_features=True,
                     temporal_blocks=1,temporal_kernel=3,spatial_kernel=3,horizon_embedding=True)
@@ -74,6 +78,7 @@ class TestDDM(unittest.TestCase):
         self.assertEqual(tuple(original(x,m).shape),tuple(pred.shape))
 
     def test_coefficient_alignment(self):
+        """Verify that coefficient alignment."""
         reader=JointSDEReader(*self.sde,downsample=8,hw=(21,23),state_std=np.array([1.,1.]))
         a,b=reader.get_normalized([1,2])
         self.assertEqual(tuple(a.shape),(2,2,21,23))
@@ -92,6 +97,7 @@ class TestDDM(unittest.TestCase):
 
     def test_matrix_layouts(self):
         # Natural matrix dimensions and flattened matrix layouts must agree.
+        """Verify that matrix layouts."""
         d=self.root
         original=np.load(d/'b.npy')
         t,c,h,w=original.shape
@@ -122,6 +128,7 @@ class TestDDM(unittest.TestCase):
         self.assertAlmostEqual(float(b[0,1,0,0,0]),0.3,places=5)
 
     def test_train_and_test_both(self):
+        """Verify that train and test both."""
         for model in ('simvp_ddm','latent_sde_rnn'):
             args=train_args(['--model',model,'--variable','joint',
                 '--epochs','1','--batch-size','2','--num-workers','0','--no-amp',

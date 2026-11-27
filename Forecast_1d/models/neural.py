@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 def default_config(name: str, hidden_size: int | None = None,
                    dropout: float = 0.1) -> dict:
+    """Compute default config for neural from ``name``, ``hidden_size``, ``dropout``."""
     if name in LEVEL2:
         from .advanced import advanced_config
         return advanced_config(name, hidden_size, dropout)
@@ -39,6 +40,7 @@ class MLPForecaster(nn.Module):
 
     def __init__(self, input_length: int, horizon: int, hidden_sizes,
                  dropout: float, input_channels: int = 2):
+        """Initialize MLPForecaster with ``input_length``, ``horizon``, ``hidden_sizes``, ``dropout``, ``input_channels``."""
         super().__init__()
         layers = []
         width = input_length * input_channels
@@ -54,6 +56,7 @@ class MLPForecaster(nn.Module):
         self.horizon = horizon
 
     def forward(self, x):
+        """Apply the MLPForecaster transformation to the input tensors."""
         return self.network(x.reshape(x.shape[0], -1)).reshape(
             x.shape[0], self.horizon, 2
         )
@@ -63,6 +66,7 @@ class CausalConv1d(nn.Module):
     """One-dimensional convolution with left-only temporal padding."""
 
     def __init__(self, in_channels, out_channels, kernel_size, dilation):
+        """Initialize Causal Conv1d with ``in_channels``, ``out_channels``, ``kernel_size``, ``dilation``."""
         super().__init__()
         self.left_padding = (kernel_size - 1) * dilation
         self.conv = nn.Conv1d(
@@ -71,11 +75,14 @@ class CausalConv1d(nn.Module):
         )
 
     def forward(self, x):
+        """Apply the Causal Conv1d transformation to the input tensors."""
         return self.conv(F.pad(x, (self.left_padding, 0)))
 
 
 class TemporalResidualBlock(nn.Module):
+    """PyTorch module implementing the Temporal Residual Block architecture or layer."""
     def __init__(self, channels, kernel_size, dilation, dropout):
+        """Initialize Temporal Residual Block with ``channels``, ``kernel_size``, ``dilation``, ``dropout``."""
         super().__init__()
         self.conv1 = CausalConv1d(channels, channels, kernel_size, dilation)
         self.conv2 = CausalConv1d(channels, channels, kernel_size, dilation)
@@ -83,6 +90,7 @@ class TemporalResidualBlock(nn.Module):
         self.activation = nn.GELU()
 
     def forward(self, x):
+        """Apply the Temporal Residual Block transformation to the input tensors."""
         residual = x
         y = self.dropout(self.activation(self.conv1(x)))
         y = self.dropout(self.activation(self.conv2(y)))
@@ -94,6 +102,7 @@ class TCNForecaster(nn.Module):
 
     def __init__(self, horizon: int, channels: int, kernel_size: int,
                  dilations, dropout: float, input_channels: int = 2):
+        """Initialize TCNForecaster with ``horizon``, ``channels``, ``kernel_size``, ``dilations``, ``dropout``, ``input_channels``."""
         super().__init__()
         self.input_projection = nn.Conv1d(input_channels, channels, kernel_size=1)
         self.blocks = nn.Sequential(*[
@@ -105,6 +114,7 @@ class TCNForecaster(nn.Module):
 
     def forward(self, x):
         # Input is [batch, time, channels].
+        """Apply the TCNForecaster transformation to the input tensors."""
         y = self.input_projection(x.transpose(1, 2))
         y = self.blocks(y)
         return self.head(y[:, :, -1]).reshape(x.shape[0], self.horizon, 2)
@@ -115,6 +125,7 @@ class GRUForecaster(nn.Module):
 
     def __init__(self, horizon: int, hidden_size: int, num_layers: int,
                  dropout: float, input_channels: int = 2):
+        """Initialize GRUForecaster with ``horizon``, ``hidden_size``, ``num_layers``, ``dropout``, ``input_channels``."""
         super().__init__()
         self.gru = nn.GRU(
             input_size=input_channels,
@@ -127,6 +138,7 @@ class GRUForecaster(nn.Module):
         self.horizon = horizon
 
     def forward(self, x):
+        """Apply the GRUForecaster transformation to the input tensors."""
         sequence, _ = self.gru(x)
         last = self.dropout(sequence[:, -1])
         return self.head(last).reshape(x.shape[0], self.horizon, 2)
@@ -134,6 +146,7 @@ class GRUForecaster(nn.Module):
 
 def build_model(name: str, input_length: int, horizon: int,
                 config: dict | None = None, input_channels: int = 2) -> nn.Module:
+    """Instantiate the model selected by its registered identifier and configuration."""
     config = config or default_config(name)
     if name in LEVEL2:
         from .advanced import advanced_model

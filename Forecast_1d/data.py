@@ -17,6 +17,7 @@ CHANNELS = ("sensible", "latent")
 
 
 def data_root(override=None) -> Path:
+    """Resolve the configured root for external data."""
     if override is not None:
         return Path(override).expanduser().resolve()
     from project_paths import DATA_ROOT
@@ -24,12 +25,14 @@ def data_root(override=None) -> Path:
 
 
 def dataset_dir(override=None, root_override=None) -> Path:
+    """Construct the point-series dataset directory."""
     if override is not None:
         return Path(override).expanduser().resolve()
     return data_root(root_override) / "DATA" / "Forecast_1d" / DEFAULT_SUBDIR
 
 
 def results_dir(override=None, root_override=None) -> Path:
+    """Construct the forecast result directory."""
     if override is not None:
         return Path(override).expanduser().resolve()
     return data_root(root_override) / "Forecast" / "Results" / "Forecast_1d" / DEFAULT_RESULTS_SUBDIR
@@ -37,6 +40,7 @@ def results_dir(override=None, root_override=None) -> Path:
 
 @dataclass(frozen=True)
 class Splits:
+    """Container for splits state and associated operations."""
     train_end: int
     val_start: int
     val_end: int
@@ -46,6 +50,7 @@ class Splits:
     out_len: int
 
     def slice_for(self, split: str):
+        """Return the slice corresponding to the selected split."""
         if split == "val":
             return self.val_start, self.val_end
         if split == "test":
@@ -53,6 +58,7 @@ class Splits:
         raise ValueError(f"Unsupported split: {split}")
 
     def origins(self, split: str) -> np.ndarray:
+        """Return eligible forecast origins within the selected split."""
         start, end = self.slice_for(split)
         # Every horizon target must be inside this split.
         first_origin = max(start - 1, self.in_len - 1)
@@ -61,6 +67,7 @@ class Splits:
 
 def split_dates(n_dates: int, *, val_days: int = 730, test_days: int = 365,
                 in_len: int = 30, out_len: int = DEFAULT_HORIZON) -> Splits:
+    """Calculate chronological training, validation and test boundaries."""
     if min(val_days, test_days, in_len, out_len) < 1:
         raise ValueError("Split lengths and history/horizon must be positive")
     train_end = n_dates - val_days - test_days
@@ -73,7 +80,9 @@ def split_dates(n_dates: int, *, val_days: int = 730, test_days: int = 365,
 
 
 class PointDataset:
+    """Container for point dataset state and associated operations."""
     def __init__(self, path):
+        """Initialize Point Dataset with ``path``."""
         self.path = Path(path).expanduser().resolve()
         centers_path = self.path / "centers.npy"
         dates_path = self.path / "dates.npy"
@@ -113,5 +122,6 @@ class PointDataset:
         return hasher.hexdigest()
 
     def get_splits(self, val_days=730, test_days=365, in_len=30, out_len=DEFAULT_HORIZON):
+        """Return splits for the data workflow."""
         return split_dates(self.n_dates, val_days=val_days, test_days=test_days,
                            in_len=in_len, out_len=out_len)

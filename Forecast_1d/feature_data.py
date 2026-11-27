@@ -12,7 +12,9 @@ import numpy as np
 
 
 class PointHistoryFeatures:
+    """Container for point history features state and associated operations."""
     def __init__(self, directory):
+        """Initialize Point History Features with ``directory``."""
         self.path = Path(directory).expanduser().resolve()
         self.features = np.load(self.path / "features.npy", mmap_mode="r", allow_pickle=False)
         self.targets = np.load(self.path / "targets.npy", mmap_mode="r", allow_pickle=False)
@@ -35,6 +37,7 @@ class PointHistoryFeatures:
         self.n_dates, self.n_points, self.n_features = t, p, f
 
     def point_index(self, point: int | str) -> int:
+        """Resolve the index of a configured observation point."""
         if isinstance(point, str):
             if point not in self.point_ids:
                 raise KeyError(f"Unknown point {point}; available {self.point_ids}")

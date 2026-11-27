@@ -16,7 +16,9 @@ from Forecast_nn.models.unet import DoubleConv, DownBlock, UpBlock, _resize_mask
 
 
 class ConvLSTMCell(nn.Module):
+    """PyTorch module implementing the Conv LSTMCell architecture or layer."""
     def __init__(self, input_channels, hidden_channels, kernel_size=3):
+        """Initialize Conv LSTMCell with ``input_channels``, ``hidden_channels``, ``kernel_size``."""
         super().__init__()
         padding = kernel_size // 2
         self.hidden_channels = hidden_channels
@@ -28,6 +30,7 @@ class ConvLSTMCell(nn.Module):
         )
 
     def forward(self, x, state=None):
+        """Update convolutional LSTM hidden and cell states for the current input."""
         if state is None:
             h = torch.zeros(x.size(0), self.hidden_channels, x.size(2), x.size(3), device=x.device, dtype=x.dtype)
             c = torch.zeros_like(h)
@@ -55,6 +58,7 @@ class UNetConvLSTMForecaster(nn.Module):
     def __init__(self, in_len, out_len, in_channels=1, base_channels=16, depth=3,
                  dropout=0.05, residual=True, use_mask_channel=True,
                  use_coord_channels=True, mask_features=True, lstm_kernel=3):
+        """Initialize UNet Conv LSTMForecaster with ``in_len``, ``out_len``, ``in_channels``, ``base_channels``, ``depth``, ``dropout``, ``residual`` and the remaining options."""
         super().__init__()
         self.in_len = int(in_len)
         self.out_len = int(out_len)
@@ -91,17 +95,20 @@ class UNetConvLSTMForecaster(nn.Module):
 
     @staticmethod
     def _coords(batch, height, width, device, dtype):
+        """Build normalized spatial coordinate channels for the model grid."""
         y = torch.linspace(-1.0, 1.0, height, device=device, dtype=dtype)
         x = torch.linspace(-1.0, 1.0, width, device=device, dtype=dtype)
         yy, xx = torch.meshgrid(y, x, indexing='ij')
         return torch.stack([yy, xx], dim=0)[None].expand(batch, -1, -1, -1)
 
     def _feature_mask(self, feature, mask):
+        """Adapt the ocean mask to the feature tensor resolution."""
         if not self.mask_features or mask is None:
             return feature
         return feature * _resize_mask(mask, feature.shape[-2:], feature.dtype)
 
     def _frame_input(self, frame, mask, coords):
+        """Prepare one input frame and its auxiliary features."""
         parts = [frame]
         if self.use_mask_channel:
             if mask is None:
@@ -112,6 +119,7 @@ class UNetConvLSTMForecaster(nn.Module):
         return torch.cat(parts, dim=1)
 
     def _encode(self, frame, mask, coords):
+        """Encode the input frame into a latent representation."""
         skips = []
         z = self._feature_mask(self.stem(self._frame_input(frame, mask, coords)), mask)
         skips.append(z)
@@ -122,6 +130,7 @@ class UNetConvLSTMForecaster(nn.Module):
         return z, skips
 
     def forward(self, x, mask=None):
+        """Apply the UNet Conv LSTMForecaster transformation to the input tensors."""
         batch, time, channels, height, width = x.shape
         if time != self.in_len or channels != self.in_channels:
             raise ValueError(f'UNetConvLSTMForecaster expects T={self.in_len}, C={self.in_channels}; got {tuple(x.shape)}')

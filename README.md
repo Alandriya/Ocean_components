@@ -31,7 +31,8 @@ Ocean_Components/
 ├── tests/                    # Core regression and numerical tests
 ├── video examples/           # Selected example figures/videos
 ├── requirements.txt
-└── README.md
+├── README.md
+└── README_RU.md
 ```
 
 `Cluster/` is intentionally excluded by `.gitignore`. It is a local, cluster-specific directory for Slurm (`.sbatch`) and Docker launcher files. It is not part of a normal Git checkout: keep a separate copy of those launchers on the cluster and restore it after cloning or replacing the repository. The tracked `Forecast_1d/jobs/` directory is separate from this local-only `Cluster/` directory.
@@ -42,15 +43,35 @@ Ocean_Components/
 |---|---|
 | `project_paths.py` | Defines the code root and the one active data root. |
 | `main.py` | Selects and runs numerical tasks: coefficient estimation/assembly, diagnostics, SDE conditions, stationary distributions, copulas, eigenvalues, and ERA5 processing. |
-| `main_plotter.py` | Selects plotting tasks: fields, eigenmodes, mean-year maps, coefficient frames/videos, stationary PDFs, copulas, Fokker–Planck comparisons, and article figures. |
+| `main_plotter.py` | Selects plotting tasks: fields, eigenmodes, mean-year maps, coefficient frames/videos, stationary PDFs, copulas, Fokker–Planck comparisons, and stationary spatial diagnostics. |
 | `Coefficients/` | 1D and 2D NP/SP estimators, parallel period calculations, cross-period bridges, collection, \(BB^T\), and derived \(C/F/FS\) fields. |
 | `Data_processing/` | GRIB parsing, daily field loading/collection, mean-year calculations, SDE-condition preparation, and data diagnostics. |
 | `Functional/` | Stationary-density calculations, empirical/hybrid tail treatment, copula calculations, and 2D Fokker–Planck workflows. |
 | `Eigenvalues/` | Eigenvalue/eigenvector and spectral workflows. |
 | `Plotting/` | Plotting functions and workflow orchestration. Figure output is routed to `DATA_ROOT/Plots/`. |
 | `Forecast_nn/` | Spatial neural forecasting, SDE-informed models, and generative forecasting. See its [dedicated README](Forecast_nn/README.md) and [generative-model notes](Forecast_nn/GENERATIVE_README.md). |
-| `Forecast_1d/` | Extraction and forecasting of ten offshore point series. See [README_FORECASTING.md](Forecast_1d/README_FORECASTING.md). |
+| `Forecast_1d/` | Extraction and forecasting of 15 offshore point series. See [README_FORECASTING.md](Forecast_1d/README_FORECASTING.md). |
 | `Forecast_probs/` | Earlier graph-based/probabilistic forecasting experiments. |
+
+### Consolidated modules (Refactoring 2.0)
+
+The existing directory layout and numerical workflows are retained. Related source modules now have one canonical implementation:
+
+| Module | Responsibility |
+|---|---|
+| `Eigenvalues/eigenvalues.py` | Spectral estimation, period execution and chronological collection. |
+| `Forecast_1d/models/baselines.py` | Persistence, mean and seasonal baselines. |
+| `Forecast_1d/models/advanced.py` | N-BEATS, N-HiTS, PatchTST, DLinear and TiDE. |
+| `Forecast_1d/audit.py` | Five independent forecast diagnostic commands. |
+| `Forecast_nn/runtime.py` | Runtime setup, checkpoint loading and console logging. |
+| `Forecast_probs/graph.py` | Legacy graph forecasting and its launcher. |
+| `Functional/copula.py` | Copula estimation, diagnostics and joint quantile classes. |
+| `Functional/stationary.py` | Stationary density estimation and spatial diagnostics. |
+| `Plotting/component_plots.py` | Mixture maps, tracks and diagnostic plots. |
+| `Plotting/stationary_plots.py` | Stationary distributions and spatial stationary plots. |
+| `Plotting/hybrid_stationary_plots.py` | Hybrid densities and 2D Fokker–Planck marginal comparisons. |
+
+See [REFACTORING_V2.md](REFACTORING_V2.md) for the migration map, removed paths and validation results. The Russian-language project guide is [README_RU.md](README_RU.md).
 
 ## 2. Data and code locations
 
@@ -142,7 +163,7 @@ Coefficients/1979-2026/1d_bins_144/sensible/Semiparametric/
 
 Decadal coefficient estimates and their daily/collected inputs remain in their period-specific directories. The bridge workflow assembles the available periods and their boundary transitions into the full-period arrays.
 
-**`Coefficients/continuous/` is retained in the current code and data layout. Do not remove it as part of this README update.** It contains manifests used by existing workflows, derived `C/F/FS` products, and backward-compatible paths for some assembled 2D `A/B` arrays. Depending on the filesystem, those legacy paths can be hard links, symbolic links, or physical copies of the canonical arrays under `Coefficients/1979-2026`. A physical-copy fallback can therefore consume additional disk space. The current storage behavior is intentionally unchanged; this note is informational only.
+**`Coefficients/continuous/` remains part of the data layout.** It contains manifests used by existing workflows, derived `C/F/FS` products, and backward-compatible paths for some assembled 2D `A/B` arrays. Depending on the filesystem, those legacy paths can be hard links, symbolic links, or physical copies of the canonical arrays under `Coefficients/1979-2026`. A physical-copy fallback can therefore consume additional disk space. The current storage behavior is intentionally unchanged; this note is informational only.
 
 ## 3. Installation
 
@@ -173,9 +194,9 @@ python -m pip install -r requirements.txt
 
 Additional runtime requirements:
 
-- `Forecast_nn/` uses PyTorch. Install a PyTorch build compatible with the local CPU/GPU and CUDA environment; it is managed separately from the common `requirements.txt`.
-- GRIB decoding in `Data_processing/grib.py` requires `eccodes` (`python -m pip install eccodes`).
-- Some optional forecasting backends or experiments may require additional packages; consult the README in the corresponding subproject.
+- `Forecast_nn/` and neural models in `Forecast_1d/` use PyTorch. Install a compatible build following the [official PyTorch installation instructions](https://pytorch.org/get-started/locally/); it is managed separately from the common `requirements.txt`. The neural training scripts use `torch.amp.GradScaler`.
+- GRIB decoding uses `eccodes`; TIGGE download and conversion use `cdsapi` and `rasterio`. These Python packages are listed in `requirements.txt`; the platform must also provide compatible native ecCodes/GDAL libraries and a valid CDS/ECDS credential for downloads.
+- The common list also includes packages used by legacy fits, interactive plots and video encoding. A compatible system FFmpeg executable can be used instead of the bundled encoder where supported. Use `python -m pip install pytest` for development tests. NumPy 2 or later is required by the use of `numpy.trapezoid`.
 
 After selecting `DATA_ROOT`, run `python -m project_paths --check` before starting a long calculation.
 
@@ -201,14 +222,18 @@ The current task catalogue includes:
 | `stationary` | Estimate one-dimensional stationary-distribution characteristics. |
 | `copulas` | Estimate copula-related characteristics for selected variables. |
 | `fokker_planck_2d_prepare`, `fokker_planck_2d_solve` | Prepare and solve the 2D stationary Fokker–Planck problem. |
-| `article_prepare`, `article_figures`, `article_all`, `article_isolines`, `article_regions`, `article_classes` | Prepare cached article diagnostics or regenerate selected manuscript figures. `article_all` also includes copula figures. |
+| `stationary_spatial` | Prepare spatial stationary diagnostics, including model-based classes and observed-data summaries. |
+| `copula_quintiles` | Estimate joint quantile-class probabilities from cached copula fits. |
+| `components`, `trends` | Fit spatial mixture components and calculate long-term trends. |
+| `fp2d_validate`, `fp_followup_validate` | Run validation workflows for the 2D Fokker–Planck solver and hybrid tails. |
+| `extract_1d_features` | Extract point-based historical meteorological features. |
 | `quantile_diagnostics`, `quantile_diagnostics_1d` | Run daily 2D or 1D quantile diagnostics. |
 | `quantile_hourly`, `quantile_hourly_resampling` | Analyse hourly GRIB data and the effect of temporal/spatial thinning. |
 | `grib`, `grib-check` | Process GRIB input or compare old and new grouped arrays. |
 | `collect` | Collect selected period variables into a single array. |
 | `extract_1d_series` | Extract configured offshore point series and neighbourhood data. |
 
-The current `main.py` selects `sde_conditions` by default. Change `task` explicitly before running if another calculation is intended.
+The current `main.py` selects `fp_followup_validate` in the shipped configuration. Change `task` explicitly before running if another calculation is intended.
 
 ### Period selection
 
@@ -232,9 +257,11 @@ Both `main.py` and `main_plotter.py` currently use `start_year = 19792026` as a 
 | `fokker_planck_2d_compare` | Empirical versus 2D Fokker–Planck stationary density comparisons. |
 | `fokker_planck_2d_convergence` | Comparison of already-solved spatial resolutions. |
 | `hybrid_fp2d_marginal_overlay` | Hybrid and 2D FP marginal-density comparison. |
-| `article_figures`, `article_isolines`, `article_regions`, `article_classes`, `article_all` | Manuscript figures 1–3, selected subsets, or all figures including copulas 4–8. |
+| `stationary_spatial`, `stationary_isolines`, `stationary_regions`, `stationary_classes` | Spatial stationary diagnostics or selected figure types. |
+| `components`, `components_diagnostics` | Spatial mixture component maps and diagnostic distributions. |
+| `trends` | Long-term trend figures. |
 
-The current `main_plotter.py` selects `hybrid_fp2d_marginal_overlay` by default. Change `task` explicitly before running if another plot is intended.
+The current `main_plotter.py` selects `videos` in the shipped configuration. Change `task` explicitly before running if another plot is intended.
 
 All project figures are routed through `Plotting/paths.py` to the configured data directory's `Plots/` folder, with thematic subdirectories. This includes figures produced by legacy plotting functions. The `video examples/` directory in the Git repository contains selected examples, not the live output directory.
 
@@ -278,7 +305,7 @@ Other registered architectures, SDE-informed variants, DDPM/GAN/EOF-VAR experime
 
 ## 7. Point forecasting: `Forecast_1d/`
 
-`Forecast_1d/` is a separate workflow for ten offshore point series extracted from the full sensible/latent fields. It includes persistence and input-mean baselines and SARIMA forecasting. The point dataset is created from the grouped ERA5 fields and ocean mask; it is stored under the data root, not in the Git checkout.
+`Forecast_1d/` is a separate workflow for 15 offshore point series extracted from the full sensible/latent fields. It includes persistence, input-mean, seasonal and SARIMA baselines, neural models, and history-feature experiments. The default `points.json` defines 15 points; `points_10.json` retains the ten-point configuration. The point dataset is created from the grouped ERA5 fields and ocean mask; it is stored under the data root, not in the Git checkout.
 
 ```bash
 # Validate extraction inputs without writing the dataset
@@ -297,6 +324,19 @@ python -m Forecast_1d.test --model all --split test
 
 See [Forecast_1d/README_FORECASTING.md](Forecast_1d/README_FORECASTING.md) for chronological splits, supported backends, saved-result structure, plotting, and cluster launch examples.
 
+The consolidated audit CLI preserves each independent diagnostic's arguments:
+
+```bash
+python -m Forecast_1d.audit --help
+python -m Forecast_1d.audit future-weather --help
+python -m Forecast_1d.audit oracle-drivers --help
+python -m Forecast_1d.audit predictability --help
+python -m Forecast_1d.audit sst-vs-atmosphere --help
+python -m Forecast_1d.audit training --help
+```
+
+Future-weather and oracle scenarios use actual future observations for hindsight diagnostics, not operational forecasting.
+
 ## 8. ERA5 GRIB processing
 
 The streaming parser in `Data_processing/grib.py` reads GRIB messages without loading the complete multi-year file into memory. It can process one requested variable at a time, validates timestamps, and groups the selected UTC observations (normally 00, 06, 12, and 18 UTC) into one daily mean. Its output arrays are written under the configured data root.
@@ -312,7 +352,7 @@ Alternatively, select `task = "grib"` or `task = "grib-check"` in `main.py` and 
 
 ## 9. Legacy probabilistic forecasting: `Forecast_probs/`
 
-`Forecast_probs/` contains an earlier graph-based forecasting experiment. It is separate from the current `Forecast_nn` grouped-array pipeline. In particular, `Forecast_probs/graph_runner.py` expects the legacy `DATA/FLUX_mini_diff.npy` input and `DATA/mask`; that file is not automatically generated from the modern `sensible/latent/Flux_1979-2026_grouped.npy` arrays.
+`Forecast_probs/` contains an earlier graph-based forecasting experiment. It is separate from the current `Forecast_nn` grouped-array pipeline. In particular, `python -m Forecast_probs.graph` runs the legacy experiment and expects the legacy `DATA/FLUX_mini_diff.npy` input and `DATA/mask`; that file is not automatically generated from the modern `sensible/latent/Flux_1979-2026_grouped.npy` arrays.
 
 ## 10. Tests and diagnostics
 
@@ -334,6 +374,10 @@ For a lightweight pre-run check of the paths and forecast sources:
 python -m project_paths --check
 python -m Forecast_nn.check_sources
 ```
+
+### Figure language
+
+`main_plotter.py` sets `plot_language` explicitly (`ru` in the shipped configuration). Change it to `en` for English figures. Standalone plotting CLI commands use `OCEAN_PLOT_LANGUAGE` (default `en`), and individual decorated plotting functions can accept `language="en"` or `language="ru"`. The localization dictionary and Matplotlib adapter are in `Plotting/language.py`. Comments and docstrings are English; Russian UI labels remain available. A language change may overwrite a previously saved figure at the same output path.
 
 ## 11. Selected visual examples
 

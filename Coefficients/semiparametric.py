@@ -15,6 +15,7 @@ from Coefficients.common import (
 
 
 def _validate_settings(n_components, min_group_size, reg_covar, n_init, dt):
+    """Check estimator settings before running the calculation."""
     if not isinstance(n_components, (int, np.integer)) or n_components < 1:
         raise ValueError('n_components must be >= 1')
     if min_group_size < 2:

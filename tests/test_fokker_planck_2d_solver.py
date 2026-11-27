@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_solver():
+    """Load solver for the test fokker planck 2d solver workflow."""
     spec = importlib.util.spec_from_file_location(
         "fp2d_solver_under_test",
         ROOT / "Functional" / "fokker_planck_2d_solver.py",
@@ -24,6 +25,7 @@ def _load_solver():
 
 
 def test_wide_stencil_exactly_matches_local_moments():
+    """Verify that wide stencil exactly matches local moments."""
     solver = _load_solver()
     dx = 3.0
     dy = 5.0
@@ -46,6 +48,7 @@ def test_wide_stencil_exactly_matches_local_moments():
 
 
 def test_generator_is_conservative_and_nonnegative_off_diagonal():
+    """Verify that generator is conservative and nonnegative off diagonal."""
     solver = _load_solver()
     n = 13
     x = np.arange(n, dtype=float)
@@ -83,6 +86,7 @@ def test_generator_is_conservative_and_nonnegative_off_diagonal():
 
 
 def test_end_to_end_stationary_solution_is_normalized_and_positive():
+    """Verify that end to end stationary solution is normalized and positive."""
     solver = _load_solver()
 
     with tempfile.TemporaryDirectory() as temp:

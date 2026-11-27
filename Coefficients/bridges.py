@@ -686,11 +686,13 @@ def _scalar_bins(root, periods, names, n_bins):
 
 
 def _scalar_bridge_daily_dir(root, name, n_bins, method):
+    """Compute scalar bridge daily dir for bridges from ``root``, ``name``, ``n_bins``, ``method``."""
     return (Path(root) / "Coefficients" / "bridges" / f"1d_bins_{n_bins}" /
             name / SCALAR_METHOD_FOLDERS[method] / "daily")
 
 
 def _scalar_period_folder(root, period, name, n_bins, method):
+    """Compute scalar period folder for bridges from ``root``, ``period``, ``name``, ``n_bins``, ``method``."""
     return (period_dir(root, *period) / f"1d_bins_{n_bins}" / name /
             SCALAR_METHOD_FOLDERS[method])
 
@@ -753,6 +755,7 @@ def _scalar_boundary_transition(root, prior, next_period, name, n_bins, methods,
 
 
 def _scalar_valid_daily(path, spatial_shape):
+    """Compute scalar valid daily for bridges from ``path``, ``spatial_shape``."""
     try:
         arr = np.load(path, mmap_mode="r", allow_pickle=False)
         return (arr.shape == spatial_shape and
@@ -802,6 +805,7 @@ def _scalar_sources(root, period, name, n_bins, method, field, labels):
 
 
 def _scalar_input_segments(root, periods, name, n_bins, method, field, ranges):
+    """Compute scalar input segments for bridges from ``root``, ``periods``, ``name``, ``n_bins``, ``method``."""
     result = []
     for i, period in enumerate(periods):
         if i:
@@ -817,6 +821,7 @@ def _scalar_input_segments(root, periods, name, n_bins, method, field, ranges):
 
 
 def _scalar_segment_info(segments, name, method, field):
+    """Compute scalar segment info for bridges from ``segments``, ``name``, ``method``, ``field``."""
     shape = dtype = None
     count = 0
     for filename, index, length in segments:

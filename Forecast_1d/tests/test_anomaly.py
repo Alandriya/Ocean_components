@@ -10,12 +10,14 @@ import numpy as np
 
 from Forecast_1d.data import PointDataset
 from Forecast_1d.experiment import DEFAULT_TARGET_MODE, target_root
-from Forecast_1d.models.seasonal import calendar_index, fit_seasonal
+from Forecast_1d.models.baselines import calendar_index, fit_seasonal
 from Forecast_1d import train, test, collect_results
 
 
 class AnomalyForecastTests(unittest.TestCase):
+    """Regression tests covering Anomaly Forecast."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
@@ -39,6 +41,7 @@ class AnomalyForecastTests(unittest.TestCase):
         self.data = PointDataset(self.dataset_dir)
 
     def _train(self, model='mlp', monitor='normalized'):
+        """Compute train for Anomaly Forecast Tests from ``model``, ``monitor``."""
         a = train.build_parser().parse_args([
             '--model', model, '--target-mode', 'anomaly', '--points', 'P3',
             '--dataset-dir', str(self.dataset_dir), '--results-dir', str(self.result_dir),
@@ -50,6 +53,7 @@ class AnomalyForecastTests(unittest.TestCase):
         return self.result_dir / 'h14' / 'anomaly' / model / 'P3'
 
     def _test(self, model='mlp'):
+        """Compute test for Anomaly Forecast Tests from ``model``."""
         a = test.build_parser().parse_args([
             '--model', model, '--target-mode', 'anomaly', '--points', 'P3',
             '--dataset-dir', str(self.dataset_dir), '--results-dir', str(self.result_dir),
@@ -59,6 +63,7 @@ class AnomalyForecastTests(unittest.TestCase):
         return test.run(a)
 
     def test_only_train_values_contribute_to_climatology(self):
+        """Verify that only train values contribute to climatology."""
         values = np.asarray(self.data.values[:, 2:3, :]).copy()
         train_end = 140
         clim_a, phi_a = fit_seasonal(values, self.data.dates, train_end, radius=15)
@@ -68,6 +73,7 @@ class AnomalyForecastTests(unittest.TestCase):
         np.testing.assert_array_equal(phi_a, phi_b)
 
     def test_mlps_train_and_evaluate_in_original_units(self):
+        """Verify that mlps train and evaluate in original units."""
         ckpt = self._train('mlp')
         metadata = json.loads((ckpt/'train_metadata.json').read_text())
         self.assertEqual(metadata['target_mode'], 'anomaly')
@@ -116,6 +122,7 @@ class AnomalyForecastTests(unittest.TestCase):
         self.assertIn('mlp', ranking.read_text())
 
     def test_anomaly_checkpoint_cannot_be_used_as_raw(self):
+        """Verify that anomaly checkpoint cannot be used as raw."""
         self._train('gru')
         bad = test.build_parser().parse_args([
             '--model', 'gru', '--target-mode', 'raw', '--points', 'P3',
@@ -127,6 +134,7 @@ class AnomalyForecastTests(unittest.TestCase):
             test.run(bad)
 
     def test_optional_sar_monitor_measures_anomalies_consistently(self):
+        """Verify that optional sar monitor measures anomalies consistently."""
         ckpt = self._train('tcn', monitor='sar')
         metadata = json.loads((ckpt/'train_metadata.json').read_text())
         self.assertEqual(metadata['selection_metric'], 'sar')
@@ -134,6 +142,7 @@ class AnomalyForecastTests(unittest.TestCase):
         self._test('tcn')
 
     def test_default_point_selection_is_all15_in_anomaly_mode(self):
+        """Verify that default point selection is all15 in anomaly mode."""
         args = train.build_parser().parse_args([
             '--model', 'mlp', '--target-mode', 'anomaly',
             '--dataset-dir', str(self.dataset_dir), '--results-dir', str(self.result_dir),
@@ -164,6 +173,7 @@ class AnomalyForecastTests(unittest.TestCase):
                          ('forecast_1d_val_'+'_'.join(f'P{i}' for i in range(1, 16))+'_h14_ranking.csv')).is_file())
 
     def test_mode_paths_are_isolated(self):
+        """Verify that mode paths are isolated."""
         base = Path('/root/forecast')
         self.assertEqual(target_root(base, 14, 'raw'), base/'h14')
         self.assertEqual(target_root(base, 14, 'anomaly'), base/'h14'/'anomaly')

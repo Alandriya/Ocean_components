@@ -17,7 +17,9 @@ from Forecast_nn.data import NATIVE_HEIGHT, NATIVE_WIDTH
 
 
 class _ComponentMap:
+    """Container for component map state and associated operations."""
     def __init__(self, path, channels, downsample, expected_hw):
+        """Initialize Component Map with ``path``, ``channels``, ``downsample``, ``expected_hw``."""
         self.path = str(Path(path))
         if not Path(self.path).exists():
             raise FileNotFoundError(self.path)
@@ -55,11 +57,13 @@ class _ComponentMap:
         del arr
 
     def __getstate__(self):
+        """Return serializable instance state for worker processes or persistence."""
         result = vars(self).copy()
         result['arr'] = None
         return result
 
     def get(self, indices):
+        """Compute get for Component Map from ``indices``."""
         if self.arr is None:
             self.arr = np.load(self.path, mmap_mode='r')
         idx = np.asarray(indices, dtype=np.int64)
@@ -104,7 +108,9 @@ class _ComponentMap:
 
 
 class JointSDEReader:
+    """Container for joint sdereader state and associated operations."""
     def __init__(self, a_path, b_path, downsample, hw, state_std, time_offset=1, b_layout='diag_first'):
+        """Initialize Joint SDEReader with ``a_path``, ``b_path``, ``downsample``, ``hw``, ``state_std``, ``time_offset``, ``b_layout``."""
         if b_layout not in ('diag_first', 'row_major', 'column_major'):
             raise ValueError('Unknown b_layout; expected diag_first, row_major, or column_major')
         self.a = _ComponentMap(a_path, 2, downsample, hw)
@@ -116,6 +122,7 @@ class JointSDEReader:
         self.b_layout = b_layout
 
     def get_normalized(self, observed_flux_indices):
+        """Return normalized for the joint SDE workflow."""
         indices = np.atleast_1d(observed_flux_indices).astype(np.int64) - self.time_offset
         a = self.a.get(indices) / self.std[None, :, None, None]
         raw_b = self.b.get(indices)  # [T,4,H,W]
@@ -139,15 +146,19 @@ class JointSDEReader:
 
 
 class JointSDEDataset(Dataset):
+    """Container for joint sdedataset state and associated operations."""
     def __init__(self, base_dataset, joint_reader):
+        """Initialize Joint SDEDataset with ``base_dataset``, ``joint_reader``."""
         self.base = base_dataset
         self.reader = joint_reader
         self.channels = base_dataset.channels
 
     def __len__(self):
+        """Return the number of available samples."""
         return len(self.base)
 
     def __getitem__(self, item):
+        """Return the sample indexed by the data loader."""
         x, y = self.base[item]
         last_t = self.base.start_idx + int(item) + (self.base.in_len - 1) * self.base.stride
         a, b = self.reader.get_normalized([last_t])

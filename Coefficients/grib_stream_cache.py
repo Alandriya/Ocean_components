@@ -63,6 +63,7 @@ def _raw_messages(path):
 
 
 def _get(codes, handle, key, default=None):
+    """Read a GRIB metadata key with fallback handling."""
     try:
         return codes.codes_get(handle, key)
     except Exception:
@@ -70,6 +71,7 @@ def _get(codes, handle, key, default=None):
 
 
 def _valid_day_hour(codes, handle):
+    """Determine the day and hour from a GRIB message timestamp."""
     d = _get(codes, handle, "validityDate")
     t = _get(codes, handle, "validityTime")
     if d is None or t is None:
@@ -92,15 +94,18 @@ class _DayWriters:
     """LRU of writable day arrays; each file is a few MB, never a huge map."""
 
     def __init__(self, directory, grid_shape, max_open=6):
+        """Initialize Day Writers with ``directory``, ``grid_shape``, ``max_open``."""
         self.directory = Path(directory)
         self.grid_shape = tuple(grid_shape)
         self.open = OrderedDict()
         self.max_open = max_open
 
     def filename(self, variable, day):
+        """Compute filename for Day Writers from ``variable``, ``day``."""
         return self.directory / variable / f"{day.isoformat()}.npy"
 
     def write(self, variable, day, hour, pixels):
+        """Write the supplied data to the configured destination."""
         key = (variable, day)
         arr = self.open.pop(key, None)
         if arr is None:
@@ -121,6 +126,7 @@ class _DayWriters:
             del old
 
     def close(self):
+        """Close the underlying resources."""
         while self.open:
             _, arr = self.open.popitem()
             arr.flush()

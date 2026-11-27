@@ -17,7 +17,9 @@ from Forecast_1d.collect_results import build_parser
 
 
 class Atlantic15Tests(unittest.TestCase):
+    """Regression tests covering Atlantic15."""
     def test_default_layout(self):
+        """Verify that default layout."""
         root = Path('/example/root')
         self.assertEqual(dataset_dir(root_override=root), root/'DATA'/'Forecast_1d'/DEFAULT_SUBDIR)
         self.assertEqual(results_dir(root_override=root), root/'Forecast'/'Results'/'Forecast_1d'/'atlantic15')
@@ -27,6 +29,7 @@ class Atlantic15Tests(unittest.TestCase):
         self.assertIsNone(plot_results.build_parser().parse_args(['--model','gru']).points)
 
     def test_complete_pipeline(self):
+        """Verify that complete pipeline."""
         torch.set_num_threads(1)
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp); source=base/'DATA'/'Forecast_1d'/DEFAULT_SUBDIR; source.mkdir(parents=True)

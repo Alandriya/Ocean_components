@@ -17,6 +17,7 @@ spec.loader.exec_module(stationary)
 
 
 def _smooth_input(variable):
+    """Compute smooth input for test stationary consistency from ``variable``."""
     x0, x1 = (-8.0, -50.0) if variable == 'sensible' else (-2.0, -40.0)
     limits = (-130, 40) if variable == 'sensible' else (-310, 35)
     x = np.sort(np.r_[np.linspace(*limits, 200), x0])
@@ -26,6 +27,7 @@ def _smooth_input(variable):
 
 
 def test_shifted_fit_reconstructs_same_formula_as_pdf():
+    """Verify that shifted fit reconstructs same formula as pdf."""
     for variable in ('sensible', 'latent'):
         x, y, expected = _smooth_input(variable)
         params = stationary._fit_log_diffusion(x, y, variable)
@@ -38,6 +40,7 @@ def test_shifted_fit_reconstructs_same_formula_as_pdf():
 
 
 def test_numeric_pdf_matches_gaussian_for_constant_diffusion():
+    """Verify that numeric pdf matches gaussian for constant diffusion."""
     grid = np.linspace(-90, 90, 2500)
     # Drift -0.1*(x-5), b²=1: Gaussian mean 5 and variance 5.
     params = [-8.0, -50.0, [0.5, -0.1, 0.0, 0.0, 0.0],
@@ -51,6 +54,7 @@ def test_numeric_pdf_matches_gaussian_for_constant_diffusion():
 
 
 def test_numeric_pdf_uses_shifted_model_not_old_unshifted():
+    """Verify that numeric pdf uses shifted model not old unshifted."""
     grid = np.linspace(-300, 100, 4000)
     params = [-8.0, -50.0, [0.0, -0.004, 0, 0, 0],
               -250.0, 95.0, 0.01, 0.27, 5.9, 0.29, 1]
@@ -66,6 +70,7 @@ def test_numeric_pdf_uses_shifted_model_not_old_unshifted():
 
 
 def test_json_has_drift_rmse_and_explicit_mean_kind(tmp_path, monkeypatch):
+    """Verify that JSON has drift RMSE and explicit mean kind."""
     fake_pkg = types.ModuleType('Data_processing')
     fake_pkg.__path__ = []
     fake_io = types.ModuleType('Data_processing.io')
@@ -101,6 +106,7 @@ def test_json_has_drift_rmse_and_explicit_mean_kind(tmp_path, monkeypatch):
 
 def test_model_id_distinguishes_old_incompatible_density_json(tmp_path, monkeypatch):
     # Load plot module while injecting the stationary module from this package.
+    """Verify that model id distinguishes old incompatible density JSON."""
     package = types.ModuleType('Functional')
     package.__path__ = []
     monkeypatch.setitem(sys.modules, 'Functional', package)

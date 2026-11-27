@@ -41,6 +41,7 @@ DEFAULT_PERIODS = ((1979, 1989), (1989, 1999), (1999, 2009),
 
 
 def _plain(z):
+    """Compute plain for fp followup validation from ``z``."""
     if isinstance(z, dict):
         return {str(k): _plain(v) for k, v in z.items()}
     if isinstance(z, (list, tuple)):
@@ -57,12 +58,14 @@ def _plain(z):
 
 
 def _save_json(path, data):
+    """Save JSON for the fp followup validation workflow."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_plain(data), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _save_csv(path, rows):
+    """Save CSV for the fp followup validation workflow."""
     if not rows:
         return
     path = Path(path)
@@ -75,6 +78,7 @@ def _save_csv(path, rows):
 
 
 def _tex_float(z):
+    """Format the supplied value for diagnostic output."""
     return "--" if z is None or not math.isfinite(float(z)) else f"{float(z):.3g}"
 
 
@@ -95,6 +99,7 @@ def _bridge_replay_parameters(length, p0, p1, outward_slope, terminal_slope):
     drop = math.log(p0 / p1)
 
     def quadrature_on_implementation_nodes(c):
+        """Compute quadrature on implementation nodes for bridge replay parameters from ``c``."""
         return float(length * np.trapezoid(np.exp(np.clip(base + c * arch, -700.0, 400.0)), s))
 
     c = float(brentq(lambda z: quadrature_on_implementation_nodes(z) - drop,
@@ -102,6 +107,7 @@ def _bridge_replay_parameters(length, p0, p1, outward_slope, terminal_slope):
 
     def exact_integrand(s_):
         # No clipping of ordinary values in independent verification.
+        """Compute exact integrand for bridge replay parameters from ``s_``."""
         lograte = (1.0 - s_) * logk0 + s_ * logk1 + c * s_ * (1.0 - s_)
         if lograte < -745:
             return 0.0
@@ -275,6 +281,7 @@ def diagnose_hybrid_cache(root, name, start_year, end_year, *,
 def run_hybrid(root, output_dir, periods=DEFAULT_PERIODS,
                names=("sensible", "latent"), reference_period=(1979, 2026),
                fail_on_missing=False):
+    """Compute run hybrid for fp followup validation from ``root``, ``output_dir``, ``periods``, ``names``, ``reference_period``."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     summaries, sides, failures, invalid = [], [], [], []
@@ -312,6 +319,7 @@ def run_hybrid(root, output_dir, periods=DEFAULT_PERIODS,
 
 
 def _write_hybrid_latex(path, side_rows, summary_rows):
+    """Write hybrid latex for the fp followup validation workflow."""
     by = {(x["period"], x["variable"]): x for x in summary_rows}
     lines = [r"% Generated numeric audit. Does not include GPD parameter-estimation errors.",
              r"\begin{table}[H]", r"\centering",
@@ -458,6 +466,7 @@ def run_wide_ou(output_dir, sizes=(40, 60, 80, 100),
 
 
 def _write_wide_latex(path, rows):
+    """Write wide latex for the fp followup validation workflow."""
     lines = [r"% Synthetic wide-stencil benchmark. Negative FV masses are excluded.",
              r"\begin{table}[H]", r"\centering",
              r"\caption{Stationary OU benchmark requiring wide diagonal jumps.}",
@@ -481,6 +490,7 @@ def run_followup(mode="all", root=None, output_dir=None,
                  wide_sizes=(40, 60, 80, 100),
                  max_stencil_radius=9,
                  require_all_hybrids=False):
+    """Compute run followup for fp followup validation from ``mode``, ``root``, ``output_dir``, ``hybrid_periods``, ``names``."""
     if mode not in ("hybrid", "wide_ou", "all"):
         raise ValueError("mode must be hybrid, wide_ou, or all")
     root = Path(root) if root is not None else Path(".")

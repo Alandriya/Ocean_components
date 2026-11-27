@@ -8,6 +8,7 @@ from Forecast_nn.aggregate_metrics import collect, main as aggregate_main
 
 
 def test_save_metrics_and_aggregate(tmp_path):
+    """Verify that save metrics and aggregate."""
     root = tmp_path / 'Results'
     out = root / 'swin_gru' / 'joint' / 'ds2_i30_o3_b64_tt8_ad2_h8_ws4' / 'test'
     metrics = {

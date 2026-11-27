@@ -12,6 +12,7 @@ from Forecast_nn.data import load_mask
 
 
 def _scalar(data, key, default=None):
+    """Compute scalar for forecast comparison from ``data``, ``key``, ``default``."""
     name = f'meta_{key}'
     if name not in data.files:
         return default
@@ -22,6 +23,7 @@ def _scalar(data, key, default=None):
 
 
 def _methods(data):
+    """Compute methods for forecast comparison from ``data``."""
     value = _scalar(data, 'methods', None)
     if value is not None:
         if isinstance(value, str):
@@ -35,10 +37,12 @@ def _methods(data):
 
 
 def _value_norm(vmin, vmax):
+    """Determine the color normalization for the plotted values."""
     return TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax) if vmin < 0 < vmax else Normalize(vmin=vmin, vmax=vmax)
 
 
 def _date_labels(data, sample_pos, out_len):
+    """Format forecast dates for plot labels."""
     base = datetime.strptime(str(_scalar(data, 'base_date', '1979-01-01')), '%Y-%m-%d')
     stride = int(_scalar(data, 'stride', 1))
     start = int(data['forecast_start_index'][sample_pos])
@@ -46,6 +50,7 @@ def _date_labels(data, sample_pos, out_len):
 
 
 def draw(truth, forecast, mask, title, output, vmin, vmax, error_max, dates=None, dpi=180):
+    """Draw the requested forecast comparison data using the supplied inputs."""
     out_len = truth.shape[0]
     cmap_values = plt.get_cmap('seismic').copy(); cmap_values.set_bad('#90EE90')
     cmap_error = plt.get_cmap('Reds').copy(); cmap_error.set_bad('#90EE90')
@@ -79,6 +84,7 @@ def draw(truth, forecast, mask, title, output, vmin, vmax, error_max, dates=None
 
 
 def main():
+    """Run the forecast comparison workflow using its configured options."""
     p = argparse.ArgumentParser()
     p.add_argument('--input', required=True)
     p.add_argument('--sample-index', type=int, default=0)

@@ -19,7 +19,9 @@ from Data_processing.tigge_fluxes import cumulative_to_daily_mean, convert_flux_
 
 
 class TestDownloadAndMath(unittest.TestCase):
+    """Regression tests covering Test Download And Math."""
     def test_requests_and_file_naming(self):
+        """Verify that requests and file naming."""
         d = date(2026, 10, 1)
         met = make_request(d, (80, -90, 0, 0), "0.25/0.25", "met")
         flux = make_request(d, (80, -90, 0, 0), "0.25/0.25", "fluxes")
@@ -33,6 +35,7 @@ class TestDownloadAndMath(unittest.TestCase):
         self.assertEqual(filename_for(d, Path("root"), "fluxes").name, "tigge_ecmwf_control_20261001_0000_fluxes.grib")
 
     def test_cumulative_mean_shifts_and_sign(self):
+        """Verify that cumulative mean shifts and sign."""
         hours = np.arange(24, 361, 24, dtype=np.float64)
         acc = np.column_stack(((-10 * 3600 * hours), (-100 * 3600 * hours)))
         mean0 = cumulative_to_daily_mean(acc, 0)
@@ -48,13 +51,18 @@ class TestDownloadAndMath(unittest.TestCase):
             cumulative_to_daily_mean(acc[:-1])
 
     def test_resume_keeps_existing_met_and_fetches_only_fluxes(self):
+        """Verify that resume keeps existing met and fetches only fluxes."""
         class MockClient:
+            """Container for mock client state and associated operations."""
             def __init__(self):
+                """Initialize Mock Client with default state."""
                 self.requests = []
             def retrieve(self, dataset, request, target):
+                """Compute retrieve for Mock Client from ``dataset``, ``request``, ``target``."""
                 self.requests.append(request)
                 Path(target).write_bytes(record() * 30)
         def record():
+            """Compute record for test resume keeps existing met and fetches only fluxes."""
             size = 64
             return b"GRIB" + b"\0\0\0\2" + size.to_bytes(8, "big") + b"\0"*(size-20) + b"7777"
         with TemporaryDirectory() as t:
@@ -74,9 +82,11 @@ class TestDownloadAndMath(unittest.TestCase):
             self.assertEqual(validate_grib2(filename_for(issued, root, 'fluxes'), 30)[0], 30)
 
     def test_grib2_framing(self):
+        """Verify that grib2 framing."""
         with TemporaryDirectory() as t:
             p = Path(t) / "dummy.grib"
             def rec():
+                """Compute rec for test TIGGE pipeline."""
                 size = 64
                 return b"GRIB" + b"\0\0\0\2" + size.to_bytes(8, "big") + b"\0" * (size-20) + b"7777"
             p.write_bytes(rec()*30)
@@ -89,7 +99,9 @@ class TestDownloadAndMath(unittest.TestCase):
 
 
 class FakeEcCodes(types.ModuleType):
+    """PyTorch module implementing the Fake Ec Codes architecture or layer."""
     def __init__(self):
+        """Initialize Fake Ec Codes with default state."""
         super().__init__("eccodes")
         self._lat = np.repeat(np.linspace(80,0,321), 361)
         self._lon = np.tile(np.linspace(270,360,361),321)
@@ -97,15 +109,18 @@ class FakeEcCodes(types.ModuleType):
         self.bad_step = False
 
     def codes_grib_new_from_file(self, stream):
+        """Compute codes GRIB new from file for Fake Ec Codes from ``stream``."""
         pos = stream.read(1)
         if not pos:
             return None
         return pos[0]
 
     def codes_release(self, msg):
+        """Compute codes release for Fake Ec Codes from ``msg``."""
         return None
 
     def codes_get(self, msg, key):
+        """Compute codes get for Fake Ec Codes from ``msg``, ``key``."""
         field = "sensible" if msg % 2 == 0 else "latent"
         hour = 24 * (msg//2 + 1)
         ref = {"edition": 2, "typeOfProcessedData": 3, "centre": "ecmf",
@@ -131,6 +146,7 @@ class FakeEcCodes(types.ModuleType):
         return ref[key]
 
     def codes_get_array(self, msg, key):
+        """Compute codes get array for Fake Ec Codes from ``msg``, ``key``."""
         if key == "latitudes":
             return self._lat
         if key == "longitudes":
@@ -138,16 +154,20 @@ class FakeEcCodes(types.ModuleType):
         raise KeyError(key)
 
     def codes_get_values(self, msg):
+        """Compute codes get values for Fake Ec Codes from ``msg``."""
         hour = 24 * (msg//2 + 1)
         q = -10. if msg % 2 == 0 else -100.
         return np.full((321*361,), q * hour * 3600., dtype=np.float64)
 
 
 class TestFakeEcCodes(unittest.TestCase):
+    """Regression tests covering Test Fake Ec Codes."""
     def setUp(self):
+        """Prepare the test fixtures before running the assertions."""
         self.fake = FakeEcCodes()
 
     def test_end_to_end(self):
+        """Verify that end to end."""
         with TemporaryDirectory() as temp:
             root = Path(temp)
             fn = root / "tigge_ecmwf_control_20261001_0000_fluxes.grib"

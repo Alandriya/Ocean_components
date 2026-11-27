@@ -1,3 +1,5 @@
+"""Dense U-Net convolutional blocks and spatial encoder-decoder architecture."""
+
 import torch
 import torch.nn as nn
 
@@ -5,7 +7,9 @@ from Forecast_nn.config import cfg
 
 
 class up_conv(nn.Module):
+    """PyTorch module implementing the up conv architecture or layer."""
     def __init__(self,ch_in,ch_out):
+        """Initialize up conv with ``ch_in``, ``ch_out``."""
         super(up_conv,self).__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2),
@@ -15,12 +19,15 @@ class up_conv(nn.Module):
         )
 
     def forward(self,x):
+        """Apply the up conv transformation to the input tensors."""
         x = self.up(x)
         return x
 
 
 class conv_block(nn.Module):
+    """PyTorch module implementing the conv block architecture or layer."""
     def __init__(self,ch_in,ch_out):
+        """Initialize conv block with ``ch_in``, ``ch_out``."""
         super(conv_block,self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(ch_in, ch_out, kernel_size=3,stride=1,padding=1,bias=True),
@@ -33,12 +40,15 @@ class conv_block(nn.Module):
 
 
     def forward(self,x):
+        """Apply the conv block transformation to the input tensors."""
         x = self.conv(x)
         return x
 
 
 class DenseU_Net(nn.Module):
+    """PyTorch module implementing the Dense U Net architecture or layer."""
     def __init__(self, input_channel, output_channel, b_h_w, kernel_size=2, stride=2, padding='same'):
+        """Initialize Dense U Net with ``input_channel``, ``output_channel``, ``b_h_w``, ``kernel_size``, ``stride``, ``padding``."""
         super(DenseU_Net, self).__init__()
         self.batch = b_h_w[0]
         self.height = b_h_w[1]
@@ -94,6 +104,7 @@ class DenseU_Net(nn.Module):
     def forward(self, x):
         # encoding path
         # x = encoder(x)
+        """Apply the Dense U Net transformation to the input tensors."""
         x = torch.nn.functional.pad(x, (2, 3, 7, 8))
         x = torch.reshape(x, (x.shape[0], x.shape[1] * x.shape[2], x.shape[3], x.shape[4]))
         x1 = x

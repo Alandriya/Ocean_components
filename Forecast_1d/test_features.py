@@ -17,10 +17,11 @@ from .feature_experiment import (FEATURE_SETS, MODEL_NAMES, TARGET_MODES,
                                   FeatureExperiment, PointTransform, base_folder,
                                   save_json, torch_device)
 from .metrics import score_predictions
-from .models.seasonal import fit_seasonal, forecast_seasonal
+from Forecast_1d.models.baselines import fit_seasonal, forecast_seasonal
 
 
 def build_parser():
+    """Construct the command-line argument parser."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", choices=MODEL_NAMES, default="gru")
     p.add_argument("--split", choices=("val", "test"), default="val")
@@ -45,6 +46,7 @@ def build_parser():
 
 
 def _load_forecast(exp, args, point_id, origins, model_folder, device):
+    """Load forecast for the test features workflow."""
     import torch
     from .models.neural import build_model
 
@@ -124,6 +126,7 @@ def _rename_sar_skill(obj):
 
 
 def run(args):
+    """Run the test features workflow using its configured options."""
     if args.batch_size < 1:
         raise ValueError("batch_size must be >=1")
     exp = FeatureExperiment(features_directory=args.features_dir,
@@ -203,6 +206,7 @@ def run(args):
 
 
 def main(argv=None):
+    """Run the test features workflow using its configured options."""
     return run(build_parser().parse_args(argv))
 
 
