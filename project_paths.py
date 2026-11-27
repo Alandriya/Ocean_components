@@ -14,7 +14,7 @@ from pathlib import Path
 CODE_ROOT = Path(__file__).resolve().parent
 
 # --- Choose ONE, and comment the other two ---
-DATA_ROOT = Path(r"D:/Nastya/Data/OceanFull/")    # Work laptop (Windows)
+DATA_ROOT = Path(r"D:/OceanFull/")    # Work laptop (Windows)
 # DATA_ROOT = Path("/home/aosipova/OceanFull/")       # GPU cluster (Linux)
 # DATA_ROOT = Path(r"C:/OceanFull/")               # Second laptop (Windows)
 
